@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -53,13 +53,7 @@ void Backend_warnJEP411(bool isCommit);
 #error The macro PG_GETCONFIGOPTION needs to be renamed.
 #endif
 
-#if PG_VERSION_NUM >= 90100
 #define PG_GETCONFIGOPTION(key) GetConfigOption(key, false, true)
-#elif PG_VERSION_NUM >= 90000
-#define PG_GETCONFIGOPTION(key) GetConfigOption(key, true)
-#else
-#define PG_GETCONFIGOPTION(key) GetConfigOption(key)
-#endif
 
 #ifdef __cplusplus
 }

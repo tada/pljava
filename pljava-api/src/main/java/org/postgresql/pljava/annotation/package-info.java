@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -33,11 +33,10 @@
  * <p>
  * Automatic descriptor generation requires attention to a few things.
  * <ul>
- * <li>A Java 6 or later Java compiler is required, and at least the
- * <code>pljava-api</code> jar must be on its class path. (The full
- * <code>pljava.jar</code> would also work, but only <code>pljava-api</code>
- * is required.) The jar must be on the class path in any case in order to
- * compile PL/Java code.
+ * <li>The {@code pljava-api} jar must be on the Java compiler's class path.
+ * (All but the simplest PL/Java functions probably refer to some class in
+ * PL/Java's API anyway, in which case the jar would already have to be on
+ * the class path.)
  * <li>When recompiling after changing only a few sources, it is possible the
  * Java compiler will only process a subset of the source files containing
  * annotations. If so, it may generate an incomplete deployment descriptor,

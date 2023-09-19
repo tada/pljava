@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -405,23 +405,7 @@ static Datum _Timestamptz_coerceObject(Type self, jobject ts)
  */
 static int32 Timestamp_getTimeZone(pg_time_t time)
 {
-#if defined(_MSC_VER) && ( \
-	100000<=PG_VERSION_NUM && PG_VERSION_NUM<100002 || \
-	 90600<=PG_VERSION_NUM && PG_VERSION_NUM< 90607 || \
-	 90500<=PG_VERSION_NUM && PG_VERSION_NUM< 90511 || \
-	 90400<=PG_VERSION_NUM && PG_VERSION_NUM< 90416 || \
-	PG_VERSION_NUM < 90321 )
-	/* This is gross, but pg_tzset has a cache, so not as gross as you think.
-	 * There is some renewed interest on pgsql-hackers to find a good answer for
-	 * the MSVC PGDLLIMPORT nonsense, so this may not have to stay gross.
-	 */
-	char const *tzname = PG_GETCONFIGOPTION("timezone");
-	struct pg_tm* tx = pg_localtime(&time, pg_tzset(tzname));
-#elif PG_VERSION_NUM < 80300
-	struct pg_tm* tx = pg_localtime(&time, global_timezone);
-#else
 	struct pg_tm* tx = pg_localtime(&time, session_timezone);
-#endif
 	if ( NULL == tx )
 		ereport(ERROR, (
 			errcode(ERRCODE_DATA_EXCEPTION),

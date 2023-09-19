@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -35,11 +35,10 @@ import org.postgresql.pljava.annotation.Function;
  * if {@code matched} is false or the original and returned arrays or strings
  * do not match as seen in SQL.
  * <p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example, and also sets its own.
+ * This example sets an {@code implementor} tag based on a PostgreSQL condition,
+ * as further explained in the {@link ConditionalDDR} example.
  */
-@SQLAction(provides="postgresql_unicodetest",
-	implementor="postgresql_ge_90000", install=
+@SQLAction(provides="postgresql_unicodetest", install=
 	"SELECT CASE" +
 	" WHEN 'UTF8' = current_setting('server_encoding')" +
 	" THEN set_config('pljava.implementors', 'postgresql_unicodetest,' ||" +
@@ -49,50 +48,43 @@ import org.postgresql.pljava.annotation.Function;
 @SQLAction(requires="unicodetest fn",
 implementor="postgresql_unicodetest",
 install=
-"   with " +
-"    usable_codepoints ( cp ) as ( " +
-"     select generate_series(1,x'd7ff'::int) " +
-"     union all " +
-"     select generate_series(x'e000'::int,x'10ffff'::int) " +
+"   WITH " +
+"    usable_codepoints ( cp ) AS ( " +
+"     SELECT generate_series(1,x'd7ff'::int) " +
+"     UNION ALL " +
+"     SELECT generate_series(x'e000'::int,x'10ffff'::int) " +
 "    ), " +
-"    test_inputs ( groupnum, cparray, s ) as ( " +
-"     select " +
-"       cp / 1024 as groupnum, " +
-"       array_agg(cp order by cp), string_agg(chr(cp), '' order by cp) " +
-"     from usable_codepoints " +
-"     group by groupnum " +
+"    test_inputs ( groupnum, cparray, s ) AS ( " +
+"     SELECT " +
+"       cp / 1024 AS groupnum, " +
+"       array_agg(cp ORDER BY cp), string_agg(chr(cp), '' ORDER BY cp) " +
+"     FROM usable_codepoints " +
+"     GROUP BY groupnum " +
 "    ), " +
-"    test_outputs as ( " +
-"     select groupnum, cparray, s, unicodetest(s, cparray) as roundtrip " +
-"     from test_inputs " +
+"    test_outputs AS ( " +
+"     SELECT groupnum, cparray, s, unicodetest(s, cparray) AS roundtrip " +
+"     FROM test_inputs " +
 "    ), " +
-"    test_failures as ( " +
-"     select * " +
-"     from test_outputs " +
-"     where " +
-"      cparray != (roundtrip).cparray or s != (roundtrip).s " +
-"      or not (roundtrip).matched " +
+"    test_failures AS ( " +
+"     SELECT * " +
+"     FROM test_outputs " +
+"     WHERE " +
+"      cparray != (roundtrip).cparray OR s != (roundtrip).s " +
+"      OR NOT (roundtrip).matched " +
 "    ), " +
-"    test_summary ( n_failing_groups, first_failing_group ) as ( " +
-"     select count(*), min(groupnum) from test_failures " +
+"    test_summary ( n_failing_groups, first_failing_group ) AS ( " +
+"     SELECT count(*), min(groupnum) FROM test_failures " +
 "    ) " +
-"   select " +
-"    case when n_failing_groups > 0 then " +
+"   SELECT " +
+"    CASE WHEN n_failing_groups > 0 THEN " +
 "     javatest.logmessage('WARNING', n_failing_groups || " +
 "      ' 1k codepoint ranges had mismatches, first is block starting 0x' || " +
 "      to_hex(1024 * first_failing_group)) " +
-"    else " +
+"    ELSE " +
 "     javatest.logmessage('INFO', " +
 "        'all Unicode codepoint ranges roundtripped successfully.') " +
-"    end " +
-"    from test_summary"
-)
-@SQLAction(
-	install=
-		"CREATE TYPE unicodetestrow AS " +
-		"(matched boolean, cparray integer[], s text)",
-	remove="DROP TYPE unicodetestrow",
-	provides="unicodetestrow type"
+"    END " +
+"    FROM test_summary"
 )
 public class UnicodeRoundTripTest {
 	/**
@@ -111,8 +103,8 @@ public class UnicodeRoundTripTest {
 	 * @param rs OUT (matched, cparray, s) as described above
 	 * @return true to indicate the OUT tuple is not null
 	 */
-	@Function(type="unicodetestrow",
-		requires="unicodetestrow type", provides="unicodetest fn")
+	@Function(out={"matched boolean", "cparray integer[]", "s text"},
+		provides="unicodetest fn")
 	public static boolean unicodetest(String s, int[] ints, ResultSet rs)
 	throws SQLException {
 		boolean ok = true;

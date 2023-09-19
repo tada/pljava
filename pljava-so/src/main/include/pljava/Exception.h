@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,14 +16,6 @@
 #define __pljava_Exception_h
 
 #include "pljava/PgObject.h"
-
-#if PG_VERSION_NUM < 90500
-#ifdef __GNUC__
-#define pg_attribute_printf(f,a) __attribute__((format(printf, f, a)))
-#else
-#define pg_attribute_printf(f,a)
-#endif
-#endif
 
 #ifdef __cplusplus
 extern "C" {

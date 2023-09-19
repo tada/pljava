@@ -23,12 +23,13 @@
 #include <fmgr.h>
 #include <access/heapam.h>
 #include <utils/syscache.h>
+#include <utils/timeout.h>
 #include <catalog/catalog.h>
 #include <catalog/pg_proc.h>
 #include <catalog/pg_type.h>
 
 #if PG_VERSION_NUM >= 120000
- #ifdef HAVE_DLOPEN
+ #if defined(HAVE_DLOPEN)  ||  PG_VERSION_NUM >= 160000 && ! defined(WIN32)
  #include <dlfcn.h>
  #endif
  #define pg_dlopen(f) dlopen((f), RTLD_NOW | RTLD_GLOBAL)
@@ -57,10 +58,6 @@
 #include "pljava/Session.h"
 #include "pljava/SPI.h"
 #include "pljava/type/String.h"
-
-#if PG_VERSION_NUM >= 90300
-#include "utils/timeout.h"
-#endif
 
 /* Include the 'magic block' that PostgreSQL 8.2 and up will use to ensure
  * that a module is not loaded into an incompatible server.
@@ -250,152 +247,133 @@ static bool javaGE17 = false;
 
 static void initsequencer(enum initstage is, bool tolerant);
 
-#if PG_VERSION_NUM >= 90100
-	static bool check_libjvm_location(
-		char **newval, void **extra, GucSource source);
-	static bool check_vmoptions(
-		char **newval, void **extra, GucSource source);
-	static bool check_modulepath(
-		char **newval, void **extra, GucSource source);
-	static bool check_policy_urls(
-		char **newval, void **extra, GucSource source);
-	static bool check_enabled(
-		bool *newval, void **extra, GucSource source);
-	static bool check_java_thread_pg_entry(
-		int *newval, void **extra, GucSource source);
+static bool check_libjvm_location(
+	char **newval, void **extra, GucSource source);
+static bool check_vmoptions(
+	char **newval, void **extra, GucSource source);
+static bool check_modulepath(
+	char **newval, void **extra, GucSource source);
+static bool check_policy_urls(
+	char **newval, void **extra, GucSource source);
+static bool check_enabled(
+	bool *newval, void **extra, GucSource source);
+static bool check_java_thread_pg_entry(
+	int *newval, void **extra, GucSource source);
 
-	/* Check hooks will always allow "setting" a value that is the same as
-	 * current; otherwise, it would be frustrating to have just found settings
-	 * that work, and be unable to save them with ALTER DATABASE SET ... because
-	 * the check hook is called for that too, and would say it is too late....
-	 */
+/* Check hooks will always allow "setting" a value that is the same as
+ * current; otherwise, it would be frustrating to have just found settings
+ * that work, and be unable to save them with ALTER DATABASE SET ... because
+ * the check hook is called for that too, and would say it is too late....
+ */
 
-	static bool check_libjvm_location(
-		char **newval, void **extra, GucSource source)
-	{
-		if ( initstage < IS_CAND_JVMOPENED )
-			return true;
-		if ( libjvmlocation == *newval )
-			return true;
-		if ( libjvmlocation && *newval && 0 == strcmp(libjvmlocation, *newval) )
-			return true;
-		GUC_check_errmsg(
-			"too late to change \"pljava.libjvm_location\" setting");
-		GUC_check_errdetail(
-			"Changing the setting can have no effect after "
-			"PL/Java has found and opened the library it points to.");
-		GUC_check_errhint(
-			"To try a different value, exit this session and start a new one.");
-		return false;
-	}
+static bool check_libjvm_location(
+	char **newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_CAND_JVMOPENED )
+		return true;
+	if ( libjvmlocation == *newval )
+		return true;
+	if ( libjvmlocation && *newval && 0 == strcmp(libjvmlocation, *newval) )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.libjvm_location\" setting");
+	GUC_check_errdetail(
+		"Changing the setting can have no effect after "
+		"PL/Java has found and opened the library it points to.");
+	GUC_check_errhint(
+		"To try a different value, exit this session and start a new one.");
+	return false;
+}
 
-	static bool check_vmoptions(
-		char **newval, void **extra, GucSource source)
-	{
-		if ( initstage < IS_JAVAVM_OPTLIST )
-			return true;
-		if ( vmoptions == *newval )
-			return true;
-		if ( vmoptions && *newval && 0 == strcmp(vmoptions, *newval) )
-			return true;
-		GUC_check_errmsg(
-			"too late to change \"pljava.vmoptions\" setting");
-		GUC_check_errdetail(
-			"Changing the setting can have no effect after "
-			"PL/Java has started the Java virtual machine.");
-		GUC_check_errhint(
-			"To try a different value, exit this session and start a new one.");
-		return false;
-	}
+static bool check_vmoptions(
+	char **newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_JAVAVM_OPTLIST )
+		return true;
+	if ( vmoptions == *newval )
+		return true;
+	if ( vmoptions && *newval && 0 == strcmp(vmoptions, *newval) )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.vmoptions\" setting");
+	GUC_check_errdetail(
+		"Changing the setting can have no effect after "
+		"PL/Java has started the Java virtual machine.");
+	GUC_check_errhint(
+		"To try a different value, exit this session and start a new one.");
+	return false;
+}
 
-	static bool check_modulepath(
-		char **newval, void **extra, GucSource source)
-	{
-		if ( initstage < IS_JAVAVM_OPTLIST )
-			return true;
-		if ( modulepath == *newval )
-			return true;
-		if ( modulepath && *newval && 0 == strcmp(modulepath, *newval) )
-			return true;
-		GUC_check_errmsg(
-			"too late to change \"pljava.module_path\" setting");
-		GUC_check_errdetail(
-			"Changing the setting has no effect after "
-			"PL/Java has started the Java virtual machine.");
-		GUC_check_errhint(
-			"To try a different value, exit this session and start a new one.");
-		return false;
-	}
+static bool check_modulepath(
+	char **newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_JAVAVM_OPTLIST )
+		return true;
+	if ( modulepath == *newval )
+		return true;
+	if ( modulepath && *newval && 0 == strcmp(modulepath, *newval) )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.module_path\" setting");
+	GUC_check_errdetail(
+		"Changing the setting has no effect after "
+		"PL/Java has started the Java virtual machine.");
+	GUC_check_errhint(
+		"To try a different value, exit this session and start a new one.");
+	return false;
+}
 
-	static bool check_policy_urls(
-		char **newval, void **extra, GucSource source)
-	{
-		if ( initstage < IS_JAVAVM_OPTLIST )
-			return true;
-		if ( policy_urls == *newval )
-			return true;
-		if ( policy_urls && *newval && 0 == strcmp(policy_urls, *newval) )
-			return true;
-		GUC_check_errmsg(
-			"too late to change \"pljava.policy_urls\" setting");
-		GUC_check_errdetail(
-			"Changing the setting has no effect after "
-			"PL/Java has started the Java virtual machine.");
-		GUC_check_errhint(
-			"To try a different value, exit this session and start a new one.");
-		return false;
-	}
+static bool check_policy_urls(
+	char **newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_JAVAVM_OPTLIST )
+		return true;
+	if ( policy_urls == *newval )
+		return true;
+	if ( policy_urls && *newval && 0 == strcmp(policy_urls, *newval) )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.policy_urls\" setting");
+	GUC_check_errdetail(
+		"Changing the setting has no effect after "
+		"PL/Java has started the Java virtual machine.");
+	GUC_check_errhint(
+		"To try a different value, exit this session and start a new one.");
+	return false;
+}
 
-	static bool check_enabled(
-		bool *newval, void **extra, GucSource source)
-	{
-		if ( initstage < IS_PLJAVA_ENABLED )
-			return true;
-		if ( *newval )
-			return true;
-		GUC_check_errmsg(
-			"too late to change \"pljava.enable\" setting");
-		GUC_check_errdetail(
-			"Start-up has progressed past the point where it is checked.");
-		GUC_check_errhint(
-			"For another chance, exit this session and start a new one.");
-		return false;
-	}
+static bool check_enabled(
+	bool *newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_PLJAVA_ENABLED )
+		return true;
+	if ( *newval )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.enable\" setting");
+	GUC_check_errdetail(
+		"Start-up has progressed past the point where it is checked.");
+	GUC_check_errhint(
+		"For another chance, exit this session and start a new one.");
+	return false;
+}
 
-	static bool check_java_thread_pg_entry(
-		int *newval, void **extra, GucSource source)
-	{
-		if ( initstage < IS_PLJAVA_FOUND )
-			return true;
-		if ( java_thread_pg_entry == *newval )
-			return true;
-		GUC_check_errmsg(
-			"too late to change \"pljava.java_thread_pg_entry\" setting");
-		GUC_check_errdetail(
-			"Start-up has progressed past the point where it is checked.");
-		GUC_check_errhint(
-			"For another chance, exit this session and start a new one.");
-		return false;
-	}
-#endif
+static bool check_java_thread_pg_entry(
+	int *newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_PLJAVA_FOUND )
+		return true;
+	if ( java_thread_pg_entry == *newval )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.java_thread_pg_entry\" setting");
+	GUC_check_errdetail(
+		"Start-up has progressed past the point where it is checked.");
+	GUC_check_errhint(
+		"For another chance, exit this session and start a new one.");
+	return false;
+}
 
-#if PG_VERSION_NUM < 90100
-#define errdetail_internal errdetail
-#define ASSIGNHOOK(name,type) \
-	static bool \
-	CppConcat(assign_,name)(type newval, bool doit, GucSource source); \
-	static bool \
-	CppConcat(assign_,name)(type newval, bool doit, GucSource source)
-#define ASSIGNRETURN(thing) return (thing)
-#define ASSIGNRETURNIFCHECK(thing) if (doit) ; else return (thing)
-#define ASSIGNRETURNIFNXACT(thing) \
-	if (! deferInit && pljavaViableXact()) ; else return (thing)
-#define ASSIGNSTRINGHOOK(name) \
-	static const char * \
-	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source); \
-	static const char * \
-	CppConcat(assign_,name)(const char *newval, bool doit, GucSource source)
-#else
 #define ASSIGNHOOK(name,type) \
 	static void \
 	CppConcat(assign_,name)(type newval, void *extra); \
@@ -406,7 +384,6 @@ static void initsequencer(enum initstage is, bool tolerant);
 #define ASSIGNRETURNIFNXACT(thing) \
 	if (! deferInit && pljavaViableXact()) ; else return
 #define ASSIGNSTRINGHOOK(name) ASSIGNHOOK(name, const char *)
-#endif
 
 #define ASSIGNENUMHOOK(name) ASSIGNHOOK(name,int)
 #define ENUMBOOTVAL(entry) ((entry).val)
@@ -796,18 +773,13 @@ static void initsequencer(enum initstage is, bool tolerant)
 			 * are just function parameters with evaluation order unknown.
 			 */
 			StringInfoData buf;
-#if PG_VERSION_NUM >= 90200
-#define MOREHINT \
-				appendStringInfo(&buf, \
-					"using ALTER DATABASE %s SET ... FROM CURRENT or ", \
-					pljavaDbName()),
-#else
-#define MOREHINT
-#endif
+
 			ereport(NOTICE, (
 				errmsg("PL/Java successfully started after adjusting settings"),
 				(initStringInfo(&buf),
-				MOREHINT
+				appendStringInfo(&buf, \
+					"using ALTER DATABASE %s SET ... FROM CURRENT or ", \
+					pljavaDbName()),
 				errhint("The settings that worked should be saved (%s"
 					"in the \"%s\" file). For a reminder of what has been set, "
 					"try: SELECT name, setting FROM pg_settings WHERE name LIKE"
@@ -816,7 +788,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 					superuser()
 						? PG_GETCONFIGOPTION("config_file")
 						: "postgresql.conf"))));
-#undef MOREHINT
+
 			if ( loadAsExtensionFailed )
 			{
 #if PG_VERSION_NUM < 130000
@@ -902,7 +874,7 @@ static void reLogWithChangedLevel(int level)
 	else if ( ERRCODE_WARNING == category || ERRCODE_NO_DATA == category ||
 		ERRCODE_SUCCESSFUL_COMPLETION == category )
 		sqlstate = ERRCODE_INTERNAL_ERROR;
-#if PG_VERSION_NUM >= 90500
+
 	edata->elevel = level;
 	edata->sqlerrcode = sqlstate;
 	PG_TRY();
@@ -916,43 +888,6 @@ static void reLogWithChangedLevel(int level)
 	}
 	PG_END_TRY();
 	FreeErrorData(edata);
-#else
-	if (!errstart(level, edata->filename, edata->lineno,
-				  edata->funcname, NULL))
-	{
-		FreeErrorData(edata);
-		return;
-	}
-
-	errcode(sqlstate);
-	if (edata->message)
-		errmsg("%s", edata->message);
-	if (edata->detail)
-		errdetail("%s", edata->detail);
-	if (edata->detail_log)
-		errdetail_log("%s", edata->detail_log);
-	if (edata->hint)
-		errhint("%s", edata->hint);
-	if (edata->context)
-		errcontext("%s", edata->context); /* this may need to be trimmed */
-#if PG_VERSION_NUM >= 90300
-	if (edata->schema_name)
-		err_generic_string(PG_DIAG_SCHEMA_NAME, edata->schema_name);
-	if (edata->table_name)
-		err_generic_string(PG_DIAG_TABLE_NAME, edata->table_name);
-	if (edata->column_name)
-		err_generic_string(PG_DIAG_COLUMN_NAME, edata->column_name);
-	if (edata->datatype_name)
-		err_generic_string(PG_DIAG_DATATYPE_NAME, edata->datatype_name);
-	if (edata->constraint_name)
-		err_generic_string(PG_DIAG_CONSTRAINT_NAME, edata->constraint_name);
-#endif
-	if (edata->internalquery)
-		internalerrquery(edata->internalquery);
-
-	FreeErrorData(edata);
-	errfinish(0);
-#endif
 }
 
 void _PG_init()
@@ -969,8 +904,7 @@ void _PG_init()
 	 * preparing the launch options before it is launched. PostgreSQL knows what
 	 * it is, but won't directly say; give it some choices and it'll pick one.
 	 * Alternatively, let Maven or Ant determine and add a -D at build time from
-	 * the path.separator property. Maybe that's cleaner? This only works for
-	 * PG_VERSION_NUM >= 90100.
+	 * the path.separator property. Maybe that's cleaner?
 	 */
 	sep = first_path_var_separator(":;");
 	if ( NULL == sep )
@@ -1340,12 +1274,7 @@ static void pljavaQuickDieHandler(int signum)
 }
 
 static sigjmp_buf recoverBuf;
-static void terminationTimeoutHandler(
-#if PG_VERSION_NUM >= 90300
-#else
-	int signum
-#endif
-)
+static void terminationTimeoutHandler()
 {
 	kill(MyProcPid, SIGQUIT);
 	
@@ -1387,12 +1316,7 @@ static void _destroyJavaVM(int status, Datum dummy)
 	{
 		Invocation ctx;
 #ifdef USE_PLJAVA_SIGHANDLERS
-
-#if PG_VERSION_NUM >= 90300
 		TimeoutId tid;
-#else
-		pqsigfunc saveSigAlrm;
-#endif
 
 		Invocation_pushBootContext(&ctx);
 		if(sigsetjmp(recoverBuf, 1) != 0)
@@ -1404,24 +1328,13 @@ static void _destroyJavaVM(int status, Datum dummy)
 			return;
 		}
 
-#if PG_VERSION_NUM >= 90300
 		tid = RegisterTimeout(USER_TIMEOUT, terminationTimeoutHandler);
 		enable_timeout_after(tid, 5000);
-#else
-		saveSigAlrm = pqsignal(SIGALRM, terminationTimeoutHandler);
-		enable_sig_alarm(5000, false);
-#endif
 
 		elog(DEBUG2, "shutting down the Java virtual machine");
 		JNI_destroyVM(s_javaVM);
 
-#if PG_VERSION_NUM >= 90300
 		disable_timeout(tid, false);
-#else
-		disable_sig_alarm(false);
-		pqsignal(SIGALRM, saveSigAlrm);
-#endif
-
 #else
 		Invocation_pushBootContext(&ctx);
 		elog(DEBUG2, "shutting down the Java virtual machine");
@@ -1646,12 +1559,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 #define GUCBOOTVAL(v) (v),
 #define GUCBOOTASSIGN(a, v)
 #define GUCFLAGS(f) (f),
-
-#if PG_VERSION_NUM >= 90100
 #define GUCCHECK(h) (h),
-#else
-#define GUCCHECK(h)
-#endif
 
 #define BOOL_GUC(name, short_desc, long_desc, valueAddr, bootValue, context, \
                  flags, check_hook, assign_hook, show_hook) \
@@ -1685,11 +1593,7 @@ static jint initializeJavaVM(JVMOptList *optList)
 #define PLJAVA_LIBJVMDEFAULT "libjvm"
 #endif
 
-#if PG_VERSION_NUM >= 90200
 #define PLJAVA_ENABLE_DEFAULT true
-#else
-#define PLJAVA_ENABLE_DEFAULT false
-#endif
 
 #if PG_VERSION_NUM < 110000
 #define PLJAVA_IMPLEMENTOR_FLAGS GUC_LIST_INPUT | GUC_LIST_QUOTE

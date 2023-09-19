@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -50,9 +50,7 @@ static bool _SQLXML_canReplaceType(Type self, Type other)
 #if defined(XMLOID)
 		Type_getOid(other) == XMLOID  ||
 #endif
-#if PG_VERSION_NUM >= 90100
 		Type_getOid(other) == PG_NODE_TREEOID  ||  /* a synthetic rendering */
-#endif
 		Type_getOid(other) == TEXTOID;
 }
 
@@ -86,17 +84,12 @@ static Datum _SQLXML_coerceObject(Type self, jobject sqlxml)
 		s_SQLXML_class, s_SQLXML_adopt, sqlxml, Type_getOid(self));
 	Datum d = pljava_VarlenaWrapper_adopt(vw);
 	JNI_deleteLocalRef(vw);
-#if PG_VERSION_NUM >= 90500
 	if ( VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)) )
 		return TransferExpandedObject(d, CurrentMemoryContext);
-#endif
-#if PG_VERSION_NUM >= 90200
+
 	MemoryContextSetParent(
 		GetMemoryChunkContext(DatumGetPointer(d)), CurrentMemoryContext);
-#else
-	if ( CurrentMemoryContext != GetMemoryChunkContext(DatumGetPointer(d)) )
-		d = PointerGetDatum(PG_DETOAST_DATUM_COPY(d));
-#endif
+
 	return d;
 }
 
@@ -134,18 +127,15 @@ static Type _SQLXML_obtain(Oid typeId)
 #if defined(XMLOID)
 	static Type xmlInstance;
 #endif
-#if PG_VERSION_NUM >= 90100
 	static Type pgNodeTreeInstance;
-#endif
+
 	switch ( typeId )
 	{
-#if PG_VERSION_NUM >= 90100
 	case PG_NODE_TREEOID:
 		allowedId = PG_NODE_TREEOID;
 		synthetic = true;
 		cache = &pgNodeTreeInstance;
 		break;
-#endif
 	default:
 		if ( TEXTOID == typeId )
 		{

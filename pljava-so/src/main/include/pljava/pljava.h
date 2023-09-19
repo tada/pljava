@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -37,6 +37,7 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #include <utils/syscache.h>
 #include <utils/memutils.h>
 #include <tcop/tcopprot.h>
+#include <access/htup_details.h>
 
 /*
  * AssertVariableIsOfType appeared in PG9.3. Can test for the macro directly.
@@ -63,23 +64,6 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 	ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_SMALL_MAXSIZE
 #define ALLOCSET_START_SMALL_SIZES \
 	ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE
-#endif
-
-/*
- * GETSTRUCT require "access/htup_details.h" to be included in PG9.3
- */
-#if PG_VERSION_NUM >= 90300
-#include "access/htup_details.h"
-#endif
-
-/*
- * PG_*_{MIN,MAX} macros (which happen, conveniently, to match Java's datatypes
- * (the signed ones, anyway), appear in PG 9.5. Could test for them directly,
- * but explicit version conditionals may be easier to find and prune when the
- * back-compatibility horizon passes them. Here are only the ones being used.
- */
-#if PG_VERSION_NUM < 90500
-#define PG_INT32_MAX    (0x7FFFFFFF)
 #endif
 
 /*
@@ -118,28 +102,10 @@ extern MemoryContext JavaMemoryContext;
  * stack_base_ptr was static before PG 8.1. By executive decision, PL/Java now
  * has 8.1 as a back compatibility limit; no empty #defines here for earlier.
  */
-#if 90104<=PG_VERSION_NUM || \
-	90008<=PG_VERSION_NUM && PG_VERSION_NUM<90100 || \
-	80412<=PG_VERSION_NUM && PG_VERSION_NUM<90000 || \
-	80319<=PG_VERSION_NUM && PG_VERSION_NUM<80400
 #define NEED_MISCADMIN_FOR_STACK_BASE
 #define _STACK_BASE_TYPE pg_stack_base_t
 #define _STACK_BASE_SET saveStackBasePtr = set_stack_base()
 #define _STACK_BASE_RESTORE restore_stack_base(saveStackBasePtr)
-#else
-extern
-#if PG_VERSION_NUM < 80300
-DLLIMPORT
-#else
-PGDLLIMPORT
-#endif
-char* stack_base_ptr;
-#define _STACK_BASE_TYPE char*
-#define _STACK_BASE_SET \
-	saveStackBasePtr = stack_base_ptr; \
-	stack_base_ptr = (char*)&saveMainThreadId
-#define _STACK_BASE_RESTORE stack_base_ptr = saveStackBasePtr
-#endif
 
 #define STACK_BASE_VARS \
 	void* saveMainThreadId = 0; \

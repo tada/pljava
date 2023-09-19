@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -27,19 +27,23 @@ import static org.postgresql.pljava.example.LoggerTest.logMessage;
  *<p>
  * Everything mentioning the type XML here needs a conditional implementor tag
  * in case of being loaded into a PostgreSQL instance built without that type.
- * The {@code pg_node_tree} type appears in 9.1.
  */
-@SQLAction(implementor="postgresql_ge_90100",
-	provides="postgresql_xml_ge91",
-	install=
-	"SELECT CASE (SELECT 1 FROM pg_type WHERE typname = 'xml') WHEN 1" +
-	" THEN set_config('pljava.implementors', 'postgresql_xml_ge91,' || " +
-	" current_setting('pljava.implementors'), true) " +
-	"END"
+@SQLAction(implementor="postgresql_xml", requires="pgNodeTreeAsXML", install=
+"WITH" +
+"  a(t) AS (SELECT adbin FROM pg_catalog.pg_attrdef LIMIT 1)" +
+" SELECT" +
+"   CASE WHEN pgNodeTreeAsXML(t) IS DOCUMENT" +
+"    THEN javatest.logmessage('INFO', 'pgNodeTreeAsXML ok')" +
+"    ELSE javatest.logmessage('WARNING', 'pgNodeTreeAsXML ng')" +
+"   END" +
+"  FROM a"
 )
 public class XMLRenderedTypes
 {
-	@Function(schema="javatest", implementor="postgresql_xml_ge91")
+	@Function(
+		schema="javatest", implementor="postgresql_xml",
+		provides="pgNodeTreeAsXML"
+	)
 	public static SQLXML pgNodeTreeAsXML(@SQLType("pg_node_tree") SQLXML pgt)
 	throws SQLException
 	{

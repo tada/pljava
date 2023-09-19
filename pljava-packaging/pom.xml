@@ -66,6 +66,23 @@
 
 		<!--
 		  - Activate this profile just as a convenient way to make Maven
+		  - download the pgjdbc driver. It isn't needed in any way for
+		  - building, but then you will have it in your local Maven repository
+		  - if you want to add it to your classpath for some tests.
+		  -->
+		<profile>
+			<id>pgjdbc</id>
+			<dependencies>
+				<dependency>
+					<groupId>org.postgresql</groupId>
+					<artifactId>postgresql</artifactId>
+					<version>[42.6.0,)</version>
+				</dependency>
+			</dependencies>
+		</profile>
+
+		<!--
+		  - Activate this profile just as a convenient way to make Maven
 		  - download the pgjdbc-ng driver. It isn't needed in any way for
 		  - building, but then you will have it in your local Maven repository
 		  - if you want to add it to your classpath for some tests.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -10,17 +10,11 @@
  *   Chapman Flack
  */
 #include <postgres.h>
-#if PG_VERSION_NUM >= 90300
 #include <access/htup_details.h>
-#else
-#include <access/htup.h>
-#endif
 #include <access/xact.h>
 #include <catalog/pg_language.h>
 #include <catalog/pg_proc.h>
-#if PG_VERSION_NUM >= 90100
 #include <commands/extension.h>
-#endif
 #include <commands/portalcmds.h>
 #include <executor/spi.h>
 #include <miscadmin.h>
@@ -30,20 +24,15 @@
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
 #include <utils/memutils.h>
-#if PG_VERSION_NUM >= 80400
 #include <utils/snapmgr.h>
-#endif
 #include <utils/syscache.h>
 
 #if PG_VERSION_NUM >= 120000
 #include <catalog/pg_namespace.h>
 #define GetNamespaceOid(k1) \
 	GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid, k1)
-#elif PG_VERSION_NUM >= 90000
-#define GetNamespaceOid(k1) GetSysCacheOid1(NAMESPACENAME, k1)
 #else
-#define SearchSysCache1(cid, k1) SearchSysCache(cid, k1, 0, 0, 0)
-#define GetNamespaceOid(k1) GetSysCacheOid(NAMESPACENAME, k1, 0, 0, 0)
+#define GetNamespaceOid(k1) GetSysCacheOid1(NAMESPACENAME, k1)
 #endif
 
 #include "pljava/InstallHelper.h"
@@ -55,46 +44,16 @@
 #include "pljava/type/String.h"
 
 /*
- * Before 9.1, there was no creating_extension. Before 9.5, it did not have
- * PGDLLIMPORT and so was not visible in Windows. In either case, just define
- * it to be false, but also define CREATING_EXTENSION_HACK if on Windows and
- * it needs to be tested for in some roundabout way.
- */
-#if PG_VERSION_NUM < 90100 || defined(_MSC_VER) && PG_VERSION_NUM < 90500
-#define creating_extension false
-#if PG_VERSION_NUM >= 90100
-#define CREATING_EXTENSION_HACK
-#endif
-#endif
-
-/*
- * Before 9.1, there was no IsBinaryUpgrade. Before 9.5, it did not have
- * PGDLLIMPORT and so was not visible in Windows. In either case, just define
- * it to be false; Windows users may have trouble using pg_upgrade to versions
- * earlier than 9.5, but with the current version being 9.6 that should be rare.
- */
-#if PG_VERSION_NUM < 90100 || defined(_MSC_VER) && PG_VERSION_NUM < 90500
-#define IsBinaryUpgrade false
-#endif
-
-/*
- * Before 9.3, there was no IsBackgroundWorker. As of 9.6.1 it still does not
+ * As of 9.6.1, IsBackgroundWorker still does not
  * have PGDLLIMPORT, but MyBgworkerEntry != NULL can be used in MSVC instead.
- * However, until 9.3.3, even that did not have PGDLLIMPORT, and there's not
- * much to be done about it. BackgroundWorkerness won't be detected in MSVC
- * for 9.3.0 through 9.3.2.
  *
  * One thing it's needed for is to avoid dereferencing MyProcPort in a
  * background worker, where it's not set.
  */
-#if PG_VERSION_NUM < 90300  ||  defined(_MSC_VER) && PG_VERSION_NUM < 90303
-#define IsBackgroundWorker false
-#else
 #include <commands/dbcommands.h>
 #if defined(_MSC_VER)
 #include <postmaster/bgworker.h>
 #define IsBackgroundWorker (MyBgworkerEntry != NULL)
-#endif
 #endif
 
 /*
@@ -112,7 +71,7 @@ static jfieldID  s_InstallHelper_MANAGE_CONTEXT_LOADER;
 
 static bool extensionExNihilo = false;
 
-static void checkLoadPath( bool *livecheck);
+static void checkLoadPath(void);
 static void getExtensionLoadPath(void);
 static char *origUserName();
 
@@ -153,7 +112,6 @@ static char *origUserName()
 {
 	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
 	{
-#if PG_VERSION_NUM >= 90500
 		char *shortlived;
 		static char *longlived;
 		if ( NULL == longlived )
@@ -163,14 +121,6 @@ static char *origUserName()
 			pfree(shortlived);
 		}
 		return longlived;
-#else
-		ereport(ERROR, (
-			errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			errmsg("PL/Java in a background or autovacuum worker not supported "
-				"in this PostgreSQL version"),
-			errhint("PostgreSQL 9.5 is the first version in which "
-				"such usage is supported.")));
-#endif
 	}
 	return MyProcPort->user_name;
 }
@@ -178,22 +128,17 @@ static char *origUserName()
 char const *pljavaClusterName()
 {
 	/*
-	 * If PostgreSQL isn't at least 9.5, there can't BE a cluster name, and if
-	 * it is, then there's always one (even if it is an empty string), so
-	 * PG_GETCONFIGOPTION is safe.
+	 * In PostgreSQL of at least 9.5, there's always one (even if it is an empty
+	 * string), so PG_GETCONFIGOPTION is safe.
 	 */
-#if PG_VERSION_NUM < 90500
-	return "";
-#else
 	return PG_GETCONFIGOPTION("cluster_name");
-#endif
 }
 
 void pljavaCheckExtension( bool *livecheck)
 {
 	if ( ! creating_extension )
 	{
-		checkLoadPath( livecheck);
+		checkLoadPath();
 		return;
 	}
 	if ( NULL != livecheck )
@@ -216,29 +161,17 @@ void pljavaCheckExtension( bool *livecheck)
  * on Windows. So if livecheck isn't null, this function only needs to proceed
  * as far as the CREATING_EXTENSION_HACK and then return.
  */
-static void checkLoadPath( bool *livecheck)
+static void checkLoadPath()
 {
 	List *l;
 	Node *ut;
 	LoadStmt *ls;
-#if PG_VERSION_NUM >= 80300
 	PlannedStmt *ps;
-#else
-	Query *ps;
-#endif
 
-#ifndef CREATING_EXTENSION_HACK
-	if ( NULL != livecheck )
-		return;
-#endif
 	if ( NULL == ActivePortal )
 		return;
-	l = ActivePortal->
-#if PG_VERSION_NUM >= 80300
-		stmts;
-#else
-		parseTrees;
-#endif
+	l = ActivePortal->stmts;
+
 	if ( NULL == l )
 		return;
 	if ( 1 < list_length( l) )
@@ -249,15 +182,10 @@ static void checkLoadPath( bool *livecheck)
 		elog(DEBUG2, "got null for first statement from ActivePortal");
 		return;
 	}
-#if PG_VERSION_NUM >= 80300
+
 	if ( T_PlannedStmt == nodeTag(ut) )
 	{
 		ps = (PlannedStmt *)ut;
-#else
-	if ( T_Query == nodeTag(ut) )
-	{
-		ps = (Query *)ut;
-#endif
 		if ( CMD_UTILITY != ps->commandType )
 		{
 			elog(DEBUG2, "ActivePortal has PlannedStmt command type %u",
@@ -272,22 +200,8 @@ static void checkLoadPath( bool *livecheck)
 		}
 	}
 	if ( T_LoadStmt != nodeTag(ut) )
-#ifdef CREATING_EXTENSION_HACK
-		if ( T_CreateExtensionStmt == nodeTag(ut) )
-		{
-			if ( NULL != livecheck )
-			{
-				*livecheck = true;
-				return;
-			}
-			getExtensionLoadPath();
-			if ( NULL != pljavaLoadPath )
-				pljavaLoadingAsExtension = true;
-		}
-#endif
 		return;
-	if ( NULL != livecheck )
-		return;
+
 	ls = (LoadStmt *)ut;
 	if ( NULL == ls->filename )
 	{
@@ -555,14 +469,9 @@ char *InstallHelper_hello()
 	nativeVer = String_createJavaStringFromNTS(SO_VERSION_STRING);
 	serverBuiltVer = String_createJavaStringFromNTS(PG_VERSION_STR);
 
-#if PG_VERSION_NUM >= 90100
 	InitFunctionCallInfoData(fcinfo, NULL, 0,
 	InvalidOid, /* collation */
 	NULL, NULL);
-#else
-	InitFunctionCallInfoData(fcinfo, NULL, 0,
-	NULL, NULL);
-#endif
 	runningVer = DatumGetTextP(pgsql_version(&fcinfo));
 	serverRunningVer = String_createJavaString(runningVer);
 	pfree(runningVer);
@@ -614,15 +523,9 @@ void InstallHelper_groundwork()
 	bool snapshot_set = false;
 	Invocation_pushInvocation(&ctx);
 	ctx.function = Function_INIT_WRITER;
-#if PG_VERSION_NUM >= 80400
 	if ( ! ActiveSnapshotSet() )
 	{
 		PushActiveSnapshot(GetTransactionSnapshot());
-#else
-	if ( NULL == ActiveSnapshot )
-	{
-		ActiveSnapshot = CopySnapshot(GetTransactionSnapshot());
-#endif
 		snapshot_set = true;
 	}
 	PG_TRY();
@@ -644,11 +547,7 @@ void InstallHelper_groundwork()
 		JNI_deleteLocalRef(jlptq);
 		if ( snapshot_set )
 		{
-#if PG_VERSION_NUM >= 80400
 			PopActiveSnapshot();
-#else
-			ActiveSnapshot = NULL;
-#endif
 		}
 		Invocation_popInvocation(false);
 	}
@@ -656,11 +555,7 @@ void InstallHelper_groundwork()
 	{
 		if ( snapshot_set )
 		{
-#if PG_VERSION_NUM >= 80400
 			PopActiveSnapshot();
-#else
-			ActiveSnapshot = NULL;
-#endif
 		}
 		Invocation_popInvocation(true);
 		PG_RE_THROW();

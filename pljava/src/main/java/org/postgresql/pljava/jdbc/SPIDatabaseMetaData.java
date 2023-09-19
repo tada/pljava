@@ -1574,7 +1574,11 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 			// if we are returning a multi-column result.
 			if(returnTypeType.equals("c"))
 			{
-				String columnsql = "SELECT a.attname,a.atttypid FROM pg_catalog.pg_attribute a WHERE a.attrelid = ? ORDER BY a.attnum ";
+				String columnsql =
+					"SELECT a.attname,a.atttypid " +
+					"FROM pg_catalog.pg_attribute a " +
+					"WHERE a.attrelid OPERATOR(pg_catalog.=) ? " +
+					"ORDER BY a.attnum";
 				PreparedStatement stmt = m_connection.prepareStatement(columnsql);
 				stmt.setObject(1, returnTypeRelid);
 				ResultSet columnrs = stmt.executeQuery(columnsql);
@@ -2158,7 +2162,7 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 
 		String sql = "SELECT n.nspname,c.relname,u.usename,c.relacl "
 				+ " FROM pg_catalog.pg_namespace n, pg_catalog.pg_class c, pg_catalog.pg_user u "
-				+ " WHERE c.relnamespace = n.oid "
+				+ " WHERE c.relnamespace OPERATOR(pg_catalog.=) n.oid "
 				+ " AND u.usesysid OPERATOR(pg_catalog.=) c.relowner "
 				+ " AND c.relkind OPERATOR(pg_catalog.=) 'r' "
                 + " AND " + resolveSchemaPatternCondition(

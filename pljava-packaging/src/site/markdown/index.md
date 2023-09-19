@@ -28,9 +28,11 @@ That allows `jshell` to serve as an environment for scripting tests
 of PL/Java in a running PostgreSQL instance, with capabilities similar to
 (and modeled on) the [PostgresNode][] Perl module distributed with PostgreSQL.
 
-See the javadoc for [the Node class][node] for details.
+See [this introduction][nodetut] and the javadoc for [the Node class][node]
+for details.
 
 [install]: ../install/install.html
 [JShell]: https://docs.oracle.com/javase/9/jshell/introduction-jshell.htm
 [PostgresNode]: https://git.postgresql.org/gitweb/?p=postgresql.git;a=blob;f=src/test/perl/PostgresNode.pm;h=aec3b9a;hb=e640093
 [node]: apidocs/org/postgresql/pljava/packaging/Node.html
+[nodetut]: ../develop/node.html

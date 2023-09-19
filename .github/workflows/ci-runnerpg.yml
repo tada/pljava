@@ -215,6 +215,8 @@ jobs:
         import static org.postgresql.pljava.packaging.Node.stateMachine;
         import static org.postgresql.pljava.packaging.Node.isVoidResultSet;
         import static org.postgresql.pljava.packaging.Node.s_isWindows;
+        import static
+            org.postgresql.pljava.packaging.Node.NOTHING_OR_PGJDBC_ZERO_COUNT;
         /*
          * Imports that will be needed to serve a jar file over http
          * when the time comes for testing that.
@@ -339,7 +341,9 @@ jobs:
               // state 1: consume any diagnostics, or to state 2 with same item
               (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
 
-              // state 2: must be end of input
+              NOTHING_OR_PGJDBC_ZERO_COUNT, // state 2
+
+              // state 3: must be end of input
               (o,p,q) -> null == o
             );
           }
@@ -566,6 +570,9 @@ jobs:
                 .peek(Node::peek),
 
                 (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+                NOTHING_OR_PGJDBC_ZERO_COUNT,
+                NOTHING_OR_PGJDBC_ZERO_COUNT,
+                NOTHING_OR_PGJDBC_ZERO_COUNT,
                 (o,p,q) -> null == o
               );
 
@@ -598,6 +605,8 @@ jobs:
               .peek(Node::peek),
 
               (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              NOTHING_OR_PGJDBC_ZERO_COUNT,
+              NOTHING_OR_PGJDBC_ZERO_COUNT,
               (o,p,q) -> null == o
             );
           }
@@ -633,6 +642,7 @@ jobs:
               .peek(Node::peek),
 
               (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              NOTHING_OR_PGJDBC_ZERO_COUNT,
               (o,p,q) -> null == o
             );
 
@@ -647,6 +657,7 @@ jobs:
                 .peek(Node::peek),
 
                 (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+                NOTHING_OR_PGJDBC_ZERO_COUNT,
                 (o,p,q) -> null == o
               );
             }
@@ -672,6 +683,7 @@ jobs:
               .peek(Node::peek),
 
               (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              NOTHING_OR_PGJDBC_ZERO_COUNT,
               (o,p,q) -> null == o
             );
 
@@ -687,6 +699,8 @@ jobs:
               .peek(Node::peek),
 
               (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+              NOTHING_OR_PGJDBC_ZERO_COUNT,
+              NOTHING_OR_PGJDBC_ZERO_COUNT,
               (o,p,q) -> null == o
             );
           }
