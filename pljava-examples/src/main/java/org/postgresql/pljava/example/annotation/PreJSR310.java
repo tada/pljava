@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -29,9 +29,6 @@ import org.postgresql.pljava.annotation.SQLAction;
  * Some tests of pre-JSR 310 date/time/timestamp conversions.
  *<p>
  * For now, just {@code java.sql.Date}, thanks to issue #199.
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example.
  */
 @SQLAction(provides="language java_tzset", install={
 	"SELECT sqlj.alias_java_language('java_tzset', true)"
@@ -39,7 +36,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 	"DROP LANGUAGE java_tzset"
 })
 
-@SQLAction(implementor="postgresql_ge_90300", // needs LATERAL
+@SQLAction(
 	requires="issue199", install={
 	"SELECT javatest.issue199()"
 })

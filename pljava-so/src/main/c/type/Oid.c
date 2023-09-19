@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
- * @author Thomas Hallgren
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  */
 #include <postgres.h>
 
@@ -256,11 +260,7 @@ Java_org_postgresql_pljava_internal_Oid__1forTypeName(JNIEnv* env, jclass cls, j
 		PG_TRY();
 		{
 			int32 typmod = 0;
-#if PG_VERSION_NUM < 90400
-			parseTypeString(typeNameOrOid, &typeId, &typmod);
-#else
 			parseTypeString(typeNameOrOid, &typeId, &typmod, 0);
-#endif
 		}
 		PG_CATCH();
 		{

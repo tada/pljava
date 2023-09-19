@@ -1182,12 +1182,11 @@ public interface VarlenaWrapper extends Closeable
 		 * wraps a {@code ByteBuffer} and the {@link Output.State Output.State}
 		 * that protects it.
 		 *<p>
-		 * {@code BufferWrapper} installs <em>itself</em> as the inherited
-		 * {@code m_state} field, so {@code ByteBufferInputStream}'s methods
-		 * synchronize on it rather than the {@code State} object, for no
-		 * interference with the writing thread. The {@code pin} and
-		 * {@code unpin} methods, of course, forward to those of the
-		 * native state object.
+		 * {@code BufferWrapper} installs <em>itself</em> as the
+		 * {@code ByteBufferInputStream}'s lock object, so its methods
+		 * synchronize on this rather than anything that would interfere with
+		 * the writing thread. The {@code pin} and {@code unpin} methods,
+		 * of course, forward to those of the native state object.
 		 */
 		static class BufferWrapper
 		extends ByteBufferInputStream

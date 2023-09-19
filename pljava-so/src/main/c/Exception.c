@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -59,7 +59,13 @@ Exception_featureNotSupported(const char* requestedFeature, const char* introVer
 		appendStringInfoString(&buf, requestedFeature);
 		appendStringInfoString(&buf, " lacks support in PostgreSQL version ");
 		appendStringInfo(&buf, "%d.%d",
-						PG_VERSION_NUM / 10000, (PG_VERSION_NUM / 100) % 100);
+						PG_VERSION_NUM / 10000,
+#if PG_VERSION_NUM >= 100000
+						(PG_VERSION_NUM) % 10000
+#else
+						(PG_VERSION_NUM / 100) % 100
+#endif
+		);
 		appendStringInfoString(&buf, ". It was introduced in version ");
 		appendStringInfoString(&buf, introVersion);
 	

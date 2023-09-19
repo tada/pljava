@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -21,13 +21,8 @@
 #endif
 
 #include <utils/datum.h>
-
-#if PG_VERSION_NUM < 80400
-#define RegisterSnapshotOnOwner(s,o) NULL
-#else
 #include <utils/snapshot.h>
 #include <utils/snapmgr.h>
-#endif
 
 #include "org_postgresql_pljava_internal_VarlenaWrapper_Input_State.h"
 #include "org_postgresql_pljava_internal_VarlenaWrapper_Output_State.h"
@@ -41,37 +36,7 @@
 #define GetOldestSnapshot() NULL
 #endif
 
-#if PG_VERSION_NUM < 90400
-/*
- * There aren't 'indirect' varlenas yet, IS_EXTERNAL_ONDISK is just IS_EXTERNAL,
- * and VARATT_EXTERNAL_GET_POINTER is private inside tuptoaster.c; copy it here.
- */
-#define VARATT_IS_EXTERNAL_ONDISK VARATT_IS_EXTERNAL
-#define VARATT_EXTERNAL_GET_POINTER(toast_pointer, attr) \
-do { \
-	varattrib_1b_e *attre = (varattrib_1b_e *) (attr); \
-	memcpy(&(toast_pointer), VARDATA_EXTERNAL(attre), sizeof(toast_pointer)); \
-} while (0)
-#endif
-
-#if PG_VERSION_NUM < 80300
-#define VARSIZE_ANY(PTR) VARSIZE(PTR)
-#define VARSIZE_ANY_EXHDR(PTR) (VARSIZE(PTR) - VARHDRSZ)
-#define SET_VARSIZE(PTR, len) VARATT_SIZEP(PTR) = len & VARATT_MASK_SIZE
-struct varatt_external
-{
-	int32 va_extsize; /* the only piece used here */
-};
-#undef VARATT_EXTERNAL_GET_POINTER
-#define VARATT_EXTERNAL_GET_POINTER(toast_pointer, attr) \
-do { \
-	(toast_pointer).va_extsize = \
-		((varattrib *)(attr))->va_content.va_external.va_extsize; \
-} while (0)
-#define _VL_TYPE varattrib *
-#else
 #define _VL_TYPE struct varlena *
-#endif
 
 #if PG_VERSION_NUM < 140000
 #define VARATT_EXTERNAL_GET_EXTSIZE(toast_pointer) ((toast_pointer).va_extsize)
@@ -101,37 +66,6 @@ static jfieldID  s_VarlenaWrapper_Input_State_varlena;
  * form, it will use these 'methods' to flatten it, and that's when the one
  * final reallocation and copy will happen.
  */
-
-#if PG_VERSION_NUM < 90500
-/*
- * There aren't 'expanded' varlenas yet. Copy some defs (in simplified form)
- * and pretend there are.
- */
-typedef struct ExpandedObjectHeader ExpandedObjectHeader;
-
-typedef Size (*EOM_get_flat_size_method) (ExpandedObjectHeader *eohptr);
-typedef void (*EOM_flatten_into_method) (ExpandedObjectHeader *eohptr,
-										  void *result, Size allocated_size);
-
-typedef struct ExpandedObjectMethods
-{
-	EOM_get_flat_size_method get_flat_size;
-	EOM_flatten_into_method flatten_into;
-} ExpandedObjectMethods;
-
-struct ExpandedObjectHeader
-{
-	int32 magic;
-	MemoryContext eoh_context;
-};
-
-#define EOH_init_header(eohptr, methods, obj_context) \
-	do {(eohptr)->magic = -1; (eohptr)->eoh_context = (obj_context);} while (0)
-
-#define EOHPGetRWDatum(eohptr) (eohptr)
-#define DatumGetEOHP(d) (d)
-#define VARATT_IS_EXTERNAL_EXPANDED(attr) false
-#endif
 
 static Size VOS_get_flat_size(ExpandedObjectHeader *eohptr);
 static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
@@ -189,7 +123,6 @@ jobject pljava_VarlenaWrapper_Input(
 
 	vl = (_VL_TYPE) DatumGetPointer(d);
 
-#if PG_VERSION_NUM >= 90400
 	if ( VARATT_IS_EXTERNAL_INDIRECT(vl) ) /* at most once; can't be nested */
 	{
 		struct varatt_indirect redirect;
@@ -197,7 +130,6 @@ jobject pljava_VarlenaWrapper_Input(
 		vl = (_VL_TYPE)redirect.pointer;
 		d = PointerGetDatum(vl);
 	}
-#endif
 
 	parked = VARSIZE_ANY(vl);
 	actual = toast_raw_datum_size(d) - VARHDRSZ;
@@ -342,25 +274,11 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 {
 	Ptr2Long p2l;
-#if PG_VERSION_NUM < 90500
-	ExpandedObjectHeader *eohptr;
-	Size final_size;
-	void *final_result;
-#endif
 
 	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
 					pljava_DualState_key());
-#if PG_VERSION_NUM >= 90500
+
 	return PointerGetDatum(p2l.ptrVal);
-#else
-	eohptr = p2l.ptrVal;
-	if ( -1 != eohptr->magic )
-		return PointerGetDatum(eohptr);
-	final_size = VOS_get_flat_size(eohptr);
-	final_result = MemoryContextAlloc(eohptr->eoh_context, final_size);
-	VOS_flatten_into(eohptr, final_result, final_size);
-	return PointerGetDatum(final_result);
-#endif
 }
 
 static Size VOS_get_flat_size(ExpandedObjectHeader *eohptr)
@@ -376,9 +294,6 @@ static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
 	ExpandedVarlenaOutputStreamHeader *evosh =
 		(ExpandedVarlenaOutputStreamHeader *)eohptr;
 	ExpandedVarlenaOutputStreamNode *node = evosh->tail;
-#if PG_VERSION_NUM < 90500
-	ExpandedVarlenaOutputStreamNode *next;
-#endif
 
 	Assert(allocated_size == evosh->total_size);
 	SET_VARSIZE(result, allocated_size);
@@ -391,25 +306,6 @@ static void VOS_flatten_into(ExpandedObjectHeader *eohptr,
 		result = (char *)result + node->size;
 	}
 	while ( node != evosh->tail );
-
-#if PG_VERSION_NUM < 90500
-	/*
-	 * It's been flattened into the same context; the original nodes can be
-	 * freed so the 2x memory usage doesn't last longer than necessary. Freeing
-	 * them retail isn't ideal, but this is back-compatibility code. Remember
-	 * the first one wasn't a separate allocation.
-	 */
-	 node = node->next; /* this is the head, the one that can't be pfreed */
-	 evosh->tail = node; /* tail is now head, the non-pfreeable node */
-	 node = node->next;
-	 while ( node != evosh->tail )
-	 {
-		next = node->next;
-		pfree(node);
-		node = next;
-	 }
-	 pfree(evosh);
-#endif
 }
 
 void pljava_VarlenaWrapper_initialize(void)
@@ -495,7 +391,6 @@ JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unregisterSnapshot
   (JNIEnv *env, jobject _this, jlong snapshot, jlong ro)
 {
-#if PG_VERSION_NUM >= 80400
 	BEGIN_NATIVE_NO_ERRCHECK
 	Ptr2Long p2lsnap;
 	Ptr2Long p2lro;
@@ -503,7 +398,6 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unreg
 	p2lro.longVal = ro;
 	UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
 	END_NATIVE
-#endif
 }
 
 /*
@@ -517,10 +411,8 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 {
 	Ptr2Long p2lvl;
 	Ptr2Long p2lcxt;
-#if PG_VERSION_NUM >= 80400
 	Ptr2Long p2lsnap;
 	Ptr2Long p2lro;
-#endif
 	Ptr2Long p2ldetoasted;
 	_VL_TYPE detoasted;
 	MemoryContext prevcxt;
@@ -530,10 +422,8 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 
 	p2lvl.longVal = vl;
 	p2lcxt.longVal = cxt;
-#if PG_VERSION_NUM >= 80400
 	p2lsnap.longVal = snap;
 	p2lro.longVal = resOwner;
-#endif
 
 	prevcxt = MemoryContextSwitchTo((MemoryContext)p2lcxt.ptrVal);
 
@@ -547,10 +437,8 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 		s_VarlenaWrapper_Input_State_varlena, p2ldetoasted.longVal);
 	pfree(p2lvl.ptrVal);
 
-#if PG_VERSION_NUM >= 80400
 	if ( 0 != snap )
 		UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
-#endif
 
 	dbb = JNI_newDirectByteBuffer(
 		VARDATA(detoasted), VARSIZE_ANY_EXHDR(detoasted));

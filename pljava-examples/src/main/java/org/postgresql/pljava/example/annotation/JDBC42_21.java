@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,20 +14,15 @@ package org.postgresql.pljava.example.annotation;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 
-import org.postgresql.pljava.example.annotation.ConditionalDDR; // for javadoc
-
 /**
  * Exercise new mappings between date/time types and java.time classes
  * (JDBC 4.2 change 21).
  *<p>
  * Defines a method {@link #javaSpecificationGE javaSpecificationGE} that may be
  * of use for other examples.
- *<p>
- * Relies on PostgreSQL-version-specific implementor tags set up in the
- * {@link ConditionalDDR} example.
  */
 @SQLAction(
-	implementor="postgresql_ge_90300",requires="TypeRoundTripper.roundTrip",
+	requires="TypeRoundTripper.roundTrip",
 	install={
 	" SELECT" +
 	"  CASE WHEN every(orig = roundtripped)" +

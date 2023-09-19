@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015- Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -29,14 +29,12 @@ import static org.postgresql.pljava.annotation.Function.Effects.IMMUTABLE;
  * characters. That makes it easy to test how big a value gets correctly stored
  * and retrieved. It should be about a GB, but in issue 52 was failing at 32768
  * because of a narrowing assignment in the native code.
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example.
  */
-@SQLAction(requires="varlena UDT", implementor="postgresql_ge_80300", install=
+@SQLAction(requires="varlena UDT", install=
 "  SELECT CASE v::text = v::javatest.VarlenaUDTTest::text " +
-"   WHEN true THEN javatest.logmessage('INFO', 'works for ' || v) " +
-"   ELSE javatest.logmessage('WARNING', 'fails for ' || v) " +
+"   WHEN true " +
+"   THEN javatest.logmessage('INFO', 'VarlenaUDTTest works for ' || v) " +
+"   ELSE javatest.logmessage('WARNING', 'VarlenaUDTTest fails for ' || v) " +
 "   END " +
 "   FROM (VALUES (('32767')), (('32768')), (('65536')), (('1048576'))) " +
 "   AS t ( v )"

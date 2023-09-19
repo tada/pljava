@@ -88,18 +88,18 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.install_jar(url...)</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.install_jar(url...)</caption>
  * <tr>
- * <td valign="top"><b>jar_url</b></td>
+ * <td><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded </td>
  * </tr>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
+ * <td><b>jar_name</b></td>
  * <td>This is the name by which this jar can be referenced once it has been
  * loaded</td>
  * </tr>
  * <tr>
- * <td valign="top"><b>deploy</b></td>
+ * <td><b>deploy</b></td>
  * <td>True if the jar should be deployed according to a {@link
  * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment
  * descriptor}, false otherwise</td>
@@ -109,20 +109,20 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.install_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;deploy&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for
+ * <blockquote><table class="striped"><caption>Parameters for
  * sqlj.install_jar(bytea...)</caption>
  * <tr>
- * <td valign="top"><b>jar_image</b></td>
+ * <td><b>jar_image</b></td>
  * <td>The byte array that constitutes the contents of the jar that should be
  * loaded </td>
  * </tr>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
+ * <td><b>jar_name</b></td>
  * <td>This is the name by which this jar can be referenced once it has been
  * loaded</td>
  * </tr>
  * <tr>
- * <td valign="top"><b>deploy</b></td>
+ * <td><b>deploy</b></td>
  * <td>True if the jar should be deployed according to a {@link
  * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment
  * descriptor}, false otherwise</td>
@@ -136,17 +136,17 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_url&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.replace_jar(url...)</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.replace_jar(url...)</caption>
  * <tr>
- * <td valign="top"><b>jar_url</b></td>
+ * <td><b>jar_url</b></td>
  * <td>The URL that denotes the location of the jar that should be loaded </td>
  * </tr>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
+ * <td><b>jar_name</b></td>
  * <td>The name of the jar to be replaced</td>
  * </tr>
  * <tr>
- * <td valign="top"><b>redeploy</b></td>
+ * <td><b>redeploy</b></td>
  * <td>True if the old and new jar should be undeployed and deployed according
  * to their respective {@link
  * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment
@@ -157,19 +157,19 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.replace_jar(&lt;jar_image&gt;, &lt;jar_name&gt;, &lt;redeploy&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for
+ * <blockquote><table class="striped"><caption>Parameters for
  * sqlj.replace_jar(bytea...)</caption>
  * <tr>
- * <td valign="top"><b>jar_image</b></td>
+ * <td><b>jar_image</b></td>
  * <td>The byte array that constitutes the contents of the jar that should be
  * loaded </td>
  * </tr>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
+ * <td><b>jar_name</b></td>
  * <td>The name of the jar to be replaced</td>
  * </tr>
  * <tr>
- * <td valign="top"><b>redeploy</b></td>
+ * <td><b>redeploy</b></td>
  * <td>True if the old and new jar should be undeployed and deployed according
  * to their respective {@link
  * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment
@@ -184,13 +184,13 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.remove_jar(&lt;jar_name&gt;, &lt;undeploy&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.remove_jar</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.remove_jar</caption>
  * <tr>
- * <td valign="top"><b>jar_name</b></td>
+ * <td><b>jar_name</b></td>
  * <td>The name of the jar to be removed</td>
  * </tr>
  * <tr>
- * <td valign="top"><b>undeploy</b></td>
+ * <td><b>undeploy</b></td>
  * <td>True if the jar should be undeployed according to its {@link
  * org.postgresql.pljava.management.SQLDeploymentDescriptor deployment
  * descriptor}, false otherwise</td>
@@ -204,7 +204,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.get_classpath(&lt;schema&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.get_classpath</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.get_classpath</caption>
  * <tr>
  * <td><b>schema</b></td>
  * <td>The name of the schema</td>
@@ -219,7 +219,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.set_classpath(&lt;schema&gt;, &lt;classpath&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.set_classpath</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.set_classpath</caption>
  * <tr>
  * <td><b>schema</b></td>
  * <td>The name of the schema</td>
@@ -236,7 +236,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.add_type_mapping(&lt;sqlTypeName&gt;, &lt;className&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.add_type_mapping</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.add_type_mapping</caption>
  * <tr>
  * <td><b>sqlTypeName</b></td>
  * <td>The name of the SQL type. The name can be qualified with a
@@ -256,7 +256,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * <blockquote><code>SELECT sqlj.drop_type_mapping(&lt;sqlTypeName&gt;);</code>
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.drop_type_mapping</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.drop_type_mapping</caption>
  * <tr>
  * <td><b>sqlTypeName</b></td>
  * <td>The name of the SQL type. The name can be qualified with a
@@ -275,7 +275,7 @@ import static org.postgresql.pljava.annotation.Function.Security.DEFINER;
  * {@code SELECT sqlj.alias_java_language(<alias>, sandboxed => <boolean>);}
  * </blockquote>
  * <h4>Parameters</h4>
- * <blockquote><table><caption>Parameters for sqlj.alias_java_language</caption>
+ * <blockquote><table class="striped"><caption>Parameters for sqlj.alias_java_language</caption>
  * <tr>
  * <td><b>alias</b></td>
  * <td>The name desired for the language alias. Language names are not

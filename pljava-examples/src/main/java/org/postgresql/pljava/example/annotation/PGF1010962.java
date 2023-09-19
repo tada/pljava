@@ -10,12 +10,8 @@ import org.postgresql.pljava.annotation.SQLAction;
 /**
  * A gnarly test of TupleDesc reference management, crafted by Johann Oskarsson
  * for bug report 1010962 on pgFoundry.
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example. Before PostgreSQL 8.4,
- * there is no array of {@code RECORD}, which this test requires.
  */
-@SQLAction(requires="1010962 func", implementor="postgresql_ge_80400",
+@SQLAction(requires="1010962 func",
 	install={
 		"CREATE TYPE javatest.B1010962 AS ( b1_val float8, b2_val int)",
 
@@ -51,8 +47,7 @@ public class PGF1010962
 	 * @param receiver Looks polymorphic, but expects an array of A1010962
 	 * @return 0
 	 */
-	@Function(schema="javatest", provides="1010962 func",
-				implementor="postgresql_ge_80400")
+	@Function(schema="javatest", provides="1010962 func")
 	public static int complexParam( ResultSet receiver[] )
 	throws SQLException
 	{

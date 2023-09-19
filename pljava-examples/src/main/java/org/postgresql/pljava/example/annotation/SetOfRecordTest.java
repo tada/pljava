@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -26,12 +26,8 @@ import org.postgresql.pljava.annotation.SQLAction;
  * Example implementing the {@code ResultSetHandle} interface, to return
  * the {@link ResultSet} from any SQL {@code SELECT} query passed as a string
  * to the {@link #executeSelect executeSelect} function.
- *<p>
- * This example relies on {@code implementor} tags reflecting the PostgreSQL
- * version, set up in the {@link ConditionalDDR} example. Before PostgreSQL 8.4,
- * there was no {@code =} or {@code DISTINCT FROM} operator between row types.
  */
-@SQLAction(requires="selecttorecords fn", implementor="postgresql_ge_80400",
+@SQLAction(requires="selecttorecords fn",
 install=
 " SELECT " +
 "  CASE WHEN r IS DISTINCT FROM ROW('Foo'::varchar, 1::integer, 1.5::float, " +

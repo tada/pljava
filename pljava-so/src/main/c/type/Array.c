@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -51,11 +51,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool wit
 	v->dataoffset = (int32)dataoffset;
 	MemoryContextSwitchTo(currCtx);
 
-#if PG_VERSION_NUM < 80300
-	ARR_SIZE(v) = nBytes;
-#else
 	SET_VARSIZE(v, nBytes);
-#endif
 	ARR_NDIM(v) = 1;
 	ARR_ELEMTYPE(v) = elemType;
 	*((int*)ARR_DIMS(v)) = nElems;
@@ -88,14 +84,8 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 			JNI_setObjectArrayElement(objArray, idx, obj.l);
 			JNI_deleteLocalRef(obj.l);
 
-#if PG_VERSION_NUM < 80300
-			values = att_addlength(values, elemLength, PointerGetDatum(values));
-			values = (char*)att_align(values, elemAlign);
-#else
 			values = att_addlength_datum(values, elemLength, PointerGetDatum(values));
 			values = (char*)att_align_nominal(values, elemAlign);
-#endif
-
 		}
 	}
 	result.l = (jobject)objArray;

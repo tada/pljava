@@ -279,7 +279,7 @@ public abstract class Lexicals
 	 * engine, letting it handle the details.
 	 */
 	public static final Pattern NEWLINE = Pattern.compile(
-		"(?ms:$(?:(?<!^).|(?<=\\G).){1,2}+)"
+		"(?ms:$.{1,2}?(?:^|\\z))" // fewest of 1,2 chars between $ and ^ (or \z)
 	);
 
 	/** White space <em>except</em> newline, for any Java-recognized newline.
