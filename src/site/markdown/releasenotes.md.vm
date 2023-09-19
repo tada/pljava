@@ -95,6 +95,8 @@ $h3 Bugs fixed
 [adjsfs]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.html#method.detail
 [egsfs]: https://github.com/tada/pljava/blob/V1_6_6/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/PassXML.java#L528
 
+$h2 Earlier releases
+
 ## A nice thing about using Velocity is that each release can be entered at
 ## birth using h2 as its main heading, h3 and below within ... and then, when
 ## it is moved under 'earlier releases', just define those variables to be
@@ -190,8 +192,6 @@ Tim Van Holder, `aadrian`, `sincatter`, `tayalrun1`.
 [addm]: install/vmoptions.html#Adding_to_the_set_of_readable_modules
 [versions]: build/versions.html
 [JDK-8309515]: https://bugs.openjdk.org/browse/JDK-8309515
-
-$h2 Earlier releases
 
 $h2 PL/Java 1.6.4
 
