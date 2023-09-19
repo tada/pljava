@@ -10,6 +10,100 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.6
+
+This is the sixth minor update in the PL/Java 1.6 series. It adds support
+for PostgreSQL 16 and confirms compatibility with Java 21, and fixes some bugs,
+with few other notable changes. Further information on the changes may be found
+below.
+
+$h3 Version compatibility
+
+PL/Java 1.6.6 can be built against recent PostgreSQL versions including 16, and
+older ones back to 9.5, using Java SE 9 or later. The Java version used at
+runtime does not have to be the same version used for building. PL/Java itself
+can run on any Java version 9 or later. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+Some builds of Java 20 are affected by a bug, [JDK-8309515][]. PL/Java will
+report an error if detects it is affected by that bug, and the solution can be
+to use a Java version earlier than 20, or one recent enough to have the bug
+fixed. The bug has been fixed in Java 21.
+
+PL/Java 1.6.6 will definitely no longer build on PostgreSQL versions older
+than 9.5. It has made no attempt to support them since 1.6.0, and lingering
+conditional code for older versions has now been removed.
+
+$h3 Changes
+
+$h4 Changes in XML support
+
+$h5 Java 17's standardized XML feature and property names added
+
+Java 17 added standardized, easy-to-remember names for a number of features and
+properties the underlying XML implementations had formerly supported under
+implementation-specific names. PL/Java's `Adjusting.XML` API already needed to
+know those various other names, to attempt using them to configure the desired
+features and properties. Now it tries the new standard names too.
+
+$h5 Better control when a feature or property can't be set as intended
+
+The original documentation for the feature and property setters in the
+`Adjusting.XML` API said "the adjusting methods are best-effort and do not
+provide an indication of whether the requested adjustment was made". (At the
+same time, failures could produce voluminous output to the log.)
+
+The new [`lax(boolean)`][adjlax] method offers more control. If not used,
+adjustment failures are logged (as before, but more compactly in the case of
+multiple failures in one sequence of adjustments). Or, `lax(true)` can be used
+to silently discard any failures up to that point in a sequence of adjustments,
+or `lax(false)` to have the exceptions chained together and thrown.
+
+The addition of the new Java 17 standardized names can complicate
+version-agnostic configuration of other elements in the Java XML APIs, such as
+`Transformer`, that are not directly covered by PL/Java's
+`Adjusting.XML.Parsing` methods. Client code may find the new `Adjusting.XML`
+method [`setFirstSupported`][adjsfs] convenient for that purpose;
+[an example][egsfs] illustrates.
+
+$h4 Packaging / testing
+
+$h5 Support choice of `PGJDBC` or `pgjdbc-ng` in `Node`
+
+The package jar produced as the last step of the build includes a
+[test harness](develop/node.html) similar to the `PostgresNode` Perl module.
+It formerly worked only with the `pgjdbc-ng` driver. Now it works with either
+`PGJDBC` or `pgjdbc-ng`, and provides features for writing test scripts that
+do not depend on the driver chosen.
+
+$h4 Source code
+
+* Minor changes to support PostgreSQL 16
+* Conditional code supporting PostgreSQL versions older than 9.5 removed
+* Old non-HTML5 elements (rejected by Javadoc 17 and later) removed from
+    doc comments
+* The `pureNonVirtualCalled` method removed to quiet warnings from recent
+    C compilers
+* Schema qualification in embedded SQL added to two operators that had been
+    overlooked in the earlier round of adding such qualification
+$h3 Bugs fixed
+
+* [`NEWLINE` pattern can fail to match](${ghbug}455)
+
+[adjlax]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.Parsing.html#method.summary
+[adjsfs]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.html#method.detail
+[egsfs]: https://github.com/tada/pljava/blob/V1_6_6/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/PassXML.java#L528
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.6.5
 
 This is the fifth minor update in the PL/Java 1.6 series. It adds support
@@ -98,15 +192,6 @@ Tim Van Holder, `aadrian`, `sincatter`, `tayalrun1`.
 [JDK-8309515]: https://bugs.openjdk.org/browse/JDK-8309515
 
 $h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.4
 

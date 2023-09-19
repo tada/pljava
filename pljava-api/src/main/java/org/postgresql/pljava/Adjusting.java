@@ -255,7 +255,7 @@ public final class Adjusting
 		 *<p>
 		 * When {@code get} is called, the head exception on the signaling list,
 		 * if any, is thrown. Otherwise, the head exception on the quiet list,
-		 * if any, is logged at [@code WARNING} level.
+		 * if any, is logged at {@code WARNING} level.
 		 *<p>
 		 * During a chain of adjustments, {@link #lax lax()} can be called to
 		 * tailor the handling of the quiet list. A {@code lax()} call applies
