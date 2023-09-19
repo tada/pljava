@@ -78,7 +78,7 @@ import org.postgresql.pljava.annotation.SQLAction;
 )
 
 @SQLAction(implementor="LifeIsGood", install=
-	"SELECT javatest.logmessage('INFO', 'ConditionlDDR looking good!')"
+	"SELECT javatest.logmessage('INFO', 'ConditionalDDR looking good!')"
 )
 
 @SQLAction(implementor="LifeIsNotGood", install=
