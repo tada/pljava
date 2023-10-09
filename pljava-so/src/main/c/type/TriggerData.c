@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -32,7 +32,6 @@ static jmethodID s_TriggerData_getTriggerReturnTuple;
 jobject pljava_TriggerData_create(TriggerData* triggerData)
 {
 	Ptr2Long p2ltd;
-	Ptr2Long p2lro;
 
 	if ( NULL == triggerData )
 		return NULL;
@@ -40,14 +39,9 @@ jobject pljava_TriggerData_create(TriggerData* triggerData)
 	p2ltd.longVal = 0L;
 	p2ltd.ptrVal = triggerData;
 
-	p2lro.longVal = 0L;
-	p2lro.ptrVal = currentInvocation;
-
 	return JNI_newObjectLocked(
 			s_TriggerData_class,
 			s_TriggerData_init,
-			pljava_DualState_key(),
-			p2lro.longVal,
 			p2ltd.longVal);
 }
 
@@ -137,8 +131,7 @@ void pljava_TriggerData_initialize(void)
 	jcls = PgObject_getJavaClass("org/postgresql/pljava/internal/TriggerData");
 	PgObject_registerNatives2(jcls, methods);
 
-	s_TriggerData_init = PgObject_getJavaMethod(jcls, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
+	s_TriggerData_init = PgObject_getJavaMethod(jcls, "<init>", "(J)V");
 	s_TriggerData_getTriggerReturnTuple = PgObject_getJavaMethod(
 		jcls, "getTriggerReturnTuple", "()J");
 	s_TriggerData_class = JNI_newGlobalRef(jcls);

@@ -23,7 +23,6 @@
 #include "pljava/type/String.h"
 #include "pljava/Exception.h"
 #include "pljava/Function.h"
-#include "pljava/Invocation.h"
 
 static jclass    s_Oid_class;
 static jmethodID s_Oid_init;
@@ -301,7 +300,7 @@ Java_org_postgresql_pljava_internal_Oid__1getJavaClassName(JNIEnv* env, jclass c
 	}
 	else
 	{
-		Type type = Type_objectTypeFromOid((Oid)oid, Invocation_getTypeMap());
+		Type type = Type_objectTypeFromOid((Oid)oid, Function_currentTypeMap());
 		result = String_createJavaStringFromNTS(Type_getJavaTypeName(type));
 	}
 	END_NATIVE

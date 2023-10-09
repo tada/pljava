@@ -79,9 +79,7 @@ char const *pljavaLoadPath = NULL;
 
 bool pljavaLoadingAsExtension = false;
 
-Oid pljavaTrustedOid = InvalidOid;
-
-Oid pljavaUntrustedOid = InvalidOid;
+Oid pljavaOid = InvalidOid;
 
 bool pljavaViableXact()
 {
@@ -377,10 +375,8 @@ bool InstallHelper_isPLJavaFunction(Oid fn, char **langName, bool *trusted)
 	if ( NULL == pljavaLoadPath )
 	{
 		pljPath = NULL;
-		if ( InvalidOid != pljavaTrustedOid )
-			pljPath = pljavaFnOidToLibPath(pljavaTrustedOid, NULL, NULL);
-		if ( NULL == pljPath && InvalidOid != pljavaUntrustedOid )
-			pljPath = pljavaFnOidToLibPath(pljavaUntrustedOid, NULL, NULL);
+		if ( InvalidOid != pljavaOid )
+			pljPath = pljavaFnOidToLibPath(pljavaOid, NULL, NULL);
 		if ( NULL == pljPath )
 		{
 			elog(WARNING, "unable to determine PL/Java's load path");
