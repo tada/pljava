@@ -12,6 +12,7 @@
 package org.postgresql.pljava.pg;
 
 import org.postgresql.pljava.model.*;
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
 import static org.postgresql.pljava.model.RegType.RECORD;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
@@ -26,19 +27,27 @@ import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.DatumUtils.addressOf;
 import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
 
+import static java.lang.Math.ceil;
+
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import static java.nio.ByteOrder.nativeOrder;
+
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CoderResult;
 
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 
 import java.util.AbstractList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.function.BiFunction;
+import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
 import java.util.function.ToIntBiFunction;
 
@@ -327,8 +336,17 @@ implements TupleDescriptor
 		 * isn't).
 		 */
 		assert -1 == refcount : "can any ephemeral TupleDesc be refcounted?";
-		ByteBuffer copy = ByteBuffer.allocate(td.capacity()).put(td);
-		return new Ephemeral(copy);
+		return new Ephemeral(td);
+	}
+
+	private static ByteBuffer asNonDirectNativeOrder(ByteBuffer bb)
+	{
+		if ( bb.isDirect() )
+		{
+			ByteBuffer copy = ByteBuffer.allocate(bb.capacity()).put(bb);
+			bb = copy;
+		}
+		return bb.order(nativeOrder());
 	}
 
 	@Override
@@ -420,7 +438,7 @@ implements TupleDescriptor
 		private Ephemeral(ByteBuffer td)
 		{
 			super(
-				td, false,
+				asNonDirectNativeOrder(td), false,
 				(o, i) -> new AttributeImpl.Transient(o, i)
 			);
 		}
@@ -512,9 +530,88 @@ implements TupleDescriptor
 		}
 	}
 
+	static Ephemeral synthesizeDescriptor(
+		List<RegType> types, List<Simple> names, BitSet selected)
+	{
+		int n = types.size();
+		IntFunction<String> toName;
+		if ( null == names )
+			toName = i -> "";
+		else
+		{
+			assert names.size() == n;
+			toName = i -> names.get(i).nonFolded();
+		}
+
+		if ( null != selected )
+			assert selected.length() <= n;
+		else
+		{
+			selected = new BitSet(n);
+			selected.set(0, n);
+		}
+
+		CharsetEncoder enc = SERVER_ENCODING.newEncoder();
+		float maxbpc = enc.maxBytesPerChar();
+		int alignmentModulus = ALIGNOF_INT;
+		int maxToAlign = alignmentModulus - 1;
+		int alignmask = maxToAlign;
+		int sizeTypeTypmodBool = 2 * Integer.BYTES + 1;
+
+		int size =
+			selected.stream()
+			.map(i -> toName.apply(i).length())
+			.map(len ->
+				sizeTypeTypmodBool + (int)ceil(len*maxbpc) + 1 + maxToAlign)
+			.reduce(0, Math::addExact);
+
+		ByteBuffer direct =
+			ByteBuffer.allocateDirect(size)
+			.alignedSlice(ALIGNOF_INT).order(nativeOrder());
+
+		selected.stream().forEachOrdered(i ->
+		{
+			int pos = direct.position();
+			int misalign = direct.alignmentOffset(pos, alignmentModulus);
+			pos += - misalign & alignmask;
+			direct.position(pos);
+
+			RegType t = types.get(i);
+			direct.putInt(t.oid()).putInt(t.modifier());
+
+			/*
+			 * The C code will want a value for attndims, about which the docs
+			 * for pg_attribute say: Presently, the number of dimensions of an
+			 * array is not enforced, so any nonzero value effectively means
+			 * "it's an array".
+			 */
+			direct.put(t.element().isValid() ? (byte)1 : (byte)0);
+
+			pos = direct.position();
+			CharBuffer cb = CharBuffer.wrap(toName.apply(i));
+			CoderResult rslt = enc.encode(cb, direct, true);
+			if ( rslt.isUnderflow() )
+				rslt = enc.flush(direct);
+			if ( ! rslt.isUnderflow() )
+				throw new AssertionError("name to server encoding: " + rslt);
+			enc.reset();
+			direct.put((byte)'\0');
+			while ( '\0' != direct.get(pos) )
+				++ pos;
+			if ( ++ pos != direct.position() )
+				throw new AssertionError("server encoding of name has NUL");
+		});
+
+		int c = selected.cardinality();
+
+		return new Ephemeral(doInPG(() -> _synthesizeDescriptor(c, direct)));
+	}
+
 	/**
 	 * Call the PostgreSQL {@code typcache} function of the same name, but
 	 * return the assigned typmod rather than {@code void}.
 	 */
 	private static native int _assign_record_type_typmod(ByteBuffer bb);
+
+	private static native ByteBuffer _synthesizeDescriptor(int n,ByteBuffer bb);
 }

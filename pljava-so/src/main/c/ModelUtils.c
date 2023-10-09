@@ -341,6 +341,11 @@ void pljava_ModelUtils_initialize(void)
 		"(Ljava/nio/ByteBuffer;)I",
 		Java_org_postgresql_pljava_pg_TupleDescImpl__1assign_1record_1type_1typmod
 		},
+		{
+		"_synthesizeDescriptor",
+		"(ILjava/nio/ByteBuffer;)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_TupleDescImpl__1synthesizeDescriptor
+		},
 		{ 0, 0, 0 }
 	};
 
@@ -840,6 +845,7 @@ Java_org_postgresql_pljava_pg_MemoryContextImpl_00024EarlyNatives__1window(JNIEn
 	return r;
 }
 
+
 /*
  * Class:     org_postgresql_pljava_pg_ResourceOwnerImpl_EarlyNatives
  * Method:    _window
@@ -880,6 +886,7 @@ Java_org_postgresql_pljava_pg_ResourceOwnerImpl_00024EarlyNatives__1window(JNIEn
 	return r;
 }
 
+
 /*
  * Class:     org_postgresql_pljava_internal_SPI_EarlyNatives
  * Method:    _window
@@ -915,10 +922,11 @@ Java_org_postgresql_pljava_internal_SPI_00024EarlyNatives__1window(JNIEnv* env, 
 	return r;
 }
 
+
 /*
  * Class:     org_postgresql_pljava_pg_TupleDescImpl
  * Method:    _assign_record_type_typmod
- * Signature: (Ljava/nio/ByteBuffer)I
+ * Signature: (Ljava/nio/ByteBuffer;)I
  */
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_pg_TupleDescImpl__1assign_1record_1type_1typmod(JNIEnv* env, jobject _cls, jobject td_b)
@@ -932,6 +940,60 @@ Java_org_postgresql_pljava_pg_TupleDescImpl__1assign_1record_1type_1typmod(JNIEn
 	END_NATIVE_AND_CATCH("_assign_record_type_typmod")
 	return td->tdtypmod;
 }
+
+/*
+ * Class:     org_postgresql_pljava_pg_TupleDescImpl
+ * Method:    _synthesizeDescriptor
+ * Signature: (ILjava/nio/ByteBuffer;)Ljava/nio/ByteBuffer;
+ *
+ * When synthesizing a TupleDescriptor from only a list of types and names, it
+ * is tempting to make an ephemeral descriptor all in Java and avoid any JNI
+ * call. On the other hand, TupleDescInitEntry is more likely to know what to
+ * store in fields of the struct we don't care about, or added in new versions.
+ *
+ * The Java caller passes n (the number of attributes wanted) and one ByteBuffer
+ * in which the sequence (int32 typoid, int32 typmod, bool array, encodedname\0)
+ * occurs n times, INTALIGN'd between.
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_TupleDescImpl__1synthesizeDescriptor(JNIEnv* env, jobject _cls, jint n, jobject in_b)
+{
+	jobject result = NULL;
+	jlong tupdesc_size;
+	int i;
+	Oid typoid;
+	int32 typmod;
+	bool isArray;
+	TupleDesc td;
+	int32 *in_i;
+	char *in_c = (*env)->GetDirectBufferAddress(env, in_b);
+	if ( NULL == in_c )
+		return NULL;
+
+	BEGIN_NATIVE_AND_TRY
+
+	td = CreateTemplateTupleDesc(n);
+
+	for ( i = 0 ; i < n ; ++ i )
+	{
+		in_i = (int32 *)INTALIGN((uintptr_t)in_c);
+		typoid = *(in_i++);
+		typmod = *(in_i++);
+		in_c = (char *)(uintptr_t)in_i;
+		isArray = *(in_c++);
+
+		TupleDescInitEntry(td, 1 + i, in_c, typoid, typmod, isArray ? 1 : 0);
+
+		in_c += strlen(in_c) + 1;
+	}
+
+	tupdesc_size = (jlong)TupleDescSize(td);
+	result = JNI_newDirectByteBuffer(td, tupdesc_size);
+
+	END_NATIVE_AND_CATCH("_synthesizeDescriptor")
+	return result;
+}
+
 
 /*
  * Class:     org_postgresql_pljava_pg_TupleTableSlotImpl
