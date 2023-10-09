@@ -28,6 +28,7 @@ import org.postgresql.pljava.annotation.Function.OnNullInput;
 import org.postgresql.pljava.annotation.Function.Parallel;
 import org.postgresql.pljava.annotation.Function.Security;
 
+import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
@@ -123,6 +124,10 @@ implements
 	{
 		sps.add(m_sp[0]);
 		m_sp[0] = new SwitchPoint();
+		M memo = m_memo;
+		m_memo = null;
+		if ( memo instanceof AbstractMemo<?> )
+			((AbstractMemo<?>)memo).invalidate(sps, postOps);
 	}
 
 	static final int SLOT_LANGUAGE;
@@ -299,6 +304,23 @@ implements
 			assert ! itr.hasNext() : "attribute initialization miscount";
 		}
 	}
+
+	/* mutable non-API fields that will only be used on the PG thread */
+
+	/**
+	 * This is the idea behind the API {@code memo()} method..
+	 *<p>
+	 * It can be retrieved with the {@link #memo memo} method. The method does
+	 * not synchronize. It is documented to return a valid result only in
+	 * certain circumstances, which an individual {@code Memo} subinterface
+	 * should detail. For example, {@code PLJavaBased} documents that it may be
+	 * obtained within the body of a language-handler method that has been
+	 * passed a {@code RegProcedure<PLJavaBased>}. It will have been placed
+	 * there by code executing on the PG thread; the handler, even if executed
+	 * on another thread, will execute after a synchronizing operation ensuring
+	 * visibility of the write.
+	 */
+	M m_memo;
 
 	/* computation methods */
 
@@ -819,6 +841,45 @@ implements
 	@Override
 	public M memo()
 	{
-		throw notyet();
+		/*
+		 * See the m_memo declaration comments on this lack of synchronization.
+		 */
+		return m_memo;
+	}
+
+	public static abstract class AbstractMemo<M extends Memo<M>>
+	implements Memo<M>
+	{
+		/**
+		 * The {@code RegProcedure} instance carrying this memo.
+		 */
+		protected final RegProcedureImpl<M> m_carrier;
+
+		protected AbstractMemo(RegProcedureImpl<? super M> carrier)
+		{
+			assert threadMayEnterPG() : "AbstractMemo thread";
+			if ( null != carrier.m_memo )
+				throw new AssertionError("carrier already has a memo");
+			@SuppressWarnings("unchecked")
+			RegProcedureImpl<M> narrowed = (RegProcedureImpl<M>)carrier;
+			m_carrier = narrowed;
+		}
+
+		public RegProcedureImpl<M> apply()
+		{
+			assert threadMayEnterPG() : "AbstractMemo thread";
+			assert null == m_carrier.m_memo : "carrier memo became nonnull";
+
+			@SuppressWarnings("unchecked")
+			M self = (M)this;
+
+			m_carrier.m_memo = self;
+			return m_carrier;
+		}
+
+		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+		{
+			m_carrier.m_memo = null;
+		}
 	}
 }

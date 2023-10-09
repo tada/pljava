@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -55,6 +55,19 @@ extends
 	interface Handler       extends Memo<Handler> { }
 	interface InlineHandler extends Memo<InlineHandler> { }
 	interface Validator     extends Memo<Validator> { }
+
+	/**
+	 * A {@link Memo} attached to a {@link RegProcedure} that represents
+	 * a PL/Java-based routine, retaining additional information useful to
+	 * a PL/Java-based language implementation.
+	 *<p>
+	 * A valid memo of this type may be obtained within the body of
+	 * a language-handler method that has been passed am argument of
+	 * {@code RegProcedure<PLJavaBased>}.
+	 */
+	interface PLJavaBased extends Memo<PLJavaBased>
+	{
+	}
 
 	default Trust trust()
 	{

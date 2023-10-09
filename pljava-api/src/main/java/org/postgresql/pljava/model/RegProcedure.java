@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -141,20 +141,15 @@ extends
 	 * it is and how to use it. Many catalog getters that return
 	 * {@code RegProcedure} specialize the return type to indicate
 	 * an expected subinterface of {@code Memo}.
+	 *<p>
+	 * It may not be the case that a given {@code RegProcedure} has a valid
+	 * {@code Memo} attached at all times. Documentation for a specific
+	 * {@code Memo} subinterface should explain the circumstances when this
+	 * method can be called to rely on a memo of that type.
 	 */
 	M memo();
 
-	interface Memo<M extends Memo<M>>
-	{
-		RegProcedure<M> apply(RegProcedure<?> bare);
-	}
+	interface Memo<M extends Memo<M>> { }
 
 	interface PlannerSupport extends Memo<PlannerSupport> { }
-
-	interface PLJava extends Memo<PLJava>
-	{
-		// MethodHandleInfo methodInfo() ? \
-		// MethodHandle     method() ?     }  need a RegNamespace parameter?
-		// AccessControlContext acc() ?    /
-	}
 }
