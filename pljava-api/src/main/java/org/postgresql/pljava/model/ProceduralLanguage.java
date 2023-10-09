@@ -15,13 +15,18 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
+import org.postgresql.pljava.model.RegProcedure.Call;
+import org.postgresql.pljava.model.RegProcedure.Lookup;
 import org.postgresql.pljava.model.RegProcedure.Memo;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier; // javadoc
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 import org.postgresql.pljava.PLPrincipal;
 
 import org.postgresql.pljava.annotation.Function.Trust;
+
+import java.util.BitSet;
 
 /**
  * Model of a PostgreSQL procedural language, including (for non-built-in
@@ -67,6 +72,110 @@ extends
 	 */
 	interface PLJavaBased extends Memo<PLJavaBased>
 	{
+		/**
+		 * A {@link TupleDescriptor} describing the expected parameters, based
+		 * only on the routine declaration.
+		 *<p>
+		 * The {@code TupleDescriptor} returned here depends only on the static
+		 * catalog information for the {@link RegProcedure} carrying this memo.
+		 * A language handler can use it to generate template code that can be
+		 * cached with the target {@code RegProcedure}, independently of any one
+		 * call site.
+		 *<p>
+		 * {@link Identifier.None} may be encountered among the member names;
+		 * parameters do not have to be named.
+		 *<p>
+		 * Some reported types may have
+		 * {@link RegType#needsResolution needsResolution} true, and require
+		 * resolution to specific types using the expression context at
+		 * a given call site.
+		 *<p>
+		 * For a routine declared variadic, if the declared type of the variadic
+		 * parameter is the wildcard {@code "any"} type,
+		 * {@link Call#arguments arguments()}{@code .size()} at a call site can
+		 * differ from {@code inputsTemplate().size()}, the variadic arguments
+		 * delivered in "spread" form as distinct (and individually typed)
+		 * arguments. Variadic arguments of any other declared type are always
+		 * delivered in "collected" form as a PostgreSQL array of that type.
+		 * A variadic {@code "any"} routine can also receive its arguments
+		 * collected, when it has been called that way; therefore, there is an
+		 * ambiguity when such a routine is called with a single array argument
+		 * in the variadic position. A language handler must call
+		 * {@link Lookup#inputsAreSpread Lookup.inputsAreSpread()} to determine
+		 * the caller's intent in that case.
+		 * @see #unresolvedInputs()
+		 */
+		TupleDescriptor inputsTemplate();
+
+		/**
+		 * A {@code BitSet} indicating (by zero-based index into
+		 * {@link #inputsTemplate inputsTemplate}) which of the input
+		 * parameter types need resolution against actual supplied argument
+		 * types at a call site.
+		 *<p>
+		 * If the set is empty, such per-call-site resolution can be skipped.
+		 * @return a cloned {@code BitSet}
+		 */
+		public BitSet unresolvedInputs();
+
+		/**
+		 * A {@link TupleDescriptor} describing the expected result, based
+		 * only on the routine declaration.
+		 *<p>
+		 * The {@code TupleDescriptor} returned here depends only on the static
+		 * catalog information for the {@link RegProcedure} carrying this memo.
+		 * A language handler can use it to generate template code that can be
+		 * cached with the target {@code RegProcedure}, independently of any one
+		 * call site.
+		 *<p>
+		 * For a function whose return type (in SQL) is not composite (or
+		 * a function with only one output parameter, which PostgreSQL treats
+		 * the same way), this method returns a synthetic ephemeral descriptor
+		 * with one attribute of the declared return type. This convention
+		 * allows {@link TupleTableSlot} to be the uniform API for the data type
+		 * conversions to and from PostgreSQL, regardless of how a routine
+		 * is declared.
+		 *<p>
+		 * This method returns null in two cases: if the target returns
+		 * {@link RegType#VOID VOID} and no descriptor is needed, or if the
+		 * target is a function whose call sites must supply a column definition
+		 * list, so there is no template descriptor that can be cached with
+		 * the routine proper. A descriptor can only be obtained later from
+		 * {@link RegProcedure.Lookup#outputsDescriptor outputsDescriptor()}
+		 * when a call site is at hand.
+		 *<p>
+		 * Some reported types may have
+		 * {@link RegType#needsResolution needsResolution} true, and require
+		 * resolution to specific types using the expression context at
+		 * a given call site.
+		 *<p>
+		 * {@link Identifier.None} will be the name of the single attribute in
+		 * the synthetic descriptor wrapping a scalar. Because PL/Java's
+		 * function dispatcher will undo the wrapping to return a scalar
+		 * to PostgreSQL, the name matters not.
+		 * @see #unresolvedOutputs()
+		 * @return a {@code TupleDescriptor}, null if the target returns
+		 * {@code VOID}, or is a function and can only be called with
+		 * a column definition list supplied at the call site.
+		 */
+		TupleDescriptor outputsTemplate();
+
+		/**
+		 * A {@code BitSet} indicating (by zero-based index into
+		 * {@link #outputsTemplate outputsTemplate}) which
+		 * result types need resolution against actual supplied argument types
+		 * at each call site.
+		 *<p>
+		 * If the set is empty, such per-call-site resolution can be skipped.
+		 * @return a cloned {@code BitSet}. In the two circumstances where
+		 *{@link #outputsTemplate outputsTemplate} returns null, this method
+		 * returns either null or an empty {@code BitSet}. It is null for the
+		 * unspecified-record-returning case, where a column definition list
+		 * must be consulted at each call site; it is an empty set for the
+		 * {@code VOID}-returning case where no further resolution is needed
+		 * (as an empty {@code BitSet} here would normally indicate).
+		 */
+		public BitSet unresolvedOutputs();
 	}
 
 	default Trust trust()

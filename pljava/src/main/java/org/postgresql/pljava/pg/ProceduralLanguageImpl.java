@@ -17,6 +17,7 @@ import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
+import java.util.BitSet;
 import static java.util.Collections.unmodifiableSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -657,6 +658,30 @@ implements
 			ProceduralLanguageImpl pl =
 				(ProceduralLanguageImpl)m_carrier.language();
 			pl.removeDependentRoutine(m_carrier);
+		}
+
+		@Override
+		public TupleDescriptor inputsTemplate()
+		{
+			return m_carrier.inputsTemplate();
+		}
+
+		@Override
+		public BitSet unresolvedInputs()
+		{
+			return m_carrier.unresolvedInputs();
+		}
+
+		@Override
+		public TupleDescriptor outputsTemplate()
+		{
+			return m_carrier.outputsTemplate();
+		}
+
+		@Override
+		public BitSet unresolvedOutputs()
+		{
+			return m_carrier.unresolvedOutputs();
 		}
 	}
 }
