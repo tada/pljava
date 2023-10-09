@@ -172,6 +172,20 @@ static int32 constants[] = {
 
 
 	CONSTANT(N_ACL_RIGHTS),
+	CONSTANT(BITS_PER_BITMAPWORD),
+
+
+
+	CONSTANT(T_Invalid),
+	CONSTANT(T_AggState),
+	CONSTANT(T_Bitmapset),
+	CONSTANT(T_CallContext),
+	CONSTANT(T_ErrorSaveContext),
+	CONSTANT(T_EventTriggerData),
+	CONSTANT(T_ReturnSetInfo),
+	CONSTANT(T_TriggerData),
+	CONSTANT(T_WindowAggState),
+	CONSTANT(T_WindowObjectData),
 
 
 
@@ -197,10 +211,12 @@ static int32 constants[] = {
 #undef CONSTANT
 #undef CONSTANTEXPR
 
-static void dummy()
+static void dummy(Bitmapset *bitmapset)
 {
 	StaticAssertStmt(SIZEOF_DATUM == SIZEOF_VOID_P,
 		"PostgreSQL SIZEOF_DATUM and SIZEOF_VOID_P no longer equivalent?");
+
+	AssertVariableIsOfType(bitmapset->nwords, int); /* DatumUtils.java */
 
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
@@ -435,6 +451,7 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 
 	CONFIRMEXPR( SIZEOF_ArrayType_DIM, sizeof *ARR_DIMS(0) );
 
+	CONFIRMEXPR( SIZEOF_NodeTag, sizeof (NodeTag) );
 	CONFIRMEXPR( SIZEOF_Oid,     sizeof (Oid) );
 
 #undef CONFIRMSIZEOF

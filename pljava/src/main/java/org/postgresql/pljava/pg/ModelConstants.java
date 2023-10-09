@@ -192,6 +192,7 @@ public abstract class ModelConstants
 	@Native public static final int OFFSET_ArrayType_DIMS            = 12;
 	@Native public static final int SIZEOF_ArrayType_DIM             = 4;
 
+	@Native public static final int SIZEOF_NodeTag                   = 4;
 	@Native public static final int SIZEOF_Oid                       = 4;
 
 	/*
@@ -286,6 +287,23 @@ public abstract class ModelConstants
 	 * N_ACL_RIGHTS was stable for a long time, but changes in PG 15 and in 16
 	 */
 	@Native private static final int IDX_N_ACL_RIGHTS              = 100;
+	@Native private static final int IDX_BITS_PER_BITMAPWORD       = 101;
+
+
+
+	/*
+	 * Tags of a select few PostgreSQL Node subtypes.
+	 */
+	@Native private static final int IDX_T_Invalid            = 110;
+	@Native private static final int IDX_T_AggState           = 111;
+	@Native private static final int IDX_T_Bitmapset          = 112;
+	@Native private static final int IDX_T_CallContext        = 113;
+	@Native private static final int IDX_T_ErrorSaveContext   = 114;
+	@Native private static final int IDX_T_EventTriggerData   = 115;
+	@Native private static final int IDX_T_ReturnSetInfo      = 116;
+	@Native private static final int IDX_T_TriggerData        = 117;
+	@Native private static final int IDX_T_WindowAggState     = 118;
+	@Native private static final int IDX_T_WindowObjectData   = 119;
 
 
 
@@ -403,6 +421,23 @@ public abstract class ModelConstants
 	 * AclItem.
 	 */
 	public static final int N_ACL_RIGHTS;
+	public static final int BITS_PER_BITMAPWORD; // DatumUtils
+
+
+
+	/*
+	 * Tags of a select few PostgreSQL Node subtypes.
+	 */
+	public static final int T_Invalid;
+	public static final int T_AggState;
+	public static final int T_Bitmapset;
+	public static final int T_CallContext;
+	public static final int T_ErrorSaveContext;
+	public static final int T_EventTriggerData;
+	public static final int T_ReturnSetInfo;
+	public static final int T_TriggerData;
+	public static final int T_WindowAggState;
+	public static final int T_WindowObjectData;
 
 
 
@@ -531,7 +566,22 @@ public abstract class ModelConstants
 
 
 			n.gap(IDX_N_ACL_RIGHTS);
-			N_ACL_RIGHTS   = n.get(IDX_N_ACL_RIGHTS);
+			N_ACL_RIGHTS          = n.get(IDX_N_ACL_RIGHTS);
+			BITS_PER_BITMAPWORD   = n.get(IDX_BITS_PER_BITMAPWORD);
+
+
+
+			n.gap(IDX_T_Invalid);
+			T_Invalid            = n.get(IDX_T_Invalid);
+			T_AggState           = n.get(IDX_T_AggState);
+			T_Bitmapset          = n.get(IDX_T_Bitmapset);
+			T_CallContext        = n.get(IDX_T_CallContext);
+			T_ErrorSaveContext   = n.get(IDX_T_ErrorSaveContext);
+			T_EventTriggerData   = n.get(IDX_T_EventTriggerData);
+			T_ReturnSetInfo      = n.get(IDX_T_ReturnSetInfo);
+			T_TriggerData        = n.get(IDX_T_TriggerData);
+			T_WindowAggState     = n.get(IDX_T_WindowAggState);
+			T_WindowObjectData   = n.get(IDX_T_WindowObjectData);
 
 
 
