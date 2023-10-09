@@ -53,6 +53,7 @@ import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLERANGEOID;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.alignmentFromCatalog;
 import static org.postgresql.pljava.pg.ModelConstants.storageFromCatalog;
+import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
 
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import org.postgresql.pljava.pg.adt.NameAdapter;
@@ -70,6 +71,7 @@ import static org.postgresql.pljava.pg.adt.Primitives.*;
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
 import org.postgresql.pljava.annotation.BaseUDT.Storage;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
@@ -193,6 +195,7 @@ implements
 	static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	static final int SLOT_TUPLEDESCRIPTOR;
+	static final int SLOT_NOTIONALDESC; // defined even for non-row type
 	static final int SLOT_LENGTH;
 	static final int SLOT_BYVALUE;
 	static final int SLOT_TYPE;
@@ -218,6 +221,7 @@ implements
 	static final int SLOT_DIMENSIONS;
 	static final int SLOT_COLLATION;
 	static final int SLOT_DEFAULTTEXT;
+
 	static final int NSLOTS;
 
 	static
@@ -256,6 +260,7 @@ implements
 			})
 			.withDependent(
 				  "tupleDescriptorCataloged", SLOT_TUPLEDESCRIPTOR = i++)
+			.withDependent("notionalDescriptor", SLOT_NOTIONALDESC = i++)
 
 			.withSwitchPoint(RegTypeImpl::cacheSwitchPoint)
 			.withDependent(         "length", SLOT_LENGTH          = i++)
@@ -445,7 +450,24 @@ implements
 		}
 	}
 
-	/* computation methods */
+	/* computation methods for non-API internal slots */
+
+	private static TupleDescriptor notionalDescriptor(RegTypeImpl o)
+	{
+		assert RECORD != o  &&  VOID != o : "called on type " + o;
+
+		for ( RegType t = o ; t.isValid() ; t = t.baseType() )
+		{
+			TupleDescriptor td = t.tupleDescriptor();
+			if ( null != td )
+				return td;
+		}
+
+		return synthesizeDescriptor(
+			List.of(o), List.of(Identifier.None.INSTANCE), null);
+	}
+
+	/* computation methods for API */
 
 	/**
 	 * Obtain the tuple descriptor for an ordinary cataloged composite type.
@@ -733,6 +755,37 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return t.get(Att.TYPDEFAULT, TextAdapter.INSTANCE);
+	}
+
+	/* API-like methods only used internally for now */
+
+	/**
+	 * So that {@code TupleTableSlot} may be used uniformly as the API for
+	 * Java &lt;-&gt; PostgreSQL data type conversions, let every type except
+	 * unmodified {@code RECORD} or {@code VOID} have a "notional"
+	 * {@code TupleDescriptor}.
+	 *<p>
+	 * For a cataloged or interned row type, or a domain over a cataloged row
+	 * type, it is that type's {@link #tupleDescriptor tupleDescriptor} (or that
+	 * of the transitive base type, in the case of a domain). Such a descriptor
+	 * will be of type {@link TupleDescriptor.Interned Interned}. Otherwise,
+	 * it is a {@link TupleDescriptor.Ephemeral} whose one, unnamed, attribute
+	 * has this type.
+	 *<p>
+	 * The caller is expected to to have checked for {@code RECORD} or
+	 * {@code VOID} and not to call this method on those types.
+	 */
+	public TupleDescriptor notionalDescriptor()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_NOTIONALDESC];
+			return (TupleDescriptor)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	/* API methods */
