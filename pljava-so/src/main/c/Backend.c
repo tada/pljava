@@ -987,6 +987,11 @@ static void initPLJavaClasses(void)
 		"(Ljava/lang/String;Ljava/lang/ClassLoader;[B)Ljava/lang/Class;",
 		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass
 		},
+		{
+		"_window",
+		"(Ljava/lang/Class;)[Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1window
+		},
 		{ 0, 0, 0 }
 	};
 	jclass cls;
@@ -2194,4 +2199,33 @@ Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass(JNIE
 	(*env)->ReleaseByteArrayElements(env, image, bytes, JNI_ABORT);
 	(*env)->ReleaseStringUTFChars(env, name, utfName);
 	return newcls;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend_EarlyNatives
+ * Method:    _window
+ * Signature: (Ljava/lang/Class;)[Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1window(JNIEnv *env, jclass cls, jclass component)
+{
+	jobject r = (*env)->NewObjectArray(env, (jsize)1, component, NULL);
+	if ( NULL == r )
+		return NULL;
+
+#define POPULATE(thing) do {\
+	jobject b = (*env)->NewDirectByteBuffer(env, \
+	&thing, sizeof thing);\
+	if ( NULL == b )\
+		return NULL;\
+	(*env)->SetObjectArrayElement(env, r, \
+	(jsize)org_postgresql_pljava_internal_Backend_##thing, \
+	b);\
+} while (0)
+
+	POPULATE(check_function_bodies);
+
+#undef POPULATE
+
+	return r;
 }
