@@ -136,26 +136,32 @@ extern jobject pljava_Function_udtReadHandle(
 	jclass clazz, char *langName, bool trusted);
 
 /*
- * Returns the type map that is held by the function's schema loader (the
- * initiating loader that was used when the function was resolved). It is a map
- * from Java Oid objects to Class<SQLData> objects, as resolved by that loader.
+ * Returns a JNI global reference to the initiating (schema) class loader used
+ * to load the currently-executing function.
  */
-extern jobject Function_getTypeMap(Function self);
+extern jobject Function_currentLoader(void);
+
+/*
+ * Returns the type map held by the innermost executing PL/Java function's
+ * schema loader (the initiating loader that was used to resolve the function).
+ * The type map is a map from Java Oid objects to Class<? extends SQLData>,
+ * as resolved by that loader. This is effectively Function_currentLoader()
+ * followed by JNI-invoking getTypeMap on the loader, but cached to avoid JNI.
+ */
+extern jobject Function_currentTypeMap(void);
 
 /*
  * Returns true if the currently executing function is non volatile, i.e. stable
- * or immutable. Such functions are not allowed to have side effects.
+ * or immutable: the function author has declared it will not have visible
+ * side effects in the database. The normal behavior of JDBC methods that
+ * call SPI functions having a "read-only" parameter will be to pass true
+ * for that parameter, if this function returns true. Passing true to an SPI
+ * "read-only" parameter means both less and more than you might think: it may
+ * not necessarily preclude all visible effects, and it also constrains the
+ * function to use an existing snapshot in which the results of recent
+ * preceding operations cannot be seen.
  */
 extern bool Function_isCurrentReadOnly(void);
-
-/*
- * Return a global reference to the initiating (schema) class loader used
- * to load the currently-executing function.
- *
- * Invocation_getTypeMap is equivalent to calling this and then JNI-invoking
- * getTypeMap on the returned loader (cast to PL/Java's loader subclass).
- */
-extern jobject Function_currentLoader(void);
 
 /*
  * A nameless Function singleton with the property ! isCurrentReadOnly()

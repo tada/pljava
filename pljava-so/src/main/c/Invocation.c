@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -144,19 +144,6 @@ void Invocation_assertDisconnect(void)
 		SPI_finish();
 		currentInvocation->hasConnected = false;
 	}
-}
-
-/*
- * Return the type map held by the innermost executing PL/Java function's
- * schema loader (the initiating loader that was used to resolve the function).
- * The type map is a map from Java Oid objects to Class<SQLData> class objects,
- * as resolved by that loader. This is effectively Function_currentLoader()
- * followed by JNI-invoking getTypeMap on the loader, but cached to avoid JNI).
- */
-jobject Invocation_getTypeMap(void)
-{
-	Function f = currentInvocation->function;
-	return f == 0 ? 0 : Function_getTypeMap(f);
 }
 
 void Invocation_pushBootContext(Invocation* ctx)

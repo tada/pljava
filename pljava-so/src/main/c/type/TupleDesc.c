@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,7 +18,7 @@
 #include "pljava/Backend.h"
 #include "pljava/DualState.h"
 #include "pljava/Exception.h"
-#include "pljava/Invocation.h"
+#include "pljava/Function.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
@@ -75,7 +75,7 @@ Type pljava_TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 		type = 0;
 	}
 	else /* Type_objectTypeFromOid returns boxed types, when that matters */
-		type = Type_objectTypeFromOid(typeId, Invocation_getTypeMap());
+		type = Type_objectTypeFromOid(typeId, Function_currentTypeMap());
 	return type;
 }
 
@@ -226,7 +226,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
 		bool*  nulls   = palloc(count * sizeof(bool));
-		jobject typeMap = Invocation_getTypeMap(); /* a global ref */
+		jobject typeMap = Function_currentTypeMap(); /* a global ref */
 
 		memset(values, 0,  count * sizeof(Datum));
 		memset(nulls, true, count * sizeof(bool));/*all values null initially*/
