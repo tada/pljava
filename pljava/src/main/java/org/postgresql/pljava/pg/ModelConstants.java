@@ -195,6 +195,10 @@ public abstract class ModelConstants
 	@Native public static final int SIZEOF_NodeTag                   = 4;
 	@Native public static final int SIZEOF_Oid                       = 4;
 
+	@Native public static final int SIZEOF_fcinfo_fncollation       = 4;
+	@Native public static final int SIZEOF_fcinfo_isnull            = 1;
+	@Native public static final int SIZEOF_fcinfo_nargs             = 2;
+
 	/*
 	 * These constants (which will be included in a generated header available
 	 * to the C code) are (almost) indices into the 'statics' array where the
@@ -245,6 +249,11 @@ public abstract class ModelConstants
 
 	@Native private static final int IDX_OFFSET_NullableDatum_isnull = 29;
 	@Native private static final int IDX_SIZEOF_NullableDatum        = 30;
+
+	@Native private static final int IDX_OFFSET_fcinfo_fncollation   = 31;
+	@Native private static final int IDX_OFFSET_fcinfo_isnull        = 32;
+	@Native private static final int IDX_OFFSET_fcinfo_nargs         = 33;
+	@Native private static final int IDX_OFFSET_fcinfo_args          = 34;
 
 
 
@@ -381,6 +390,11 @@ public abstract class ModelConstants
 
 	public static final int OFFSET_NullableDatum_isnull;
 	public static final int SIZEOF_NullableDatum;
+
+	public static final int OFFSET_fcinfo_fncollation;
+	public static final int OFFSET_fcinfo_isnull;
+	public static final int OFFSET_fcinfo_nargs;
+	public static final int OFFSET_fcinfo_args;
 
 
 
@@ -521,6 +535,11 @@ public abstract class ModelConstants
 
 			OFFSET_NullableDatum_isnull= n.get(IDX_OFFSET_NullableDatum_isnull);
 			SIZEOF_NullableDatum       = n.get(IDX_SIZEOF_NullableDatum);
+
+			OFFSET_fcinfo_fncollation = n.get(IDX_OFFSET_fcinfo_fncollation);
+			OFFSET_fcinfo_isnull      = n.get(IDX_OFFSET_fcinfo_isnull);
+			OFFSET_fcinfo_nargs       = n.get(IDX_OFFSET_fcinfo_nargs);
+			OFFSET_fcinfo_args        = n.get(IDX_OFFSET_fcinfo_args);
 
 
 

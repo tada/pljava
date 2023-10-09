@@ -130,6 +130,11 @@ static int32 constants[] = {
 	TYPEOFFSET(NullableDatum, NullableDatum, isnull),
 	CONSTANTEXPR(SIZEOF_NullableDatum, sizeof (NullableDatum)),
 
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, fncollation),
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, isnull),
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, nargs),
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, args),
+
 
 
 	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS, offsetof(struct TupleDescData, attrs)),
@@ -456,6 +461,16 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 
 	CONFIRMEXPR( SIZEOF_NodeTag, sizeof (NodeTag) );
 	CONFIRMEXPR( SIZEOF_Oid,     sizeof (Oid) );
+
+#undef CONFIRMSIZEOF
+#define CONFIRMSIZEOF(strct,tag,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_ModelConstants_SIZEOF_##tag##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+
+	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, fncollation );
+	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, isnull );
+	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, nargs );
 
 #undef CONFIRMSIZEOF
 #undef CONFIRMVLOFFSET

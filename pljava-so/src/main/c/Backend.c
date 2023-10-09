@@ -1761,7 +1761,81 @@ static void registerGUCOptions(void)
 #undef PLJAVA_ENABLE_DEFAULT
 #undef PLJAVA_IMPLEMENTOR_FLAGS
 
-static inline Datum internalCallHandler(PG_FUNCTION_ARGS);
+extern PLJAVADLLEXPORT Datum pljavaDispatchRoutine(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pljavaDispatchRoutine);
+
+Datum pljavaDispatchRoutine(PG_FUNCTION_ARGS)
+{
+	Invocation ctx;
+	Datum retval = 0;
+
+	/*
+	 * Just in case it could be helpful in offering diagnostics later, hang
+	 * on to an Oid that is known to refer to PL/Java (because it got here).
+	 * It's cheap, and can be followed back to the right language and
+	 * handler function entries later if needed.
+	 *
+	 * Note that doing this here, in a meta-language dispatcher, changes the
+	 * meaning somewhat. No longer is this necessarily an oid for a routine in
+	 * the familiar PL/Java language; it is the oid of a routine in some
+	 * PL/Java-based language. It's still good for pinning down the path to our
+	 * shared object, but is now more ambiguous as far as what pg_language entry
+	 * it identifies. (To some extent, this has been the case for a while now
+	 * anyway, since sqlj.alias_java_language.)
+	 */
+	pljavaOid = fcinfo->flinfo->fn_oid;
+
+	if ( IS_COMPLETE != initstage )
+	{
+		deferInit = false;
+		initsequencer( initstage, false);
+	}
+
+	Invocation_pushInvocation(&ctx);
+	PG_TRY();
+	{
+		retval = pljava_ModelUtils_callDispatch(fcinfo, false);
+		Invocation_popInvocation(false);
+	}
+	PG_CATCH();
+	{
+		Invocation_popInvocation(true);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+	return retval;
+}
+
+extern PLJAVADLLEXPORT Datum pljavaDispatchInline(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pljavaDispatchInline);
+
+Datum pljavaDispatchInline(PG_FUNCTION_ARGS)
+{
+	Invocation ctx;
+
+	if ( IS_COMPLETE != initstage )
+	{
+		deferInit = false;
+		initsequencer( initstage, false);
+	}
+
+	Invocation_pushInvocation(&ctx);
+	PG_TRY();
+	{
+		pljava_ModelUtils_inlineDispatch(fcinfo);
+		Invocation_popInvocation(false);
+	}
+	PG_CATCH();
+	{
+		Invocation_popInvocation(true);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	PG_RETURN_VOID();
+}
+
+static inline Datum legacyCallHandler(PG_FUNCTION_ARGS);
 
 extern PLJAVADLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_call_handler);
@@ -1771,7 +1845,7 @@ PG_FUNCTION_INFO_V1(javau_call_handler);
  */
 Datum javau_call_handler(PG_FUNCTION_ARGS)
 {
-	return internalCallHandler(fcinfo);
+	return legacyCallHandler(fcinfo);
 }
 
 extern PLJAVADLLEXPORT Datum java_call_handler(PG_FUNCTION_ARGS);
@@ -1782,11 +1856,11 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
-	return internalCallHandler(fcinfo);
+	return legacyCallHandler(fcinfo);
 }
 
 static inline Datum
-internalCallHandler(PG_FUNCTION_ARGS)
+legacyCallHandler(PG_FUNCTION_ARGS)
 {
 	Invocation ctx;
 	Datum retval = 0;
@@ -1821,14 +1895,14 @@ internalCallHandler(PG_FUNCTION_ARGS)
 	return retval;
 }
 
-static Datum internalValidator(PG_FUNCTION_ARGS);
+static Datum internalValidator(PG_FUNCTION_ARGS, bool legacy);
 
 extern PLJAVADLLEXPORT Datum javau_validator(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_validator);
 
 Datum javau_validator(PG_FUNCTION_ARGS)
 {
-	return internalValidator(fcinfo);
+	return internalValidator(fcinfo, true);
 }
 
 extern PLJAVADLLEXPORT Datum java_validator(PG_FUNCTION_ARGS);
@@ -1836,10 +1910,18 @@ PG_FUNCTION_INFO_V1(java_validator);
 
 Datum java_validator(PG_FUNCTION_ARGS)
 {
-	return internalValidator(fcinfo);
+	return internalValidator(fcinfo, true);
 }
 
-static Datum internalValidator(PG_FUNCTION_ARGS)
+extern PLJAVADLLEXPORT Datum pljavaDispatchValidator(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pljavaDispatchValidator);
+
+Datum pljavaDispatchValidator(PG_FUNCTION_ARGS)
+{
+	return internalValidator(fcinfo, false);
+}
+
+static Datum internalValidator(PG_FUNCTION_ARGS, bool legacy)
 {
 	Oid funcoid = PG_GETARG_OID(0);
 	Invocation ctx;
@@ -1884,7 +1966,10 @@ static Datum internalValidator(PG_FUNCTION_ARGS)
 		if ( InvalidOid == pljavaOid )
 			pljavaOid = funcoid;
 
-		Function_invoke(funcoid, false, true, check_function_bodies, NULL);
+		if ( legacy )
+			Function_invoke(funcoid, false, true, check_function_bodies, NULL);
+		else
+			pljava_ModelUtils_callDispatch(fcinfo, true);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();

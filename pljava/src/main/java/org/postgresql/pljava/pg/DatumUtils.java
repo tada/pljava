@@ -88,6 +88,8 @@ public /*XXX*/ class DatumUtils
 
 	public static ByteBuffer asReadOnlyNativeOrder(ByteBuffer bb)
 	{
+		if ( null == bb )
+			return bb;
 		if ( ! bb.isReadOnly() )
 			bb = bb.asReadOnlyBuffer();
 		return bb.order(nativeOrder());

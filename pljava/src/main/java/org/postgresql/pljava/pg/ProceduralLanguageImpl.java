@@ -23,16 +23,22 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import static java.util.Objects.requireNonNull;
 import java.util.Set;
 
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static java.util.stream.Collectors.toList;
 import java.util.stream.Stream;
 
-import org.postgresql.pljava.model.*;
-
+import org.postgresql.pljava.PLJavaBasedLanguage;
+import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
+import org.postgresql.pljava.PLJavaBasedLanguage.Template;
 import org.postgresql.pljava.PLPrincipal;
+
+import org.postgresql.pljava.model.*;
+import org.postgresql.pljava.model.RegProcedure.Call;
 
 import org.postgresql.pljava.annotation.Function.Trust;
 
@@ -266,6 +272,8 @@ implements
 
 	private static class RoutineSet extends HashSet<RegProcedure<PLJavaBased>>
 	{
+		/* only accessed on the PG thread */
+		private PLJavaBasedLanguage m_implementingClass;
 	}
 
 	/* mutable non-API data used only on the PG thread */
@@ -315,6 +323,25 @@ implements
 			new PLJavaMemo(rpi).apply();
 
 		return (PLJavaMemo)r.memo(); // unnarrowed r to check cast as assertion
+	}
+
+	void memoizeImplementingClass(
+		PLJavaBasedLanguage expected, PLJavaBasedLanguage superseding)
+	{
+		assert threadMayEnterPG() : "memoizeImplementingClass thread";
+
+		RoutineSet s = (RoutineSet)m_dependents;
+
+		if ( expected != s.m_implementingClass )
+			throw new IllegalStateException(
+				"expected prior value mismatch in memoizeImplentingClass");
+
+		s.m_implementingClass = requireNonNull(superseding);
+	}
+
+	PLJavaBasedLanguage implementingClass()
+	{
+		return ((RoutineSet)m_dependents).m_implementingClass;
 	}
 
 	/**
@@ -646,6 +673,8 @@ implements
 	static class PLJavaMemo extends AbstractMemo<PLJavaBased>
 	implements PLJavaBased
 	{
+		Template m_routineTemplate;
+
 		private PLJavaMemo(RegProcedureImpl<? super PLJavaBased> carrier)
 		{
 			super(carrier);

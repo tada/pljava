@@ -11,14 +11,19 @@
  */
 
 #include <postgres.h>
+#include <funcapi.h>
 #include <miscadmin.h>
 #include <access/genam.h>
 #include <access/heaptoast.h>
 #include <access/relation.h>
 #include <access/tupdesc.h>
+#include <commands/event_trigger.h>
 #include <executor/spi.h>
 #include <executor/tuptable.h>
 #include <mb/pg_wchar.h>
+#if PG_VERSION_NUM >= 160000
+#include <nodes/miscnodes.h>
+#endif
 #include <utils/fmgroids.h>
 #include <utils/inval.h>
 #include <utils/rel.h>
@@ -38,6 +43,7 @@
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
 #include "org_postgresql_pljava_pg_CharsetEncodingImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_DatumUtils.h"
+#include "org_postgresql_pljava_pg_LookupImpl.h"
 #include "org_postgresql_pljava_pg_MemoryContextImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_ResourceOwnerImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_TupleDescImpl.h"
@@ -61,6 +67,11 @@
 static jclass s_CatalogObjectImpl_Factory_class;
 static jmethodID s_CatalogObjectImpl_Factory_invalidateRelation;
 static jmethodID s_CatalogObjectImpl_Factory_syscacheInvalidate;
+
+static jclass s_LookupImpl_class;
+static jmethodID s_LookupImpl_dispatchNew;
+static jmethodID s_LookupImpl_dispatch;
+static jmethodID s_LookupImpl_dispatchInline;
 
 static jclass s_MemoryContextImpl_class;
 static jmethodID s_MemoryContextImpl_callback;
@@ -124,6 +135,217 @@ jobject pljava_TupleTableSlot_create(
 	JNI_deleteLocalRef(tts_b);
 
 	return jtts;
+}
+
+typedef struct RegProcedureLookup
+{
+	/*
+	 * This member caches a JNI global reference to the Java RegProcedure.Lookup
+	 * corresponding to the flinfo whose fn_extra member points here. The JNI
+	 * global reference must be deleted when fn_mcxt goes away.
+	 */
+	jobject lookup;
+	/*
+	 * Tag and address of the fn_expr most recently seen here. If changed,
+	 * the Java object may need to invalidate some cached information.
+	 *
+	 * No address retained in this struct from an earlier call is in any way
+	 * assumed to be valid, other than for comparison to a corresponding address
+	 * supplied in the current call.
+	 */
+	NodeTag exprTag;
+	Node *expr;
+	/*
+	 * Members below hold most-recently seen values associated with fcinfo
+	 * pointing to this flinfo. For any item whose tag and address (or nargs and
+	 * address) have not changed, a new Java ByteBuffer needn't be created, as
+	 * one retained from the earlier call still fits.
+	 */
+	short nargs;
+	FunctionCallInfo fcinfo;
+	NodeTag contextTag;
+	Node *context;
+	NodeTag resultinfoTag;
+	Node *resultinfo;
+}
+RegProcedureLookup;
+
+/*
+ * At the time of writing, all of these nodes appear (happily) to be of fixed
+ * size. (Even the one that is private.)
+ */
+static inline Size nodeTagToSize(NodeTag tag)
+{
+#define TO_SIZE(t) case T_##t: return sizeof (t)
+	switch ( tag )
+	{
+		TO_SIZE(AggState);
+		TO_SIZE(CallContext);
+#if PG_VERSION_NUM >= 160000
+		TO_SIZE(ErrorSaveContext);
+#endif
+		TO_SIZE(EventTriggerData);
+		TO_SIZE(ReturnSetInfo);
+		TO_SIZE(TriggerData);
+		TO_SIZE(WindowAggState);
+#if 0 /* this struct is private in nodeWindowAgg.c */
+		TO_SIZE(WindowObjectData);
+#endif
+	default:
+		return 0; /* never a valid Node size */
+	}
+#undef TO_SIZE
+}
+
+void pljava_ModelUtils_inlineDispatch(PG_FUNCTION_ARGS)
+{
+	Size len;
+	jobject src;
+	InlineCodeBlock *codeblock =
+		castNode(InlineCodeBlock, DatumGetPointer(PG_GETARG_DATUM(0)));
+
+	len = strlen(codeblock->source_text);
+	src = JNI_newDirectByteBuffer(codeblock->source_text, (jlong)len);
+
+	JNI_callStaticVoidMethod(s_LookupImpl_class, s_LookupImpl_dispatchInline,
+		(jint)codeblock->langOid, (jboolean)codeblock->atomic, src);
+}
+
+Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
+{
+	FmgrInfo *flinfo = fcinfo->flinfo;
+	Oid oid = flinfo->fn_oid;
+	MemoryContext mcxt = flinfo->fn_mcxt;
+	Node *expr = flinfo->fn_expr;
+	RegProcedureLookup *extra = (RegProcedureLookup *)flinfo->fn_extra;
+	short nargs = fcinfo->nargs;
+	Node *context = fcinfo->context;
+	Node *resultinfo = fcinfo->resultinfo;
+	NodeTag exprTag = T_Invalid;
+	NodeTag contextTag = T_Invalid;
+	NodeTag resultinfoTag = T_Invalid;
+	jboolean j4v = forValidator ? JNI_TRUE : JNI_FALSE;
+	jboolean hasExpr = NULL != expr ? JNI_TRUE : JNI_FALSE;
+	jboolean newExpr = JNI_FALSE;
+	jobject fcinfo_b = NULL;
+	jobject context_b = NULL;
+	jobject resultinfo_b = NULL;
+	jobject lookup = NULL;
+	Size size;
+	Ptr2Long p2l_mcxt;
+	Ptr2Long p2l_extra;
+
+	if ( NULL != expr )
+		exprTag = nodeTag(expr);
+
+	if ( NULL != context )
+		contextTag = nodeTag(context);
+
+	if ( NULL != resultinfo )
+		resultinfoTag = nodeTag(resultinfo);
+
+	if ( NULL != extra )
+		lookup = extra->lookup;
+
+	if ( NULL != lookup )
+	{
+		if ( exprTag != extra->exprTag  ||  expr != extra->expr )
+		{
+			newExpr = JNI_TRUE;
+			extra->exprTag = exprTag;
+			extra->expr = expr;
+		}
+
+		if ( nargs != extra->nargs  ||  fcinfo != extra->fcinfo )
+		{
+			size = SizeForFunctionCallInfo(nargs);
+			fcinfo_b = JNI_newDirectByteBuffer(fcinfo, (jlong)size);
+			extra->nargs = nargs;
+			extra->fcinfo = fcinfo;
+		}
+
+		if ( contextTag != extra->contextTag  ||  context != extra->context )
+		{
+			/*
+			 * The size will be zero if it's a tag we don't support. The case of
+			 * a change from an earlier-seen value *to* one we don't support is
+			 * probably unreachable, but if it were to happen, we would need
+			 * a way to tell the Java code not to go on using some stale buffer
+			 * from before. Sending a zero-length buffer suffices for that; the
+			 * inefficiency is of little concern considering it probably never
+			 * happens, and it avoids passing an additional argument (just for
+			 * something that probably never happens).
+			 */
+			size = nodeTagToSize(contextTag);
+			context_b = JNI_newDirectByteBuffer(context, (jlong)size);
+			extra->contextTag = contextTag;
+			extra->context = context;
+		}
+
+		if ( resultinfoTag != extra->resultinfoTag
+			||  resultinfo != extra->resultinfo )
+		{
+			size = nodeTagToSize(resultinfoTag);
+			resultinfo_b = JNI_newDirectByteBuffer(resultinfo, (jlong)size);
+			extra->resultinfoTag = resultinfoTag;
+			extra->resultinfo = resultinfo;
+		}
+
+		JNI_callVoidMethod(lookup, s_LookupImpl_dispatch,
+			oid, newExpr, hasExpr, fcinfo_b, context_b, resultinfo_b);
+
+		PG_RETURN_VOID(); /* XXX for now */
+	}
+
+	/*
+	 * lookup is NULL; ought to mean extra itself is NULL.
+	 */
+	Assert(NULL == extra);
+
+	extra = MemoryContextAllocZero(mcxt, sizeof *extra);
+
+	if ( T_Invalid != exprTag )
+	{
+		extra->exprTag = exprTag;
+		extra->expr = expr;
+	}
+
+	if ( T_Invalid != contextTag )
+	{
+		extra->contextTag = contextTag;
+		extra->context = context;
+		size = nodeTagToSize(contextTag);
+		if ( 0 < size )
+			context_b = JNI_newDirectByteBuffer(context, (jlong)size);
+	}
+
+	if ( T_Invalid != resultinfoTag )
+	{
+		extra->resultinfoTag = resultinfoTag;
+		extra->resultinfo = resultinfo;
+		size = nodeTagToSize(resultinfoTag);
+		if ( 0 < size )
+			resultinfo_b = JNI_newDirectByteBuffer(resultinfo, (jlong)size);
+	}
+
+	extra->nargs = nargs;
+	extra->fcinfo = fcinfo;
+	size = SizeForFunctionCallInfo(nargs);
+	fcinfo_b = JNI_newDirectByteBuffer(fcinfo, (jlong)size);
+
+	p2l_mcxt.longVal = 0;
+	p2l_mcxt.ptrVal = mcxt;
+
+	p2l_extra.longVal = 0;
+	p2l_extra.ptrVal = extra;
+
+	flinfo->fn_extra = extra;
+
+	JNI_callStaticVoidMethod(s_LookupImpl_class, s_LookupImpl_dispatchNew,
+		p2l_mcxt.longVal, p2l_extra.longVal,
+		oid, j4v, hasExpr, fcinfo_b, context_b, resultinfo_b);
+
+	PG_RETURN_VOID(); /* XXX for now */
 }
 
 static void memoryContextCallback(void *arg)
@@ -305,6 +527,36 @@ void pljava_ModelUtils_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod lookupImplMethods[] =
+	{
+		{
+		"_cacheReference",
+		"(Lorg/postgresql/pljava/pg/LookupImpl;J)V",
+		Java_org_postgresql_pljava_pg_LookupImpl__1cacheReference
+		},
+		{
+		"_get_fn_expr_variadic",
+		"(Ljava/nio/ByteBuffer;)Z",
+		Java_org_postgresql_pljava_pg_LookupImpl__1get_1fn_1expr_1variadic
+		},
+		{
+		"_stableInputs",
+		"(Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)V",
+		Java_org_postgresql_pljava_pg_LookupImpl__1stableInputs
+		},
+		{
+		"_notionalCallResultType",
+		"(Ljava/nio/ByteBuffer;[I)Lorg/postgresql/pljava/model/TupleDescriptor;",
+		Java_org_postgresql_pljava_pg_LookupImpl__1notionalCallResultType
+		},
+		{
+		"_resolveArgTypes",
+		"(Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;II)Z",
+		Java_org_postgresql_pljava_pg_LookupImpl__1resolveArgTypes
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod memoryContextMethods[] =
 	{
 		{
@@ -392,6 +644,23 @@ void pljava_ModelUtils_initialize(void)
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/DatumUtils");
 	PgObject_registerNatives2(cls, datumMethods);
 	JNI_deleteLocalRef(cls);
+
+	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/LookupImpl");
+	PgObject_registerNatives2(cls, lookupImplMethods);
+	s_LookupImpl_class = JNI_newGlobalRef(cls);
+	JNI_deleteLocalRef(cls);
+	s_LookupImpl_dispatchNew =
+		PgObject_getStaticJavaMethod(s_LookupImpl_class, "dispatchNew",
+		"(JJIZZLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)"
+		"V");
+	s_LookupImpl_dispatch =
+		PgObject_getJavaMethod(s_LookupImpl_class, "dispatch",
+		"(IZZLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)"
+		"V");
+	s_LookupImpl_dispatchInline =
+		PgObject_getStaticJavaMethod(s_LookupImpl_class, "dispatchInline",
+		"(IZLjava/nio/ByteBuffer;)"
+		"V");
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/MemoryContextImpl$EarlyNatives");
 	PgObject_registerNatives2(cls, memoryContextMethods);
@@ -778,6 +1047,191 @@ Java_org_postgresql_pljava_pg_DatumUtils__1mapVarlena(JNIEnv* env, jobject _cls,
 		(MemoryContext)p2lmc.ptrVal, (ResourceOwner)p2lro.ptrVal);
 	END_NATIVE_AND_CATCH("_mapVarlena")
 	return result;
+}
+
+
+/*
+ * Class:     org_postgresql_pljava_pg_LookupImpl
+ * Method:    _cacheReference
+ * Signature: (Lorg/postgresql/pljava/pg/LookupImpl;J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_pg_LookupImpl__1cacheReference(JNIEnv* env, jobject _cls, jobject lref, jlong extra)
+{
+	Ptr2Long p2l;
+	RegProcedureLookup *extraStruct;
+
+	p2l.longVal = extra;
+	extraStruct = (RegProcedureLookup *)p2l.ptrVal;
+	extraStruct->lookup = (*env)->NewGlobalRef(env, lref);
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_LookupImpl
+ * Method:    _get_fn_expr_variadic
+ * Signature: (Ljava/nio/ByteBuffer;)Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_pg_LookupImpl__1get_1fn_1expr_1variadic(JNIEnv* env, jobject _cls, jobject fcinfo_b)
+{
+	bool result;
+	FunctionCallInfo fcinfo = (*env)->GetDirectBufferAddress(env, fcinfo_b);
+	if ( NULL == fcinfo )
+		return JNI_FALSE; /* shouldn't happen; there's probably an exception */
+
+	BEGIN_NATIVE_AND_TRY
+	result = get_fn_expr_variadic(fcinfo->flinfo);
+	END_NATIVE_AND_CATCH("_get_fn_expr_variadic")
+
+	return result ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_LookupImpl
+ * Method:    _stableInputs
+ * Signature: (Ljava/nio/ByteBuffer;)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_pg_LookupImpl__1stableInputs(JNIEnv* env, jobject _cls, jobject fcinfo_b, jobject bits_b)
+{
+	FunctionCallInfo fcinfo = (*env)->GetDirectBufferAddress(env, fcinfo_b);
+	Bitmapset *bits = (*env)->GetDirectBufferAddress(env, bits_b);
+	FmgrInfo *flinfo;
+	int idx;
+
+	if ( NULL == fcinfo  ||  NULL == bits )
+		return; /* shouldn't happen; there's probably an exception */
+
+	flinfo = fcinfo->flinfo;
+
+	BEGIN_NATIVE_AND_TRY
+
+	/*
+	 * The caller has set one guard bit at the next higher index beyond the
+	 * bits of interest. Find that one, then bms_prev_member loop from there.
+	 */
+	idx = bms_prev_member(bits, -1);
+	if ( -2 != idx )
+	{
+		while ( -2 != (idx = bms_prev_member(bits, idx)) )
+		{
+			if ( ! get_fn_expr_arg_stable(flinfo, idx) )
+				bms_del_member(bits, idx);
+		}
+	}
+
+	END_NATIVE_AND_CATCH("_stableInputs")
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_LookupImpl
+ * Method:    _notionalCallResultType
+ * Signature: (Ljava/nio/ByteBuffer;[I)Lorg/postgresql/pljava/model/TupleDescriptor;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_LookupImpl__1notionalCallResultType(JNIEnv* env, jobject _cls, jobject fcinfo_b, jintArray returnTypeOid)
+{
+	FunctionCallInfo fcinfo = (*env)->GetDirectBufferAddress(env, fcinfo_b);
+	Oid typeId;
+	jint joid;
+	TupleDesc td = NULL;
+	jobject result = NULL;
+
+	if ( NULL == fcinfo )
+		return NULL; /* shouldn't happen; there's probably an exception */
+
+	BEGIN_NATIVE_AND_TRY
+
+	get_call_result_type(fcinfo, &typeId, &td); /* simple so far */
+	joid = typeId;
+	JNI_setIntArrayRegion(returnTypeOid, 0, 1, &joid);
+
+	if ( NULL == td ) /* no real td; make a notional one */
+	{
+		if ( VOIDOID != typeId  &&  RECORDOID != typeId )
+		{
+			bool isArray;
+			HeapTuple tp;
+			Form_pg_type typform;
+
+			/*
+			 * This feels like a nutty amount of work just to decide whether
+			 * 1 or 0 makes the better dummy value to pass as attdim to
+			 * TupleDescInitEntry.
+			 */
+			tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeId));
+			if ( ! HeapTupleIsValid(tp) )
+				elog(ERROR, "cache lookup failed for type %u", typeId);
+			typform = (Form_pg_type) GETSTRUCT(tp);
+			isArray = (InvalidOid != typform->typelem);
+			ReleaseSysCache(tp);
+
+			td = CreateTemplateTupleDesc(1);
+			TupleDescInitEntry(td, 1, "", typeId, -1, isArray ? 1 : 0);
+			TupleDescInitEntryCollation(td, 1, fcinfo->fncollation);
+		}
+	}
+
+	if ( NULL != td )
+		result = pljava_TupleDescriptor_create(td, InvalidOid);
+
+	END_NATIVE_AND_CATCH("_notionalCallResultType")
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_LookupImpl
+ * Method:    _resolveArgTypes
+ * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;II)Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_pg_LookupImpl__1resolveArgTypes(JNIEnv* env, jobject _cls, jobject fcinfo_b, jobject types_b, jobject unresolved_b, int tplSz, int argSz)
+{
+	FunctionCallInfo fcinfo = (*env)->GetDirectBufferAddress(env, fcinfo_b);
+	Oid *types = (*env)->GetDirectBufferAddress(env, types_b);
+	Bitmapset *unresolved = (*env)->GetDirectBufferAddress(env, unresolved_b);
+	FmgrInfo *flinfo;
+	int idx;
+	bool result = false;
+
+	if ( NULL == fcinfo  ||  NULL == types_b  ||  NULL == unresolved_b )
+		return JNI_FALSE; /* shouldn't happen; there's probably an exception */
+
+	flinfo = fcinfo->flinfo;
+
+	BEGIN_NATIVE_AND_TRY
+
+	/*
+	 * If the types array is longer than the template (the spread variadic "any"
+	 * case), grab all the arg types beyond the end of the template.
+	 */
+	for ( idx = tplSz ; idx < argSz ; ++ idx )
+		types[idx] = get_fn_expr_argtype(flinfo, idx);
+
+	/*
+	 * Check the template's unresolved types for the "any" type and grab
+	 * those types too. resolve_polymorphic_argtypes will only attend to
+	 * the civilized polymorphic types.
+	 *
+	 * The caller has set one guard bit in the Bitmapset beyond the last bit
+	 * of interest. Find that one, then bms_prev_member loop from there.
+	 */
+	idx = bms_prev_member(unresolved, -1);
+	if ( -2 != idx )
+	{
+		while ( -2 != (idx = bms_prev_member(unresolved, idx)) )
+			if ( ANYOID == types[idx] )
+				types[idx] = get_fn_expr_argtype(flinfo, idx);
+	}
+
+	/*
+	 * resolve_polymorphic_argtypes will do the rest of the job.
+	 * It only needs to look at the first tplSz types.
+	 */
+	result = resolve_polymorphic_argtypes(tplSz, types, NULL, flinfo->fn_expr);
+
+	END_NATIVE_AND_CATCH("_resolveArgTypes")
+	return result ? JNI_TRUE : JNI_FALSE;
 }
 
 
