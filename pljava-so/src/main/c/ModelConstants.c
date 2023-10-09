@@ -127,6 +127,9 @@ static int32 constants[] = {
 	NOCONSTANT(OFFSET_TTS_TABLEOID),
 #endif /* 120000 */
 
+	TYPEOFFSET(NullableDatum, NullableDatum, isnull),
+	CONSTANTEXPR(SIZEOF_NullableDatum, sizeof (NullableDatum)),
+
 
 
 	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS, offsetof(struct TupleDescData, attrs)),
@@ -491,6 +494,8 @@ StaticAssertStmt(offsetof(form,fld) == \
 	CONFIRMCONST( HEAP_HASNULL );
 	CONFIRMCONST( HEAP_HASEXTERNAL );
 	CONFIRMCONST( HEAP_NATTS_MASK );
+
+	CONFIRMOFFSET( NullableDatum, value );
 
 #undef CONFIRMCONST
 #undef CONFIRMSIZEOF

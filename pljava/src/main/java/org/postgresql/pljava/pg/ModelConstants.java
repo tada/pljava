@@ -243,6 +243,9 @@ public abstract class ModelConstants
 	@Native private static final int IDX_OFFSET_TTS_FIXED        = 27;
 	@Native private static final int IDX_OFFSET_TTS_TABLEOID     = 28;
 
+	@Native private static final int IDX_OFFSET_NullableDatum_isnull = 29;
+	@Native private static final int IDX_SIZEOF_NullableDatum        = 30;
+
 
 
 	@Native private static final int IDX_OFFSET_TUPLEDESC_ATTRS      = 40;
@@ -375,6 +378,9 @@ public abstract class ModelConstants
 	public static final int OFFSET_TTS_FIXED;
 
 	public static final int OFFSET_TTS_TABLEOID; // NOCONSTANT unless PG >= 12
+
+	public static final int OFFSET_NullableDatum_isnull;
+	public static final int SIZEOF_NullableDatum;
 
 
 
@@ -512,6 +518,9 @@ public abstract class ModelConstants
 			OFFSET_TTS_FIXED  = n.get(IDX_OFFSET_TTS_FIXED);
 
 			OFFSET_TTS_TABLEOID = n.get(IDX_OFFSET_TTS_TABLEOID);
+
+			OFFSET_NullableDatum_isnull= n.get(IDX_OFFSET_NullableDatum_isnull);
+			SIZEOF_NullableDatum       = n.get(IDX_SIZEOF_NullableDatum);
 
 
 
