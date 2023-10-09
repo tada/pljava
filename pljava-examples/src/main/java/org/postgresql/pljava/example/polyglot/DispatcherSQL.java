@@ -21,18 +21,38 @@ import org.postgresql.pljava.annotation.SQLAction;
  * {@code CREATE EXTENSION pljava}, but for now, they are just here.
  */
 @SQLAction(provides="pljavahandler language", install={
-"CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchValidator(oid)" +
-" RETURNS pg_catalog.void" +
-" LANGUAGE C AS 'libpljava-so-1.7-SNAPSHOT', 'pljavaDispatchValidator'",
+"DO LANGUAGE plpgsql '" +
+" DECLARE" +
+"  qbin text;" +
+" BEGIN" +
+"  SELECT quote_literal(probin) INTO STRICT qbin FROM pg_proc" +
+"   WHERE oid = ''sqlj.java_call_handler()''::regprocedure;" +
+"  EXECUTE ''" +
+"   CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchValidator(pg_catalog.oid)" +
+"    RETURNS pg_catalog.void" +
+"    LANGUAGE C AS '' || qbin || '', ''''pljavaDispatchValidator''''" +
+"  '';" +
+"  EXECUTE ''" +
+"   CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchValidator()" +
+"    RETURNS pg_catalog.language_handler" +
+"    LANGUAGE C AS '' || qbin || '', ''''pljavaDispatchValidator''''" +
+"  '';" +
+"  EXECUTE ''" +
+"   CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchRoutine()" +
+"    RETURNS pg_catalog.language_handler" +
+"    LANGUAGE C AS '' || qbin || '', ''''pljavaDispatchRoutine''''" +
+"  '';" +
+"  EXECUTE ''" +
+"   CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchInline(pg_catalog.internal)" +
+"    RETURNS pg_catalog.void" +
+"    LANGUAGE C AS '' || qbin || '', ''''pljavaDispatchInline''''" +
+"  '';" +
+"END'",
 
 "COMMENT ON FUNCTION sqlj.pljavaDispatchValidator(oid) IS " +
 "'The validator function for the \"PL/Java handler\" language (in which one " +
 "can only write functions that are validators of actual procedural languages " +
 "implemented atop PL/Java).'",
-
-"CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchValidator()" +
-" RETURNS pg_catalog.language_handler" +
-" LANGUAGE C AS 'libpljava-so-1.7-SNAPSHOT', 'pljavaDispatchValidator'",
 
 "COMMENT ON FUNCTION sqlj.pljavaDispatchValidator() IS " +
 "'The call handler for the \"PL/Java handler\" language (in which one " +
@@ -41,20 +61,12 @@ import org.postgresql.pljava.annotation.SQLAction;
 "validator handler, which works because the only functions that can be " +
 "written in this \"language\" are validators.'",
 
-"CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchRoutine()" +
-" RETURNS pg_catalog.language_handler" +
-" LANGUAGE C AS 'libpljava-so-1.7-SNAPSHOT', 'pljavaDispatchRoutine'",
-
 "COMMENT ON FUNCTION sqlj.pljavaDispatchRoutine() IS " +
 "'The call handler that must be named (as HANDLER) in CREATE LANGUAGE for " +
 "a procedural language implemented atop PL/Java. (PostgreSQL requires every " +
 "CREATE LANGUAGE to include HANDLER, but PL/Java allows a language to " +
 "simply not implement the Routines interface, if it is only intended for " +
 "InlineBlocks.)'",
-
-"CREATE OR REPLACE FUNCTION sqlj.pljavaDispatchInline(pg_catalog.internal)" +
-" RETURNS pg_catalog.void" +
-" LANGUAGE C AS 'libpljava-so-1.7-SNAPSHOT', 'pljavaDispatchInline'",
 
 "COMMENT ON FUNCTION sqlj.pljavaDispatchInline(pg_catalog.internal) IS " +
 "'The handler that must be named (as INLINE) in CREATE LANGUAGE for " +
