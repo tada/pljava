@@ -171,6 +171,8 @@ public abstract class ModelConstants
 	@Native public static final int OFFSET_ArrayType_DIMS            = 12;
 	@Native public static final int SIZEOF_ArrayType_DIM             = 4;
 
+	@Native public static final int SIZEOF_Oid                       = 4;
+
 	/*
 	 * These constants (which will be included in a generated header available
 	 * to the C code) are (almost) indices into the 'statics' array where the

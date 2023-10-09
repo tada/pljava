@@ -531,7 +531,9 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		RegClass c = t.get(Att.TYPRELID, REGCLASS_INSTANCE);
 
-		((RegClassImpl)c).dualHandshake(o);
+		if ( c.isValid() )
+			((RegClassImpl)c).dualHandshake(o);
+
 		return c;
 	}
 

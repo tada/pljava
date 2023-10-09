@@ -35,6 +35,7 @@ import static org.postgresql.pljava.model.MemoryContext.JavaMemoryContext;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;
 import static org.postgresql.pljava.pg.ModelConstants.*;
+import static org.postgresql.pljava.pg.TupleDescImpl.Blessed;
 import static org.postgresql.pljava.pg.TupleDescImpl.Ephemeral;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 
@@ -814,22 +815,46 @@ implements
 			return true;
 		}
 
+		/**
+		 * Equality test for {@code AttributeImpl.Transient}.
+		 *<p>
+		 * Instances of {@code Transient} are used both in
+		 * {@link Ephemeral Ephemeral} tuple descriptors and in
+		 * {@link Blessed Blessed} ones. This method will not treat as equal
+		 * attributes belonging to any two distinct ephemeral descriptors, and
+		 * naturally the attribute at this attribute's position in this
+		 * attribute's containing descriptor can only be this attribute, so
+		 * reference equality is necessary and sufficient.
+		 *<p>
+		 * Reference equality also suffices for the {@code Blessed} case, as
+		 * PostgreSQL at present keeps such row types unique for the life of the
+		 * backend and does not invalidate them; the first
+		 * {@code TupleDescriptor} returned by the corresponding {@code RegType}
+		 * will therefore be the only one it can return.
+		 *<p>
+		 * Should the (weakly cached) {@code RegType} instance be GC'd and a
+		 * new one later instantiated for the same row type, a different tuple
+		 * descriptor could result, but a {@code TupleDescriptorImpl.Blessed}
+		 * holds a strong reference to its row type, which therefore can't go
+		 * unreachable until the tuple descriptor has also; at any given time
+		 * there can be no more than one in play.
+		 */
 		@Override
 		public boolean equals(Object other)
 		{
-			if ( this == other )
-				return true;
-			if ( ! super.equals(other) )
-				return false;
-			return ! ( m_containingTupleDescriptor instanceof Ephemeral );
+			return this == other;
 		}
 
+		/**
+		 * Hash code for {@code AttributeImpl.Transient}.
+		 *<p>
+		 * As reference equality is used for the {@code equals} test,
+		 * {@code System.identityHashCode} is used here.
+		 */
 		@Override
 		public int hashCode()
 		{
-			if ( m_containingTupleDescriptor instanceof Ephemeral )
-				return System.identityHashCode(this);
-			return super.hashCode();
+			return System.identityHashCode(this);
 		}
 
 		@Override

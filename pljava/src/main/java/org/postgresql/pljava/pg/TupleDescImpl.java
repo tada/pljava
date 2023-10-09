@@ -139,6 +139,9 @@ implements TupleDescriptor
 
 	static
 	{
+		assert Integer.BYTES == SIZEOF_Oid : "sizeof Oid";
+		assert Integer.BYTES == SIZEOF_pg_attribute_atttypmod : "sizeof typmod";
+
 		if ( 4 == SIZEOF_TUPLEDESC_TDREFCOUNT )
 		{
 			s_getAndAddPlain = (b,i) ->

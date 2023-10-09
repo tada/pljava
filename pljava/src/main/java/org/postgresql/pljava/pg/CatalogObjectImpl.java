@@ -19,6 +19,7 @@ import org.postgresql.pljava.TargetList.Projection;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.CacheMap;
 import org.postgresql.pljava.internal.Checked;
+import org.postgresql.pljava.internal.DualState; // for javadoc
 import org.postgresql.pljava.internal.Invocation;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import static org.postgresql.pljava.internal.SwitchPointCache.setConstant;
@@ -70,6 +71,8 @@ import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.UnaryOperator;
 import java.util.function.Supplier;
+
+import static java.util.stream.Stream.iterate;
 
 /**
  * Implementation of the {@link CatalogObject CatalogObject} API for the
@@ -161,10 +164,11 @@ public class CatalogObjectImpl implements CatalogObject
 	@SuppressWarnings("unchecked")
 	public <T extends CatalogObject.Addressed<T>> T of(RegClass.Known<T> c)
 	{
-		if ( classOid() == c.oid() )
+		if ( classOid() == ((CatalogObjectImpl)c).oid() )
 			return (T) this;
 		if ( classValid()  &&  isValid() )
-			throw new RuntimeException("XXX I'm not one of those");
+			throw new IllegalStateException(String.format(
+				"cannot make %s a CatalogObject of class %s", this, c));
 		return Factory.staticFormObjectId(c, oid());
 	}
 
@@ -209,7 +213,12 @@ public class CatalogObjectImpl implements CatalogObject
 	@Override
 	public String toString()
 	{
-		Class<?> c = getClass();
+		Class c = getClass();
+		c = iterate(c, Objects::nonNull, Class::getSuperclass)
+			.flatMap(c1 -> Arrays.stream(c1.getInterfaces()))
+			.filter(CatalogObject.class::isAssignableFrom)
+			.filter(i -> CatalogObject.class.getModule().equals(i.getModule()))
+			.findFirst().get();
 		String pfx = c.getCanonicalName();
 		return pfx.substring(1 + c.getPackageName().length()) + '[' +
 			Integer.toUnsignedString(classOid()) + ',' +
@@ -328,7 +337,7 @@ public class CatalogObjectImpl implements CatalogObject
 		T staticFormObjectId(
 			RegClass.Known<T> classId, int objId, IntPredicate versionTest)
 		{
-			return (T)form(classId.oid(),
+			return (T)form(((CatalogObjectImpl)classId).oid(),
 				versionTest.test(PG_VERSION_NUM) ? objId : InvalidOid, 0);
 		}
 
@@ -616,7 +625,11 @@ public class CatalogObjectImpl implements CatalogObject
 	static final int SLOT_ACL       = 4;
 	static final int NSLOTS         = 5;
 
-	@SuppressWarnings("unchecked")
+	/**
+	 * Base class for every catalog object that has an {@link #oid oid}
+	 * identifying a row in a catalog table identified by
+	 * a {@link #classId classId}.
+	 */
 	static class Addressed<T extends CatalogObject.Addressed<T>>
 	extends CatalogObjectImpl implements CatalogObject.Addressed<T>
 	{
@@ -644,7 +657,62 @@ public class CatalogObjectImpl implements CatalogObject
 		 * lock acquisitions) less easy to predict or intercept.
 		 */
 		static final SwitchPoint[] s_globalPoint = { new SwitchPoint() };
+
+		/**
+		 * Initializer for only the {@code SLOT_TUPLE} slot of a
+		 * {@code CatalogObjectImpl.Addressed} or subclass.
+		 *<p>
+		 * This initializer uses
+		 * {@link #cacheTuple(CatalogObjectImpl.Addressed) cacheTuple} to
+		 * populate the slot, which is appropriate for the common case where the
+		 * subclass overrides {@link #cacheId() cacheId} to return the
+		 * identifier of a syscache to be searched by a single oid.
+		 */
 		static final UnaryOperator<MethodHandle[]> s_initializer;
+
+		/**
+		 * {@link SwitchPointCache SwitchPointCache}-managed slots, the
+		 * foundation for cached values returned by API methods of
+		 * {@code CatalogObjectImpl.Addressed} subclasses.
+		 *<p>
+		 * The assignment of this field happens in this class's constructor, but
+		 * when a subclass is being instantiated, the subclass constructor
+		 * supplies the array. The array length is determined by the number of
+		 * slots needed by the subclass, whose own slots begin after the
+		 * {@link #NSLOTS NSLOTS} initial ones reserved above.
+		 *<p>
+		 * Each array element is a "slot", and contains a {@link MethodHandle}
+		 * of two arguments and a return type specialized to the type of the
+		 * value to be cached there. API methods for returning cached values
+		 * do so by invoking the method handle with two arguments, the receiver
+		 * object and the handle itself, and returning its result.
+		 *<p>
+		 * On the first call, or the first again after invalidation caused by
+		 * DDL changes, the method handle will invoke a "computation method".
+		 * By convention, the computation method has the same name as the API
+		 * method, but is static, taking the object instance as its only
+		 * parameter rather than as an instance method's receiver. Such naming
+		 * is merely a convention; the association between each slot and its
+		 * computation method is determined by a
+		 * {@link SwitchPointCache.Builder#withDependent withDependent} call as
+		 * the initializer for the slots array is being built. In each subclass,
+		 * a static initializer uses {@link SwitchPointCache.Builder} to
+		 * construct an initializer ({@code UnaryOperator<MethodHandle[]>}) that
+		 * will be saved in a static, and applied in the instance constructor to
+		 * a freshly-allocated array, installing the initial method handles in
+		 * its slots.
+		 *<p>
+		 * On subsequent uses of a slot, until invalidation is triggered, the
+		 * method handle found there will typically disregard its arguments and
+		 * return, as a constant, the value the computation method returned.
+		 *<p>
+		 * When a computation method runs, it runs on "the PG thread" (see
+		 * {@link DualState DualState} for more on what "the PG thread" means
+		 * under the different settings of {@code pljava.java_thread_pg_entry}),
+		 * so without further ceremony it may assume it is serialized with
+		 * respect to other computation methods, and perform actions, such as
+		 * JNI calls, for which that thread must be used.
+		 */
 		final MethodHandle[] m_slots;
 
 		static
@@ -660,6 +728,11 @@ public class CatalogObjectImpl implements CatalogObject
 				.build();
 		}
 
+		/**
+		 * A computation method for retrieving the "cache tuple", suited to the
+		 * common case where a subclass overrides {@link #cacheId cacheId} to
+		 * return the ID of a syscache searchable with a single {@code oid} key.
+		 */
 		static TupleTableSlot cacheTuple(CatalogObjectImpl.Addressed o)
 		{
 			ByteBuffer heapTuple;
@@ -774,7 +847,7 @@ public class CatalogObjectImpl implements CatalogObject
 		 */
 		static native ByteBuffer _tupDescBootstrap();
 
-		/* XXX private */ Addressed()
+		private Addressed()
 		{
 			this(s_initializer.apply(new MethodHandle[NSLOTS]));
 		}
@@ -820,8 +893,16 @@ public class CatalogObjectImpl implements CatalogObject
 		@Override
 		public RegClass.Known<T> classId()
 		{
+			/*
+			 * By design, this class must be an implementation of
+			 * T (extends CatalogObject.Addressed<T>) for the same T that is
+			 * the parameter of its classId.
+			 */
+			@SuppressWarnings("unchecked")
+			Class<? extends T> thisClass = (Class<? extends T>)getClass();
+
 			return CatalogObjectImpl.Factory.staticFormClassId(
-				classOid(), (Class<? extends T>)getClass());
+				classOid(), thisClass);
 		}
 
 		@Override
@@ -830,11 +911,25 @@ public class CatalogObjectImpl implements CatalogObject
 			return null != cacheTuple();
 		}
 
+		/**
+		 * Returns the {@link TupleDescriptor} for the catalog table whose rows
+		 * define instances of this class.
+		 *<p>
+		 * This implementation calls {@link #classId classId} and then
+		 * {@link RegClass#tupleDescriptor tupleDescriptor} on that. A subclass
+		 * may override when it can supply the decriptor more efficiently, and
+		 * must override in the few cases ({@link AttributeImpl AttributeImpl},
+		 * for example) where that isn't the right way to get it.
+		 */
 		TupleDescriptor cacheDescriptor()
 		{
 			return classId().tupleDescriptor();
 		}
 
+		/**
+		 * Returns, from the proper catalog table, the cached tuple that defines
+		 * this instance of this class.
+		 */
 		TupleTableSlot cacheTuple()
 		{
 			try
@@ -849,14 +944,28 @@ public class CatalogObjectImpl implements CatalogObject
 		}
 
 		/**
-		 * Inheritable placeholder to throw
-		 * {@code UnsupportedOperationException} during development.
+		 * Returns the ID of a syscache that is searchable with a single oid key
+		 * to retrieve the {@link #cacheTuple cacheTuple} defining this instance
+		 * of this class.
+		 *<p>
+		 * This implementation throws {@code UnsupportedOperationException} and
+		 * must be overridden in every subclass, unless a subclass supplies its
+		 * own computation method for {@code cacheTuple} that does not use this.
 		 */
 		int cacheId()
 		{
 			throw notyet();
 		}
 
+		/**
+		 * Default {@code toString} method for {@code Addressed} and subclasses.
+		 *<p>
+		 * Extends {@link CatalogObjectImpl#toString CatalogObjectImpl.toString}
+		 * by adding the name (if this is an instance of
+		 * {@link CatalogObject.Named Named}) or qualified name (if an
+		 * instance of {@link CatalogObject.Namespaced Namespaced}), if
+		 * available.
+		 */
 		@Override
 		public String toString()
 		{

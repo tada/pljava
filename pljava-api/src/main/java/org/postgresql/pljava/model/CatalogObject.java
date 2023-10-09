@@ -556,6 +556,7 @@ public interface CatalogObject
 		protected static final int      RECORDOID = 2249;
 		protected static final int     CSTRINGOID = 2275;
 		protected static final int        VOIDOID = 2278;
+		protected static final int     TRIGGEROID = 2279;
 
 		/*
 		 * PG types used in modeling PG types themselves.

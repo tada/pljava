@@ -425,7 +425,13 @@ implements
 		RegType t = s.get(
 			s.descriptor().sqlGet(Anum_pg_class_reltype), REGTYPE_INSTANCE);
 
-		((RegTypeImpl)t).dualHandshake(o);
+		/*
+		 * Regular relations have a valid reltype, but other kinds of RegClass
+		 * (index, toast table) do not.
+		 */
+		if ( t.isValid() )
+			((RegTypeImpl)t).dualHandshake(o);
+
 		return t;
 	}
 
