@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -51,8 +51,8 @@ extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
  * First translate a function Oid to a Function (looking it up according to the
- * trusted, forTrigger, forValidator, and checkBody parameters), and then
- * (unless forValidator is true) invoke it: i.e. coerce the parameters, call the
+ * forTrigger, forValidator, and checkBody parameters), and then (unless
+ * forValidator is true) invoke it: i.e. coerce the parameters, call the
  * java method, and coerce the return value back to a Datum. The return-value
  * coercion is handled by a convention where this call will delegate to the Type
  * representing the SQL return type. That will call back on one of the flavors
@@ -64,7 +64,7 @@ extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
  */
 extern Datum Function_invoke(
 	Oid funcoid,
-	bool trusted, bool forTrigger, bool forValidator, bool checkBody,
+	bool forTrigger, bool forValidator, bool checkBody,
 	PG_FUNCTION_ARGS);
 
 /*

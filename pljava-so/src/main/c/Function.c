@@ -695,7 +695,7 @@ classMismatch:
 }
 
 static Function Function_create(
-	Oid funcOid, bool trusted, bool forTrigger,
+	Oid funcOid, bool forTrigger,
 	bool forValidator, bool checkBody)
 {
 	Function self;
@@ -706,17 +706,11 @@ static Function Function_create(
 		PgObject_getValidTuple(LANGOID, procStruct->prolang, "language");
 	Form_pg_language lngStruct = (Form_pg_language)GETSTRUCT(lngTup);
 	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
-	bool ltrust = lngStruct->lanpltrusted;
+	bool trusted = lngStruct->lanpltrusted;
 	jstring schemaName;
 	Ptr2Long p2l;
 	Datum d;
 	jobject invocable;
-
-	if ( trusted != ltrust )
-		elog(ERROR,
-			"function with oid %u invoked through wrong call handler "
-			"for %strusted language %s", funcOid, ltrust ? "" : "un",
-			NameStr(lngStruct->lanname));
 
 	d = heap_copy_tuple_as_datum(procTup, Type_getTupleDesc(s_pgproc_Type, 0));
 
@@ -813,17 +807,14 @@ static Function Function_create(
  * in currentInvocation->function upon successful return from here.
  */
 static inline Function
-getFunction(
-	Oid funcOid, bool trusted, bool forTrigger,
-	bool forValidator, bool checkBody)
+getFunction(Oid funcOid, bool forTrigger, bool forValidator, bool checkBody)
 {
 	Function func =
 		forValidator ? NULL : (Function)HashMap_getByOid(s_funcMap, funcOid);
 
 	if ( NULL == func )
 	{
-		func = Function_create(
-			funcOid, trusted, forTrigger, forValidator, checkBody);
+		func = Function_create(funcOid, forTrigger, forValidator, checkBody);
 		if ( NULL != func )
 			HashMap_putByOid(s_funcMap, funcOid, func);
 	}
@@ -898,7 +889,7 @@ passAsPrimitive(Type t)
 
 Datum
 Function_invoke(
-	Oid funcoid, bool trusted, bool forTrigger, bool forValidator,
+	Oid funcoid, bool forTrigger, bool forValidator,
 	bool checkBody, PG_FUNCTION_ARGS)
 {
 	Function self;
@@ -907,7 +898,7 @@ Function_invoke(
 	Type invokerType;
 	bool skipParameterConversion = false;
 
-	self = getFunction(funcoid, trusted, forTrigger, forValidator, checkBody);
+	self = getFunction(funcoid, forTrigger, forValidator, checkBody);
 
 	if ( forValidator )
 		PG_RETURN_VOID();

@@ -1756,7 +1756,7 @@ static void registerGUCOptions(void)
 #undef PLJAVA_ENABLE_DEFAULT
 #undef PLJAVA_IMPLEMENTOR_FLAGS
 
-static inline Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
+static inline Datum internalCallHandler(PG_FUNCTION_ARGS);
 
 extern PLJAVADLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_call_handler);
@@ -1766,7 +1766,7 @@ PG_FUNCTION_INFO_V1(javau_call_handler);
  */
 Datum javau_call_handler(PG_FUNCTION_ARGS)
 {
-	return internalCallHandler(false, fcinfo);
+	return internalCallHandler(fcinfo);
 }
 
 extern PLJAVADLLEXPORT Datum java_call_handler(PG_FUNCTION_ARGS);
@@ -1777,11 +1777,11 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
-	return internalCallHandler(true, fcinfo);
+	return internalCallHandler(fcinfo);
 }
 
 static inline Datum
-internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
+internalCallHandler(PG_FUNCTION_ARGS)
 {
 	Invocation ctx;
 	Datum retval = 0;
@@ -1794,7 +1794,7 @@ internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	 * It's cheap, and can be followed back to the right language and
 	 * handler function entries later if needed.
 	 */
-	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid) = funcoid;
+	pljavaOid = funcoid;
 	if ( IS_COMPLETE != initstage )
 	{
 		deferInit = false;
@@ -1804,8 +1804,7 @@ internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		retval = Function_invoke(
-			funcoid, trusted, forTrigger, false, true, fcinfo);
+		retval = Function_invoke(funcoid, forTrigger, false, true, fcinfo);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -1817,14 +1816,14 @@ internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	return retval;
 }
 
-static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS);
+static Datum internalValidator(PG_FUNCTION_ARGS);
 
 extern PLJAVADLLEXPORT Datum javau_validator(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_validator);
 
 Datum javau_validator(PG_FUNCTION_ARGS)
 {
-	return internalValidator(false, fcinfo);
+	return internalValidator(fcinfo);
 }
 
 extern PLJAVADLLEXPORT Datum java_validator(PG_FUNCTION_ARGS);
@@ -1832,40 +1831,16 @@ PG_FUNCTION_INFO_V1(java_validator);
 
 Datum java_validator(PG_FUNCTION_ARGS)
 {
-	return internalValidator(true, fcinfo);
+	return internalValidator(fcinfo);
 }
 
-static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
+static Datum internalValidator(PG_FUNCTION_ARGS)
 {
 	Oid funcoid = PG_GETARG_OID(0);
 	Invocation ctx;
-	Oid *oidSaveLocation = NULL;
 
 	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
 		PG_RETURN_VOID();
-
-	/*
-	 * In the call handler, which could be called heavily, funcoid gets
-	 * unconditionally stored to one of these two locations, rather than
-	 * spending extra cycles deciding whether to store it or not. A validator
-	 * will not be called as heavily, and can afford to check here whether
-	 * an Oid needs to be stored or not. The situation to avoid is where
-	 * funcoid gets stored here, as an Oid from which PL/Java's library path can
-	 * be found, but the function then gets rejected by the validator, leaving
-	 * the stored Oid invalid and useless for that purpose. Therefore, choose
-	 * here whether and where to store it, but store it only within the PG_TRY
-	 * block, and replace with InvalidOid again in the PG_CATCH.
-	 */
-	if ( trusted )
-	{
-		if ( InvalidOid == pljavaTrustedOid )
-			oidSaveLocation = &pljavaTrustedOid;
-	}
-	else
-	{
-		if ( InvalidOid == pljavaUntrustedOid )
-			oidSaveLocation = &pljavaUntrustedOid;
-	}
 
 	if ( IS_PLJAVA_INSTALLING > initstage )
 	{
@@ -1889,17 +1864,28 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		if ( NULL != oidSaveLocation )
-			*oidSaveLocation = funcoid;
+		/*
+		 * In the call handler, which could be called heavily, funcoid gets
+		 * unconditionally stored to pljavaOid, rather than spending extra
+		 * cycles deciding whether to store it or not. A validator will not be
+		 * called as heavily, and can afford to check here whether an Oid needs
+		 * to be stored or not. The situation to avoid is where funcoid gets
+		 * stored here, as an Oid from which PL/Java's library path can be
+		 * found, but the function then gets rejected by the validator,
+		 * leaving the stored Oid invalid and useless for that purpose.
+		 * Therefore, choose whether to store it, here within the PG_TRY block,
+		 * but replace with InvalidOid again if the PG_CATCH happens.
+		 */
+		if ( InvalidOid == pljavaOid )
+			pljavaOid = funcoid;
 
-		Function_invoke(
-			funcoid, trusted, false, true, check_function_bodies, NULL);
+		Function_invoke(funcoid, false, true, check_function_bodies, NULL);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
-		if ( NULL != oidSaveLocation )
-			*oidSaveLocation = InvalidOid;
+		if ( funcoid == pljavaOid )
+			pljavaOid = InvalidOid;
 
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
@@ -2096,10 +2082,8 @@ Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass 
 
 	if ( NULL == pljavaLoadPath )
 	{
-		Oid funcoid = pljavaTrustedOid;
+		Oid funcoid = pljavaOid;
 
-		if ( InvalidOid == funcoid )
-			funcoid = pljavaUntrustedOid;
 		if ( InvalidOid == funcoid )
 			return NULL;
 
