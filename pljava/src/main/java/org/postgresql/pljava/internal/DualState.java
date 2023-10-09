@@ -528,27 +528,42 @@ public abstract class DualState<T> extends WeakReference<T>
 	/** Thread local record of when the PG thread is invoking callbacks. */
 	private static final CleanupTracker s_inCleanup = new CleanupTracker();
 
+	/** Flag for cleanup entry/exit from the Java side */
+	private static final int CLEAN_JAVA   = 1;
+
+	/** Flag for cleanup entry/exit from the native side */
+	private static final int CLEAN_NATIVE = 2;
+
 	/** Thread local boolean with pairing enter/exit operations. */
-	static final class CleanupTracker extends ThreadLocal<Boolean>
+	static final class CleanupTracker extends ThreadLocal<Integer>
 	{
-		boolean enter()
+		boolean enter(int how)
 		{
 			assert Backend.threadMayEnterPG() : m("inCleanup.enter thread");
-			assert ! inCleanup() : m("inCleanup.enter re-entered");
-			set(Boolean.TRUE);
+			int got = get();
+			assert (got&3) != how : m("inCleanup.enter re-entered same how");
+			assert got < 4 : m("inCleanup.enter too many entries");
+			set((got << 2) | how);
 			return true;
 		}
 
-		boolean exit()
+		boolean exit(int how)
 		{
-			assert inCleanup() : m("inCleanup.exit mispaired");
-			set(Boolean.FALSE);
+			int got = get();
+			assert (got&3) == how : m("inCleanup.exit mispaired");
+			set(got >>> 2);
 			return true;
 		}
 
 		boolean inCleanup()
 		{
-			return Boolean.TRUE == get();
+			return 0 != get();
+		}
+
+		@Override
+		protected Integer initialValue()
+		{
+			return 0;
 		}
 	}
 
@@ -1757,34 +1772,43 @@ public abstract class DualState<T> extends WeakReference<T>
 
 		DualState t = head.m_next;
 		head.m_prev = head.m_next = head;
-		for ( DualState s = t ; s != head ; s = t )
+
+		assert s_inCleanup.enter(CLEAN_NATIVE); //no-op when assertions disabled
+		try
 		{
-			t = s.m_next;
-			s.m_prev = s.m_next = null;
-			++ total;
-			/*
-			 * This lock() is part of DualState's contract with clients.
-			 * They are responsible for pinning the state instance
-			 * whenever they need the wrapped native state (which is verified
-			 * to still be valid at that time) and for the duration of whatever
-			 * operation needs access to that state. Taking this lock here
-			 * ensures the native state is blocked from vanishing while it is
-			 * actively in use.
-			 */
-			int state = s.lock(false);
-			try
+			for ( DualState s = t ; s != head ; s = t )
 			{
-				if ( z(NATIVE_RELEASED & state) )
+				t = s.m_next;
+				s.m_prev = s.m_next = null;
+				++ total;
+				/*
+				 * This lock() is part of DualState's contract with clients.
+				 * They are responsible for pinning the state instance whenever
+				 * they need the wrapped native state (which is verified to
+				 * still be valid at that time) and for the duration of whatever
+				 * operation needs access to that state. Taking this lock here
+				 * ensures the native state is blocked from vanishing while it
+				 * is actively in use.
+				 */
+				int state = s.lock(false);
+				try
 				{
-					++ release;
-					s.nativeStateReleased(
-						z(JAVA_RELEASED & state)  &&  null != s.referent());
+					if ( z(NATIVE_RELEASED & state) )
+					{
+						++ release;
+						s.nativeStateReleased(
+							z(JAVA_RELEASED & state)  &&  null != s.referent());
+					}
+				}
+				finally
+				{
+					s.unlock(state, true);//true->ensure NATIVE_RELEASED is set.
 				}
 			}
-			finally
-			{
-				s.unlock(state, true); // true -> ensure NATIVE_RELEASED is set.
-			}
+		}
+		finally
+		{
+			assert s_inCleanup.exit(CLEAN_NATIVE);
 		}
 
 		s_stats.lifespanPoll(release, total);
@@ -1807,7 +1831,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		int nDeferred = s_deferredReleased.size();
 		boolean isDeferred;
 
-		assert s_inCleanup.enter(); // no-op when assertions disabled
+		assert s_inCleanup.enter(CLEAN_JAVA); // no-op when assertions disabled
 		try
 		{
 			for ( ;; )
@@ -1848,7 +1872,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 		finally
 		{
-			assert s_inCleanup.exit();
+			assert s_inCleanup.exit(CLEAN_JAVA);
 		}
 
 		s_stats.referenceQueueDrain(total - release, release, total, reDefer);
@@ -2361,6 +2385,55 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		private native void _heapFreeTuple(ByteBuffer tuple);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is a JNI {@code DeleteGlobalRef} of a single pointer.
+	 */
+	public static abstract class SingleDeleteGlobalRefP<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleDeleteGlobalRefP(
+			T referent, Lifespan span, long dgrTarget)
+		{
+			super(referent, span, dgrTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s DeleteGlobalRef(%x)";
+		}
+
+		/**
+		 * When the Java state is released (it won't normally go unreachable,
+		 * because of the global ref), a JNI {@code DeleteGlobalRef} call
+		 * is made so the instance can be collected without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateReleased(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_deleteGlobalRefP(guardedLong());
+		}
+
+		/**
+		 * When the native state is released, a JNI {@code DeleteGlobalRef} call
+		 * is made so the global ref stored in that to-be-released memory isn't
+		 * leaked (left permanently live).
+		 */
+		@Override
+		protected void nativeStateReleased(boolean javaStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( javaStateLive )
+				_deleteGlobalRefP(guardedLong());
+		}
+
+		private native void _deleteGlobalRefP(long pointer);
 	}
 
 	/**

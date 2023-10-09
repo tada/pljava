@@ -20,6 +20,7 @@
 #include "org_postgresql_pljava_internal_DualState_SingleSPIfreetuptable.h"
 #include "org_postgresql_pljava_internal_DualState_SingleSPIcursorClose.h"
 #include "org_postgresql_pljava_internal_DualState_BBHeapFreeTuple.h"
+#include "org_postgresql_pljava_internal_DualState_SingleDeleteGlobalRefP.h"
 #include "pljava/DualState.h"
 
 #include "pljava/Exception.h"
@@ -156,6 +157,16 @@ void pljava_DualState_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod deleteGlobalRefPMethods[] =
+	{
+		{
+		"_deleteGlobalRefP",
+		"(J)V",
+		Java_org_postgresql_pljava_internal_DualState_00024SingleDeleteGlobalRefP__1deleteGlobalRefP
+		},
+		{ 0, 0, 0 }
+	};
+
 	s_DualState_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState"));
 	s_DualState_cleanEnqueuedInstances = PgObject_getStaticJavaMethod(
@@ -204,6 +215,11 @@ void pljava_DualState_initialize(void)
 	clazz = (jclass)PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/DualState$BBHeapFreeTuple");
 	PgObject_registerNatives2(clazz, bbHeapFreeTupleMethods);
+	JNI_deleteLocalRef(clazz);
+
+	clazz = (jclass)PgObject_getJavaClass(
+		"org/postgresql/pljava/internal/DualState$SingleDeleteGlobalRefP");
+	PgObject_registerNatives2(clazz, deleteGlobalRefPMethods);
 	JNI_deleteLocalRef(clazz);
 
 	/*
@@ -417,4 +433,24 @@ Java_org_postgresql_pljava_internal_DualState_00024BBHeapFreeTuple__1heapFreeTup
 	BEGIN_NATIVE_NO_ERRCHECK
 	heap_freetuple(tup);
 	END_NATIVE
+}
+
+
+
+/*
+ * Class:     org_postgresql_pljava_internal_DualState_SingleDeleteGlobalRefP
+ * Method:    _deleteGlobalRefP
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_DualState_00024SingleDeleteGlobalRefP__1deleteGlobalRefP(
+	JNIEnv* env, jobject _this, jlong refp)
+{
+	Ptr2Long p2l;
+	jobject ref;
+	p2l.longVal = refp;
+	ref = *(jobject *)p2l.ptrVal;
+	*(jobject *)p2l.ptrVal = NULL;
+	/* no call into PostgreSQL here, just one simple JNI operation */
+	(*env)->DeleteGlobalRef(env, ref);
 }
