@@ -44,8 +44,11 @@ import org.postgresql.pljava.model.CatalogObject.Named;
 import org.postgresql.pljava.model.Portal;
 import static org.postgresql.pljava.model.Portal.ALL;
 import static org.postgresql.pljava.model.Portal.Direction.FORWARD;
+import org.postgresql.pljava.model.ProceduralLanguage;
 import org.postgresql.pljava.model.RegClass;
 import org.postgresql.pljava.model.RegClass.Known;
+import org.postgresql.pljava.model.RegProcedure;
+import org.postgresql.pljava.model.RegType;
 import org.postgresql.pljava.model.SlotTester;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -62,6 +65,9 @@ import org.postgresql.pljava.model.TupleTableSlot;
 @SQLAction(requires="catalogClasses function", install=
 	"SELECT javatest.catalogClasses()"
 )
+@SQLAction(requires="catalogInval function", install=
+	"SELECT javatest.catalogInval()"
+)
 public class CatalogObjects {
 	static final Logger logr = Logger.getAnonymousLogger();
 
@@ -70,8 +76,11 @@ public class CatalogObjects {
 		logr.log(v, m, p);
 	}
 
-	static final As<CatalogObject,?> CatObjAdapter;
-	static final As<RegClass     ,?> RegClsAdapter;
+	static final As<CatalogObject     ,?> CatObjAdapter;
+	static final As<ProceduralLanguage,?> PrLangAdapter;
+	static final As<RegClass          ,?> RegClsAdapter;
+	static final As<RegProcedure<?>   ,?> RegPrcAdapter;
+	static final As<RegType           ,?> RegTypAdapter;
 
 	static
 	{
@@ -88,8 +97,15 @@ public class CatalogObjects {
 			CatObjAdapter =
 				(As<CatalogObject,?>)t.adapterPlease(cls, "INSTANCE");
 					@SuppressWarnings("unchecked") Object _2 =
+			PrLangAdapter =
+				(As<ProceduralLanguage,?>)t.adapterPlease(cls,"PLANG_INSTANCE");
 			RegClsAdapter =
 				(As<RegClass,?>)t.adapterPlease(cls, "REGCLASS_INSTANCE");
+			RegPrcAdapter =
+				(As<RegProcedure<?>,?>)t.adapterPlease(
+					cls, "REGPROCEDURE_INSTANCE");
+			RegTypAdapter =
+				(As<RegType,?>)t.adapterPlease(cls, "REGTYPE_INSTANCE");
 		}
 		catch ( SQLException | ReflectiveOperationException e )
 		{
@@ -97,7 +113,132 @@ public class CatalogObjects {
 		}
 	}
 
-	@Function(provides="catalogClasses function")
+	@Function(schema="javatest", provides="catalogInval function")
+	public static void catalogInval() throws SQLException
+	{
+		try (
+			Connection conn = getConnection("jdbc:default:connection");
+			Statement s = conn.createStatement();
+		)
+		{
+			SlotTester st = conn.unwrap(SlotTester.class);
+			CatalogObject catObj;
+			String description1;
+			String description2;
+			boolean passing = true;
+
+			s.executeUpdate("CREATE TABLE tbl_a ()");
+			catObj = findObj(s, st, RegClsAdapter,
+				"SELECT CAST ('tbl_a' AS pg_catalog.regclass)");
+			description1 = catObj.toString();
+			s.executeUpdate("ALTER TABLE tbl_a RENAME TO tbl_b");
+			description2 = catObj.toString();
+			if ( ! description2.equals(description1.replace("tbl_a", "tbl_b")) )
+			{
+				log(WARNING, "RegClass before/after rename: {0} / {1}",
+					description1, description2);
+				passing = false;
+			}
+			s.executeUpdate("DROP TABLE tbl_b");
+			description1 = catObj.toString();
+			if ( ! description2.matches("\\Q"+description1+"\\E(?<=]).*") )
+			{
+				log(WARNING, "RegClass before/after drop: {1} / {0}",
+					description1, description2);
+				passing = false;
+			}
+
+			s.executeQuery(
+				"SELECT sqlj.alias_java_language('lng_a', sandboxed => true)")
+				.next();
+			catObj = findObj(s, st, PrLangAdapter,
+				"SELECT oid FROM pg_catalog.pg_language " +
+				"WHERE lanname OPERATOR(pg_catalog.=) 'lng_a'");
+			description1 = catObj.toString();
+			s.executeUpdate("ALTER LANGUAGE lng_a RENAME TO lng_b");
+			description2 = catObj.toString();
+			if ( ! description2.equals(description1.replace("lng_a", "lng_b")) )
+			{
+				log(WARNING,
+					"ProceduralLanguage before/after rename: {0} / {1}",
+					description1, description2);
+				passing = false;
+			}
+			s.executeUpdate("DROP LANGUAGE lng_b");
+			description1 = catObj.toString();
+			if ( ! description2.matches("\\Q"+description1+"\\E(?<=]).*") )
+			{
+				log(WARNING, "ProceduralLanguage before/after drop: {1} / {0}",
+					description1, description2);
+				passing = false;
+			}
+
+			s.executeUpdate(
+				"CREATE FUNCTION fn_a() RETURNS INTEGER LANGUAGE SQL " +
+				"AS 'SELECT 1'");
+			catObj = findObj(s, st, RegPrcAdapter,
+				"SELECT CAST ('fn_a()' AS pg_catalog.regprocedure)");
+			description1 = catObj.toString();
+			s.executeUpdate("ALTER FUNCTION fn_a RENAME TO fn_b");
+			description2 = catObj.toString();
+			if ( ! description2.equals(description1.replace("fn_a", "fn_b")) )
+			{
+				log(WARNING, "RegProcedure before/after rename: {0} / {1}",
+					description1, description2);
+				passing = false;
+			}
+			s.executeUpdate("DROP FUNCTION fn_b");
+			description1 = catObj.toString();
+			if ( ! description2.matches("\\Q"+description1+"\\E(?<=]).*") )
+			{
+				log(WARNING, "RegProcedure before/after drop: {1} / {0}",
+					description1, description2);
+				passing = false;
+			}
+
+			s.executeUpdate("CREATE TYPE typ_a AS ()");
+			catObj = findObj(s, st, RegTypAdapter,
+				"SELECT CAST ('typ_a' AS pg_catalog.regtype)");
+			description1 = catObj.toString();
+			s.executeUpdate("ALTER TYPE typ_a RENAME TO typ_b");
+			description2 = catObj.toString();
+			if ( ! description2.equals(description1.replace("typ_a", "typ_b")) )
+			{
+				log(WARNING, "RegType before/after rename: {0} / {1}",
+					description1, description2);
+				passing = false;
+			}
+			s.executeUpdate("DROP TYPE typ_b");
+			description1 = catObj.toString();
+			if ( ! description2.matches("\\Q"+description1+"\\E(?<=]).*") )
+			{
+				log(WARNING, "RegType before/after drop: {1} / {0}",
+					description1, description2);
+				passing = false;
+			}
+
+			if ( passing )
+				log(INFO, "selective invalidation ok");
+		}
+	}
+
+	private static <T extends CatalogObject.Addressed<T>> T findObj(
+		Statement s, SlotTester st, As<? extends T,?> adapter, String query)
+	throws SQLException
+	{
+		try (
+			Portal p = st.unwrapAsPortal(s.executeQuery(query))
+		)
+		{
+			return
+				p.tupleDescriptor().applyOver(p.fetch(FORWARD, 1), c0 -> c0
+					.stream()
+					.map(c -> c.apply(adapter, o -> o))
+					.findFirst().get());
+		}
+	}
+
+	@Function(schema="javatest", provides="catalogClasses function")
 	public static void catalogClasses() throws SQLException
 	{
 		String catalogRelationsQuery =

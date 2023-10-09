@@ -62,6 +62,8 @@ implements
 {
 	private static UnaryOperator<MethodHandle[]> s_initializer;
 
+	private final SwitchPoint[] m_sp;
+
 	/* Implementation of Addressed */
 
 	@Override
@@ -113,6 +115,14 @@ implements
 	RegProcedureImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
+		m_sp = new SwitchPoint[] { new SwitchPoint() };
+	}
+
+	@Override
+	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+	{
+		sps.add(m_sp[0]);
+		m_sp[0] = new SwitchPoint();
 	}
 
 	static final int SLOT_LANGUAGE;
@@ -144,10 +154,15 @@ implements
 		s_initializer =
 			new Builder<>(RegProcedureImpl.class)
 			.withLookup(lookup())
-			.withSwitchPoint(o -> s_globalPoint[0])
+			.withSwitchPoint(o -> o.m_sp[0])
 			.withSlots(o -> o.m_slots)
-			.withCandidates(RegProcedureImpl.class.getDeclaredMethods())
 
+			.withCandidates(
+				CatalogObjectImpl.Addressed.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Addressed.class)
+			.withDependent("cacheTuple", SLOT_TUPLE)
+
+			.withCandidates(RegProcedureImpl.class.getDeclaredMethods())
 			.withReceiverType(CatalogObjectImpl.Named.class)
 			.withReturnType(Unqualified.class)
 			.withDependent(      "name", SLOT_NAME)

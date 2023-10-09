@@ -60,7 +60,7 @@
 
 static jclass s_CatalogObjectImpl_Factory_class;
 static jmethodID s_CatalogObjectImpl_Factory_invalidateRelation;
-static jmethodID s_CatalogObjectImpl_Factory_invalidateType;
+static jmethodID s_CatalogObjectImpl_Factory_syscacheInvalidate;
 
 static jclass s_MemoryContextImpl_class;
 static jmethodID s_MemoryContextImpl_callback;
@@ -186,11 +186,17 @@ static void sysCacheCB(Datum arg, int cacheid, uint32 hash)
 {
 	switch ( cacheid )
 	{
+	case LANGOID:
+	case PROCOID:
 	case TYPEOID:
 		JNI_callStaticObjectMethodLocked(s_CatalogObjectImpl_Factory_class,
-			s_CatalogObjectImpl_Factory_invalidateType, (jint)hash);
+			s_CatalogObjectImpl_Factory_syscacheInvalidate,
+			(jint)cacheid, (jint)hash);
 		break;
 	default:
+#ifdef USE_ASSERT_CHECKING
+		elog(ERROR, "unhandled invalidation callback for cache id %d", cacheid);
+#endif
 		break;
 	}
 }
@@ -375,9 +381,9 @@ void pljava_ModelUtils_initialize(void)
 	s_CatalogObjectImpl_Factory_invalidateRelation =
 		PgObject_getStaticJavaMethod(
 		s_CatalogObjectImpl_Factory_class, "invalidateRelation", "(I)V");
-	s_CatalogObjectImpl_Factory_invalidateType =
+	s_CatalogObjectImpl_Factory_syscacheInvalidate =
 		PgObject_getStaticJavaMethod(
-		s_CatalogObjectImpl_Factory_class, "invalidateType", "(I)V");
+		s_CatalogObjectImpl_Factory_class, "syscacheInvalidate", "(II)V");
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CharsetEncodingImpl$EarlyNatives");
 	PgObject_registerNatives2(cls, charsetMethods);
@@ -438,6 +444,8 @@ void pljava_ModelUtils_initialize(void)
 
 	CacheRegisterRelcacheCallback(relCacheCB, 0);
 
+	CacheRegisterSyscacheCallback(LANGOID, sysCacheCB, 0);
+	CacheRegisterSyscacheCallback(PROCOID, sysCacheCB, 0);
 	CacheRegisterSyscacheCallback(TYPEOID, sysCacheCB, 0);
 }
 

@@ -158,23 +158,6 @@ implements
 	}
 
 	/**
-	 * Called from {@code Factory}'s {@code invalidateType} to set up
-	 * the invalidation of this type's metadata.
-	 *<p>
-	 * Adds this type's {@code SwitchPoint} to the caller's list so that,
-	 * if more than one is to be invalidated, that can be done in bulk. Adds to
-	 * <var>postOps</var> any operations the caller should conclude with
-	 * after invalidating the {@code SwitchPoint}.
-	 */
-	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
-	{
-		/*
-		 * We don't expect invalidations for any flavor except NoModifier, so
-		 * this no-op version will be overridden there only.
-		 */
-	}
-
-	/**
 	 * Holder for the {@code RegClass} corresponding to {@code relation()},
 	 * only non-null during a call of {@code dualHandshake}.
 	 */
@@ -1191,25 +1174,25 @@ implements
 	 */
 	static class NoModifier extends RegTypeImpl
 	{
-		private SwitchPoint m_sp;
+		private final SwitchPoint[] m_sp;
 
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return m_sp;
+			return m_sp[0];
 		}
 
 		NoModifier()
 		{
 			super(s_initializer.apply(new MethodHandle[NSLOTS]));
-			m_sp = new SwitchPoint();
+			m_sp = new SwitchPoint[] { new SwitchPoint() };
 		}
 
 		@Override
 		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
 		{
-			sps.add(m_sp);
-			m_sp = new SwitchPoint();
+			sps.add(m_sp[0]);
+			m_sp[0] = new SwitchPoint();
 		}
 
 		@Override
@@ -1252,7 +1235,7 @@ implements
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return m_base.m_sp;
+			return m_base.m_sp[0];
 		}
 
 		Modified(NoModifier base)
@@ -1345,7 +1328,7 @@ implements
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return ((NoModifier)RECORD).m_sp;
+			return ((NoModifier)RECORD).m_sp[0];
 		}
 
 		Blessed()

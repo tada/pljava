@@ -34,6 +34,9 @@ import static org.postgresql.pljava.model.MemoryContext.JavaMemoryContext;
 import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;
 import org.postgresql.pljava.pg.ModelConstants;
 import static org.postgresql.pljava.pg.ModelConstants.PG_VERSION_NUM;
+import static org.postgresql.pljava.pg.ModelConstants.LANGOID;
+import static org.postgresql.pljava.pg.ModelConstants.PROCOID;
+import static org.postgresql.pljava.pg.ModelConstants.TYPEOID;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 
 import org.postgresql.pljava.pg.adt.ArrayAdapter;
@@ -588,19 +591,35 @@ public class CatalogObjectImpl implements CatalogObject
 		 * Oid (inconvenient, as that is likely different from the hash Java
 		 * uses), or zero to flush metadata for all cached types.
 		 */
-		private static void invalidateType(int oidHash)
+		private static void syscacheInvalidate(int cacheId, int oidHash)
 		{
 			assert threadMayEnterPG() : "RegType invalidate thread";
 
 			List<SwitchPoint> sps = new ArrayList<>();
 			List<Runnable> postOps = new ArrayList<>();
 
+			Class<? extends Addressed> targetClass;
+
+			if ( LANGOID == cacheId )
+				targetClass = ProceduralLanguageImpl.class;
+			else if ( PROCOID == cacheId )
+				targetClass = RegProcedureImpl.class;
+			else if ( TYPEOID == cacheId )
+				targetClass = RegTypeImpl.class;
+			else
+			{
+				assert false :
+					"unhandled invalidation callback for cache id " + cacheId;
+				return;
+			}
+
 			forEachValue(o ->
 			{
-				if ( ! ( o instanceof RegTypeImpl ) )
+				if ( ! targetClass.isInstance(o) )
 					return;
 				if ( 0 == oidHash  ||  oidHash == murmurhash32(o.oid()) )
-					((RegTypeImpl)o).invalidate(sps, postOps);
+					((Addressed<?>)targetClass.cast(o))
+						.invalidate(sps, postOps);
 			});
 
 			if ( sps.isEmpty() )
@@ -873,6 +892,25 @@ public class CatalogObjectImpl implements CatalogObject
 			if ( InvalidOid == oid() )
 				makeInvalidInstance(slots);
 			m_slots = slots;
+		}
+
+		/**
+		 * Called from an invalidation callback in {@code Factory} to set up
+		 * the invalidation of this catalog object's metadata.
+		 *<p>
+		 * Adds this object's {@code SwitchPoint} to the caller's list so that,
+		 * if more than one is to be invalidated, that can be done in bulk. Adds to
+		 * <var>postOps</var> any operations the caller should conclude with
+		 * after invalidating the {@code SwitchPoint}.
+		 *<p>
+		 * This implementation does nothing (other than to assert false, when
+		 * assertions are enabled). It should be overridden in those subclasses
+		 * that do more fine-grained invalidation than simply relying on
+		 * {@code s_globalPoint}.
+		 */
+		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+		{
+			assert false : "unhandled invalidation of " + toString();
 		}
 
 		/**

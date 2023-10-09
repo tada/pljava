@@ -153,7 +153,16 @@ implements
 		 * bound into to be recomputed.
 		 */
 		if ( null != oldTDH )
-			postOps.add(() -> oldTDH[0] = null);
+		{
+			postOps.add(() ->
+			{
+				TupleDescImpl td = (TupleDescImpl)oldTDH[0];
+				if ( null == td )
+					return;
+				oldTDH[0] = null;
+				td.invalidate();
+			});
+		}
 	}
 
 	/**
