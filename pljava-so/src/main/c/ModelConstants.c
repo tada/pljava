@@ -127,6 +127,14 @@ static int32 constants[] = {
 	NOCONSTANT(OFFSET_TTS_TABLEOID),
 #endif /* 120000 */
 
+	TYPEOFFSET(NullableDatum, NullableDatum, isnull),
+	CONSTANTEXPR(SIZEOF_NullableDatum, sizeof (NullableDatum)),
+
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, fncollation),
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, isnull),
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, nargs),
+	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, args),
+
 
 
 	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS, offsetof(struct TupleDescData, attrs)),
@@ -172,6 +180,20 @@ static int32 constants[] = {
 
 
 	CONSTANT(N_ACL_RIGHTS),
+	CONSTANT(BITS_PER_BITMAPWORD),
+
+
+
+	CONSTANT(T_Invalid),
+	CONSTANT(T_AggState),
+	CONSTANT(T_Bitmapset),
+	CONSTANT(T_CallContext),
+	CONSTANT(T_ErrorSaveContext),
+	CONSTANT(T_EventTriggerData),
+	CONSTANT(T_ReturnSetInfo),
+	CONSTANT(T_TriggerData),
+	CONSTANT(T_WindowAggState),
+	CONSTANT(T_WindowObjectData),
 
 
 
@@ -197,10 +219,12 @@ static int32 constants[] = {
 #undef CONSTANT
 #undef CONSTANTEXPR
 
-static void dummy()
+static void dummy(Bitmapset *bitmapset)
 {
 	StaticAssertStmt(SIZEOF_DATUM == SIZEOF_VOID_P,
 		"PostgreSQL SIZEOF_DATUM and SIZEOF_VOID_P no longer equivalent?");
+
+	AssertVariableIsOfType(bitmapset->nwords, int); /* DatumUtils.java */
 
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
@@ -268,6 +292,7 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST(   REGOPERATOROID );
 	CONFIRMCONST(      REGCLASSOID );
 	CONFIRMCONST(       REGTYPEOID );
+	CONFIRMCONST(       TRIGGEROID );
 	CONFIRMCONST(     REGCONFIGOID );
 	CONFIRMCONST( REGDICTIONARYOID );
 	CONFIRMCONST(  REGNAMESPACEOID );
@@ -357,6 +382,28 @@ StaticAssertStmt((expr) == \
 	CONFIRMCONST( PG_LATIN1 );
 	CONFIRMCONST( PG_ENCODING_BE_LAST );
 
+	/*
+	 * The PG polymorphic pseudotypes.
+	 */
+	CONFIRMCONST( ANYOID );
+
+	CONFIRMCONST(      ANYARRAYOID );
+	CONFIRMCONST(    ANYELEMENTOID );
+	CONFIRMCONST(   ANYNONARRAYOID );
+	CONFIRMCONST(       ANYENUMOID );
+	CONFIRMCONST(      ANYRANGEOID );
+#if PG_VERSION_NUM >= 140000
+	CONFIRMCONST( ANYMULTIRANGEOID );
+
+	CONFIRMCONST( ANYCOMPATIBLEMULTIRANGEOID );
+#endif
+#if PG_VERSION_NUM >= 130000
+	CONFIRMCONST(           ANYCOMPATIBLEOID );
+	CONFIRMCONST(      ANYCOMPATIBLEARRAYOID );
+	CONFIRMCONST(   ANYCOMPATIBLENONARRAYOID );
+	CONFIRMCONST(      ANYCOMPATIBLERANGEOID );
+#endif
+
 	CONFIRMCONST( VARHDRSZ );
 	CONFIRMCONST( VARHDRSZ_EXTERNAL );
 	CONFIRMCONST( VARTAG_INDIRECT );
@@ -412,6 +459,19 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 
 	CONFIRMEXPR( SIZEOF_ArrayType_DIM, sizeof *ARR_DIMS(0) );
 
+	CONFIRMEXPR( SIZEOF_NodeTag, sizeof (NodeTag) );
+	CONFIRMEXPR( SIZEOF_Oid,     sizeof (Oid) );
+
+#undef CONFIRMSIZEOF
+#define CONFIRMSIZEOF(strct,tag,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_ModelConstants_SIZEOF_##tag##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+
+	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, fncollation );
+	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, isnull );
+	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, nargs );
+
 #undef CONFIRMSIZEOF
 #undef CONFIRMVLOFFSET
 #undef CONFIRMCONST
@@ -449,6 +509,8 @@ StaticAssertStmt(offsetof(form,fld) == \
 	CONFIRMCONST( HEAP_HASNULL );
 	CONFIRMCONST( HEAP_HASEXTERNAL );
 	CONFIRMCONST( HEAP_NATTS_MASK );
+
+	CONFIRMOFFSET( NullableDatum, value );
 
 #undef CONFIRMCONST
 #undef CONFIRMSIZEOF

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -97,6 +97,7 @@ extends
 	RegType      RECORD = formObjectId(CLASSID,  RECORDOID);
 	RegType     CSTRING = formObjectId(CLASSID, CSTRINGOID);
 	RegType        VOID = formObjectId(CLASSID,    VOIDOID);
+	RegType     TRIGGER = formObjectId(CLASSID, TRIGGEROID);
 
 	/*
 	 * PG types used in modeling PG types themselves.
@@ -127,6 +128,40 @@ extends
 	interface TypeModifierOutput extends Memo<TypeModifierOutput> { }
 	interface TypeAnalyze extends Memo<TypeAnalyze> { }
 	interface TypeSubscript extends Memo<TypeSubscript> { }
+
+	/**
+	 * Interface additionally implemented by an instance that represents a type
+	 * (such as the PostgreSQL polymorphic pseudotypes or the even wilder "any"
+	 * type) needing resolution to an actual type used at a given call site.
+	 */
+	interface Unresolved extends RegType
+	{
+		/**
+		 * Returns true, indicating resolution to an actual type is needed.
+		 */
+		@Override
+		default boolean needsResolution()
+		{
+			return true;
+		}
+	}
+
+	/**
+	 * Whether this instance represents a type (such as the PostgreSQL
+	 * polymorphic pseudotypes or the even wilder "any" type) needing resolution
+	 * to an actual type used at a given call site.
+	 *<p>
+	 * This information does not come from the {@code pg_type} catalog, but
+	 * simply reflects PostgreSQL-version-specific knowledge of which types
+	 * require such treatment.
+	 *<p>
+	 * This default implementation returns false.
+	 * @see Unresolved#needsResolution
+	 */
+	default boolean needsResolution()
+	{
+		return false;
+	}
 
 	short length();
 	boolean byValue();

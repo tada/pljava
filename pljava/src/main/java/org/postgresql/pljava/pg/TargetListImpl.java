@@ -23,6 +23,9 @@ import org.postgresql.pljava.Adapter.AsLong;
 import org.postgresql.pljava.Adapter.AsShort;
 import org.postgresql.pljava.TargetList;
 
+import
+	org.postgresql.pljava.internal.AbstractNoSplitList.IteratorNonSpliterator;
+
 import org.postgresql.pljava.model.Attribute;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
@@ -561,7 +564,7 @@ class TargetListImpl extends AbstractList<Attribute> implements TargetList
 				chr |= SIZED;
 			}
 
-			spl = new TupleList.IteratorNonSpliterator<>(itr, est, chr);
+			spl = new IteratorNonSpliterator<>(itr, est, chr);
 
 			return StreamSupport.stream(spl, false);
 		}

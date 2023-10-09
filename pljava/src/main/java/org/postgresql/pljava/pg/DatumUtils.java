@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,10 +16,14 @@ import java.io.IOException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import static java.nio.ByteOrder.nativeOrder;
 import java.nio.BufferUnderflowException;
+import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 
 import java.sql.SQLException;
 
+import java.util.BitSet;
 import java.util.List;
 
 import org.postgresql.pljava.adt.spi.Datum;
@@ -47,8 +51,7 @@ import static org.postgresql.pljava.pg.ModelConstants.*;
  */
 public /*XXX*/ class DatumUtils
 {
-	static final boolean BIG_ENDIAN =
-		ByteOrder.BIG_ENDIAN == ByteOrder.nativeOrder();
+	static final boolean BIG_ENDIAN = ByteOrder.BIG_ENDIAN == nativeOrder();
 
 	public static TupleTableSlot.Indexed indexedTupleSlot(
 		RegType type, int elements, ByteBuffer nulls, ByteBuffer values)
@@ -85,9 +88,11 @@ public /*XXX*/ class DatumUtils
 
 	public static ByteBuffer asReadOnlyNativeOrder(ByteBuffer bb)
 	{
+		if ( null == bb )
+			return bb;
 		if ( ! bb.isReadOnly() )
 			bb = bb.asReadOnlyBuffer();
-		return bb.order(ByteOrder.nativeOrder());
+		return bb.order(nativeOrder());
 	}
 
 	static ByteBuffer mapFixedLength(long nativeAddress, int length)
@@ -220,6 +225,106 @@ public /*XXX*/ class DatumUtils
 		((ByteBuffer)bb.duplicate().position(offset)).get(bytes);
 		ByteBuffer copy = ByteBuffer.wrap(bytes);
 		return new DatumImpl.Input.JavaCopy(asReadOnlyNativeOrder(copy));
+	}
+
+	/**
+	 * Turns a {@link BitSet} into a direct-allocated {@link ByteBuffer} whose
+	 * address can be passed in C code to PostgreSQL's {@code bms_copy} and used
+	 * as a {@code bitmapset}.
+	 *<p>
+	 * While the {@code ByteBuffer} is direct-allocated, it is allocated by
+	 * Java, not by {@code palloc}, and the PostgreSQL code must not be allowed
+	 * to try to grow, shrink, or {@code pfree} it. Hence the {@code bms_copy}.
+	 *<p>
+	 * If the result of operations in C will be wanted in Java, the fuss of
+	 * allocating a different direct {@code ByteBuffer} for the result can be
+	 * avoided by <em>carefully</em> letting the C code update this
+	 * {@code bitmapset} in place, so that no resizing or freeing can occur.
+	 * That can be done by OR-ing one extra bit into the Java {@code BitSet} in
+	 * advance, at an index higher than the bits of interest, and having the C
+	 * code manipulate only the lower-indexed bits (such as by using a
+	 * {@code bms_prev_member} loop unrolled with one first call unused).
+	 *<p>
+	 * While the {@code ByteBuffer} returned is read-only (as far as Java is
+	 * concerned), if it is updated in place by C code, it can be passed
+	 * afterward to {@link #fromBitmapset fromBitmapset} to recover the result.
+	 */
+	static ByteBuffer toBitmapset(BitSet b)
+	{
+		if ( BITS_PER_BITMAPWORD == Long.SIZE )
+		{
+			long[] ls = b.toLongArray();
+			int size = SIZEOF_NodeTag + SIZEOF_INT + ls.length * Long.BYTES;
+			ByteBuffer bb = ByteBuffer.allocateDirect(size);
+			bb.order(nativeOrder());
+			assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
+			bb.putInt(T_Bitmapset);
+			assert SIZEOF_INT == Integer.BYTES : "sizeof int";
+			bb.putInt(ls.length);
+			LongBuffer dst = bb.asLongBuffer();
+			dst.put(ls);
+			return asReadOnlyNativeOrder(bb.rewind());
+		}
+		else if ( BITS_PER_BITMAPWORD == Integer.SIZE )
+		{
+			byte[] bs = b.toByteArray();
+			int widthLessOne = Integer.BYTES - 1;
+			int size = (bs.length + widthLessOne) & ~widthLessOne;
+			int words = size / Integer.BYTES;
+			size += SIZEOF_NodeTag + SIZEOF_INT;
+			ByteBuffer bb = ByteBuffer.allocateDirect(size);
+			bb.order(nativeOrder());
+			assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
+			bb.putInt(T_Bitmapset);
+			assert SIZEOF_INT == Integer.BYTES : "sizeof int";
+			bb.putInt(words);
+			IntBuffer dst = bb.asIntBuffer();
+
+			IntBuffer src = ByteBuffer.wrap(bs)
+				.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+			dst.put(src);
+			return asReadOnlyNativeOrder(bb.rewind());
+		}
+		else
+			throw new AssertionError(
+				"no support for BITS_PER_BITMAPWORD " + BITS_PER_BITMAPWORD);
+	}
+
+	static BitSet fromBitmapset(ByteBuffer bb)
+	{
+		bb.rewind().order(nativeOrder());
+		assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
+		if ( T_Bitmapset != bb.getInt() )
+			throw new AssertionError("not a bitmapset: " + bb);
+		assert SIZEOF_INT == Integer.BYTES : "sizeof int";
+		int words = bb.getInt();
+
+		if ( BITS_PER_BITMAPWORD == Long.SIZE )
+		{
+			LongBuffer lb = bb.asLongBuffer();
+			if ( words > lb.remaining() )
+				throw new AssertionError("corrupted bitmapset: " + bb);
+			if ( words < lb.remaining() )
+				lb.limit(words);
+			return BitSet.valueOf(lb);
+		}
+		else if ( BITS_PER_BITMAPWORD == Integer.SIZE )
+		{
+			IntBuffer src = bb.asIntBuffer();
+			if ( words > src.remaining() )
+				throw new AssertionError("corrupted bitmapset: " + bb);
+			if ( words < src.remaining() )
+				src.limit(words);
+			ByteBuffer le =
+				ByteBuffer.allocate(bb.position() + words * Integer.SIZE);
+			le.order(ByteOrder.LITTLE_ENDIAN);
+			IntBuffer dst = le.asIntBuffer();
+			dst.put(src);
+			return BitSet.valueOf(le);
+		}
+		else
+			throw new AssertionError(
+				"no support for BITS_PER_BITMAPWORD " + BITS_PER_BITMAPWORD);
 	}
 
 	private static native long _addressOf(ByteBuffer bb);

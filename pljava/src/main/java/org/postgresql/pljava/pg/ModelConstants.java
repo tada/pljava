@@ -139,6 +139,27 @@ public abstract class ModelConstants
 	@Native public static final int PG_LATIN1                        = 8;
 	@Native public static final int PG_ENCODING_BE_LAST              = 34;
 
+	/*
+	 * Oids of the polymorphic types. If there is ever a call to expose
+	 * them in API like other type constants, these can be moved to
+	 * CatalogObject.Factory with the rest of those, but for now it may be
+	 * enough for the internal RegTypeImpl to know about them.
+	 */
+	@Native public static final int ANYOID                           = 2276;
+
+	@Native public static final int ANYARRAYOID                      = 2277;
+	@Native public static final int ANYELEMENTOID                    = 2283;
+	@Native public static final int ANYNONARRAYOID                   = 2776;
+	@Native public static final int ANYENUMOID                       = 3500;
+	@Native public static final int ANYRANGEOID                      = 3831;
+	@Native public static final int ANYMULTIRANGEOID                 = 4537;
+
+	@Native public static final int ANYCOMPATIBLEMULTIRANGEOID       = 4538;
+	@Native public static final int ANYCOMPATIBLEOID                 = 5077;
+	@Native public static final int ANYCOMPATIBLEARRAYOID            = 5078;
+	@Native public static final int ANYCOMPATIBLENONARRAYOID         = 5079;
+	@Native public static final int ANYCOMPATIBLERANGEOID            = 5080;
+
 	@Native public static final int VARHDRSZ                         = 4;
 	@Native public static final int VARHDRSZ_EXTERNAL                = 2;
 	@Native public static final byte VARTAG_INDIRECT                 = 1;
@@ -170,6 +191,13 @@ public abstract class ModelConstants
 
 	@Native public static final int OFFSET_ArrayType_DIMS            = 12;
 	@Native public static final int SIZEOF_ArrayType_DIM             = 4;
+
+	@Native public static final int SIZEOF_NodeTag                   = 4;
+	@Native public static final int SIZEOF_Oid                       = 4;
+
+	@Native public static final int SIZEOF_fcinfo_fncollation       = 4;
+	@Native public static final int SIZEOF_fcinfo_isnull            = 1;
+	@Native public static final int SIZEOF_fcinfo_nargs             = 2;
 
 	/*
 	 * These constants (which will be included in a generated header available
@@ -219,6 +247,14 @@ public abstract class ModelConstants
 	@Native private static final int IDX_OFFSET_TTS_FIXED        = 27;
 	@Native private static final int IDX_OFFSET_TTS_TABLEOID     = 28;
 
+	@Native private static final int IDX_OFFSET_NullableDatum_isnull = 29;
+	@Native private static final int IDX_SIZEOF_NullableDatum        = 30;
+
+	@Native private static final int IDX_OFFSET_fcinfo_fncollation   = 31;
+	@Native private static final int IDX_OFFSET_fcinfo_isnull        = 32;
+	@Native private static final int IDX_OFFSET_fcinfo_nargs         = 33;
+	@Native private static final int IDX_OFFSET_fcinfo_args          = 34;
+
 
 
 	@Native private static final int IDX_OFFSET_TUPLEDESC_ATTRS      = 40;
@@ -263,6 +299,23 @@ public abstract class ModelConstants
 	 * N_ACL_RIGHTS was stable for a long time, but changes in PG 15 and in 16
 	 */
 	@Native private static final int IDX_N_ACL_RIGHTS              = 100;
+	@Native private static final int IDX_BITS_PER_BITMAPWORD       = 101;
+
+
+
+	/*
+	 * Tags of a select few PostgreSQL Node subtypes.
+	 */
+	@Native private static final int IDX_T_Invalid            = 110;
+	@Native private static final int IDX_T_AggState           = 111;
+	@Native private static final int IDX_T_Bitmapset          = 112;
+	@Native private static final int IDX_T_CallContext        = 113;
+	@Native private static final int IDX_T_ErrorSaveContext   = 114;
+	@Native private static final int IDX_T_EventTriggerData   = 115;
+	@Native private static final int IDX_T_ReturnSetInfo      = 116;
+	@Native private static final int IDX_T_TriggerData        = 117;
+	@Native private static final int IDX_T_WindowAggState     = 118;
+	@Native private static final int IDX_T_WindowObjectData   = 119;
 
 
 
@@ -335,6 +388,14 @@ public abstract class ModelConstants
 
 	public static final int OFFSET_TTS_TABLEOID; // NOCONSTANT unless PG >= 12
 
+	public static final int OFFSET_NullableDatum_isnull;
+	public static final int SIZEOF_NullableDatum;
+
+	public static final int OFFSET_fcinfo_fncollation;
+	public static final int OFFSET_fcinfo_isnull;
+	public static final int OFFSET_fcinfo_nargs;
+	public static final int OFFSET_fcinfo_args;
+
 
 
 	public static final int OFFSET_TUPLEDESC_ATTRS;
@@ -380,6 +441,23 @@ public abstract class ModelConstants
 	 * AclItem.
 	 */
 	public static final int N_ACL_RIGHTS;
+	public static final int BITS_PER_BITMAPWORD; // DatumUtils
+
+
+
+	/*
+	 * Tags of a select few PostgreSQL Node subtypes.
+	 */
+	public static final int T_Invalid;
+	public static final int T_AggState;
+	public static final int T_Bitmapset;
+	public static final int T_CallContext;
+	public static final int T_ErrorSaveContext;
+	public static final int T_EventTriggerData;
+	public static final int T_ReturnSetInfo;
+	public static final int T_TriggerData;
+	public static final int T_WindowAggState;
+	public static final int T_WindowObjectData;
 
 
 
@@ -455,6 +533,14 @@ public abstract class ModelConstants
 
 			OFFSET_TTS_TABLEOID = n.get(IDX_OFFSET_TTS_TABLEOID);
 
+			OFFSET_NullableDatum_isnull= n.get(IDX_OFFSET_NullableDatum_isnull);
+			SIZEOF_NullableDatum       = n.get(IDX_SIZEOF_NullableDatum);
+
+			OFFSET_fcinfo_fncollation = n.get(IDX_OFFSET_fcinfo_fncollation);
+			OFFSET_fcinfo_isnull      = n.get(IDX_OFFSET_fcinfo_isnull);
+			OFFSET_fcinfo_nargs       = n.get(IDX_OFFSET_fcinfo_nargs);
+			OFFSET_fcinfo_args        = n.get(IDX_OFFSET_fcinfo_args);
+
 
 
 			n.gap(IDX_OFFSET_TUPLEDESC_ATTRS);
@@ -508,7 +594,22 @@ public abstract class ModelConstants
 
 
 			n.gap(IDX_N_ACL_RIGHTS);
-			N_ACL_RIGHTS   = n.get(IDX_N_ACL_RIGHTS);
+			N_ACL_RIGHTS          = n.get(IDX_N_ACL_RIGHTS);
+			BITS_PER_BITMAPWORD   = n.get(IDX_BITS_PER_BITMAPWORD);
+
+
+
+			n.gap(IDX_T_Invalid);
+			T_Invalid            = n.get(IDX_T_Invalid);
+			T_AggState           = n.get(IDX_T_AggState);
+			T_Bitmapset          = n.get(IDX_T_Bitmapset);
+			T_CallContext        = n.get(IDX_T_CallContext);
+			T_ErrorSaveContext   = n.get(IDX_T_ErrorSaveContext);
+			T_EventTriggerData   = n.get(IDX_T_EventTriggerData);
+			T_ReturnSetInfo      = n.get(IDX_T_ReturnSetInfo);
+			T_TriggerData        = n.get(IDX_T_TriggerData);
+			T_WindowAggState     = n.get(IDX_T_WindowAggState);
+			T_WindowObjectData   = n.get(IDX_T_WindowObjectData);
 
 
 

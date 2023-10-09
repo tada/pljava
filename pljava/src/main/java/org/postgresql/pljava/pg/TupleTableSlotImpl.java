@@ -19,7 +19,6 @@ import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 
 import java.util.List;
-import java.util.AbstractList;
 
 import java.util.function.IntUnaryOperator;
 
@@ -168,6 +167,8 @@ implements TupleTableSlot
 	@Native private static final int HEAP_HASEXTERNAL = 4; // lives in infomask
 	@Native private static final int HEAP_NATTS_MASK = 0x07FF;  // infomask2
 
+	@Native private static final int OFFSET_NullableDatum_value = 0;
+
 	protected final ByteBuffer m_tts;
 	/* These can be final only because non-FIXED slots aren't supported yet. */
 	protected final TupleDescriptor  m_tupdesc;
@@ -241,6 +242,12 @@ implements TupleTableSlot
 		ByteBuffer values, ByteBuffer isnull)
 	{
 		return new Deformed(tts, tupleDesc, values, isnull);
+	}
+
+	static NullableDatum newNullableDatum(
+		TupleDescriptor tupleDesc, ByteBuffer values)
+	{
+		return new NullableDatum(tupleDesc, values);
 	}
 
 	/**
@@ -760,6 +767,40 @@ implements TupleTableSlot
 
 				return offset;
 			}
+		}
+	}
+
+	static class NullableDatum extends TupleTableSlotImpl<Accessor.Deformed>
+	{
+		NullableDatum(TupleDescriptor tupleDesc, ByteBuffer values)
+		{
+			super(null, tupleDesc, values, null);
+		}
+
+		@Override
+		protected Accessor<ByteBuffer,Accessor.Deformed> selectAccessor(
+			boolean byValue, short length)
+		{
+			return forDeformed(byValue, length);
+		}
+
+		@Override
+		protected boolean isNull(int idx)
+		{
+			return 0 != m_values.get(
+				idx * SIZEOF_NullableDatum + OFFSET_NullableDatum_isnull);
+		}
+
+		@Override
+		protected int toOffset(int idx)
+		{
+			return idx * SIZEOF_NullableDatum + OFFSET_NullableDatum_value;
+		}
+
+		@Override
+		public RegClass relation()
+		{
+			return RegClass.CLASSID.invalid();
 		}
 	}
 

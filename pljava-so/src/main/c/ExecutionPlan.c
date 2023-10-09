@@ -98,7 +98,7 @@ static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, 
 	if(count > 0)
 	{
 		int idx;
-		jobject typeMap = Invocation_getTypeMap();
+		jobject typeMap = Function_currentTypeMap();
 		values = (Datum*)palloc(count * sizeof(Datum));
 		for(idx = 0; idx < count; ++idx)
 		{

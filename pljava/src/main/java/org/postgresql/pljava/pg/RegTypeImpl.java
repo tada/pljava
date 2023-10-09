@@ -25,6 +25,7 @@ import java.sql.SQLXML;
 import java.util.Iterator;
 import java.util.List;
 
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import org.postgresql.pljava.TargetList.Projection;
@@ -35,9 +36,24 @@ import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+
+import static org.postgresql.pljava.pg.ModelConstants.ANYOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYARRAYOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYELEMENTOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYNONARRAYOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYENUMOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYRANGEOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYMULTIRANGEOID;
+import static
+	org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLEMULTIRANGEOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLEOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLEARRAYOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLENONARRAYOID;
+import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLERANGEOID;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.alignmentFromCatalog;
 import static org.postgresql.pljava.pg.ModelConstants.storageFromCatalog;
+import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
 
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import org.postgresql.pljava.pg.adt.NameAdapter;
@@ -55,6 +71,7 @@ import static org.postgresql.pljava.pg.adt.Primitives.*;
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
 import org.postgresql.pljava.annotation.BaseUDT.Storage;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
@@ -143,23 +160,6 @@ implements
 	}
 
 	/**
-	 * Called from {@code Factory}'s {@code invalidateType} to set up
-	 * the invalidation of this type's metadata.
-	 *<p>
-	 * Adds this type's {@code SwitchPoint} to the caller's list so that,
-	 * if more than one is to be invalidated, that can be done in bulk. Adds to
-	 * <var>postOps</var> any operations the caller should conclude with
-	 * after invalidating the {@code SwitchPoint}.
-	 */
-	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
-	{
-		/*
-		 * We don't expect invalidations for any flavor except NoModifier, so
-		 * this no-op version will be overridden there only.
-		 */
-	}
-
-	/**
 	 * Holder for the {@code RegClass} corresponding to {@code relation()},
 	 * only non-null during a call of {@code dualHandshake}.
 	 */
@@ -195,6 +195,7 @@ implements
 	static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	static final int SLOT_TUPLEDESCRIPTOR;
+	static final int SLOT_NOTIONALDESC; // defined even for non-row type
 	static final int SLOT_LENGTH;
 	static final int SLOT_BYVALUE;
 	static final int SLOT_TYPE;
@@ -220,6 +221,7 @@ implements
 	static final int SLOT_DIMENSIONS;
 	static final int SLOT_COLLATION;
 	static final int SLOT_DEFAULTTEXT;
+
 	static final int NSLOTS;
 
 	static
@@ -258,6 +260,7 @@ implements
 			})
 			.withDependent(
 				  "tupleDescriptorCataloged", SLOT_TUPLEDESCRIPTOR = i++)
+			.withDependent("notionalDescriptor", SLOT_NOTIONALDESC = i++)
 
 			.withSwitchPoint(RegTypeImpl::cacheSwitchPoint)
 			.withDependent(         "length", SLOT_LENGTH          = i++)
@@ -397,7 +400,74 @@ implements
 		}
 	}
 
-	/* computation methods */
+	/**
+	 * Returns a constructor for an ordinary {@code NoModifier}
+	 * instance or an {@code Unresolved} instance, as determined by
+	 * the PostgreSQL-version-specific set of PostgreSQL pseudotypes
+	 * that require resolution to actual types used at a given call site.
+	 *<p>
+	 * At present, the same {@link Unresolved Unresolved} class is used for
+	 * both families of polymorphic pseudotype as well as the truly
+	 * anything-goes the {@code ANY} type.
+	 */
+	static Supplier<CatalogObjectImpl> constructorFor(int oid)
+	{
+		switch ( oid )
+		{
+			// Polymorphic family 1
+		case ANYARRAYOID:
+		case ANYELEMENTOID:
+		case ANYNONARRAYOID:
+		case ANYENUMOID:
+		case ANYRANGEOID:
+			return Unresolved::new;
+		case ANYMULTIRANGEOID:
+			if ( PG_VERSION_NUM >= 140000 )
+				return Unresolved::new;
+			else
+				return NoModifier::new;
+
+			// Polymorphic family 2
+		case ANYCOMPATIBLEOID:
+		case ANYCOMPATIBLEARRAYOID:
+		case ANYCOMPATIBLENONARRAYOID:
+		case ANYCOMPATIBLERANGEOID:
+			if ( PG_VERSION_NUM >= 130000 )
+				return Unresolved::new;
+			else
+				return NoModifier::new;
+		case ANYCOMPATIBLEMULTIRANGEOID:
+			if ( PG_VERSION_NUM >= 140000 )
+				return Unresolved::new;
+			else
+				return NoModifier::new;
+
+			// The wild-west wildcard "any" type
+		case ANYOID:
+			return Unresolved::new;
+		default:
+			return NoModifier::new;
+		}
+	}
+
+	/* computation methods for non-API internal slots */
+
+	private static TupleDescriptor notionalDescriptor(RegTypeImpl o)
+	{
+		assert RECORD != o  &&  VOID != o : "called on type " + o;
+
+		for ( RegType t = o ; t.isValid() ; t = t.baseType() )
+		{
+			TupleDescriptor td = t.tupleDescriptor();
+			if ( null != td )
+				return td;
+		}
+
+		return synthesizeDescriptor(
+			List.of(o), List.of(Identifier.None.INSTANCE), null);
+	}
+
+	/* computation methods for API */
 
 	/**
 	 * Obtain the tuple descriptor for an ordinary cataloged composite type.
@@ -531,7 +601,9 @@ implements
 		TupleTableSlot t = o.cacheTuple();
 		RegClass c = t.get(Att.TYPRELID, REGCLASS_INSTANCE);
 
-		((RegClassImpl)c).dualHandshake(o);
+		if ( c.isValid() )
+			((RegClassImpl)c).dualHandshake(o);
+
 		return c;
 	}
 
@@ -683,6 +755,37 @@ implements
 	{
 		TupleTableSlot t = o.cacheTuple();
 		return t.get(Att.TYPDEFAULT, TextAdapter.INSTANCE);
+	}
+
+	/* API-like methods only used internally for now */
+
+	/**
+	 * So that {@code TupleTableSlot} may be used uniformly as the API for
+	 * Java &lt;-&gt; PostgreSQL data type conversions, let every type except
+	 * unmodified {@code RECORD} or {@code VOID} have a "notional"
+	 * {@code TupleDescriptor}.
+	 *<p>
+	 * For a cataloged or interned row type, or a domain over a cataloged row
+	 * type, it is that type's {@link #tupleDescriptor tupleDescriptor} (or that
+	 * of the transitive base type, in the case of a domain). Such a descriptor
+	 * will be of type {@link TupleDescriptor.Interned Interned}. Otherwise,
+	 * it is a {@link TupleDescriptor.Ephemeral} whose one, unnamed, attribute
+	 * has this type.
+	 *<p>
+	 * The caller is expected to to have checked for {@code RECORD} or
+	 * {@code VOID} and not to call this method on those types.
+	 */
+	public TupleDescriptor notionalDescriptor()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_NOTIONALDESC];
+			return (TupleDescriptor)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	/* API methods */
@@ -1124,25 +1227,25 @@ implements
 	 */
 	static class NoModifier extends RegTypeImpl
 	{
-		private SwitchPoint m_sp;
+		private final SwitchPoint[] m_sp;
 
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return m_sp;
+			return m_sp[0];
 		}
 
 		NoModifier()
 		{
 			super(s_initializer.apply(new MethodHandle[NSLOTS]));
-			m_sp = new SwitchPoint();
+			m_sp = new SwitchPoint[] { new SwitchPoint() };
 		}
 
 		@Override
 		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
 		{
-			sps.add(m_sp);
-			m_sp = new SwitchPoint();
+			sps.add(m_sp[0]);
+			m_sp[0] = new SwitchPoint();
 		}
 
 		@Override
@@ -1167,6 +1270,10 @@ implements
 		}
 	}
 
+	static class Unresolved extends NoModifier implements RegType.Unresolved
+	{
+	}
+
 	/**
 	 * Represents a type that is not {@code RECORD} and has a type modifier that
 	 * is not the unspecified value.
@@ -1181,7 +1288,7 @@ implements
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return m_base.m_sp;
+			return m_base.m_sp[0];
 		}
 
 		Modified(NoModifier base)
@@ -1274,7 +1381,7 @@ implements
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return ((NoModifier)RECORD).m_sp;
+			return ((NoModifier)RECORD).m_sp[0];
 		}
 
 		Blessed()

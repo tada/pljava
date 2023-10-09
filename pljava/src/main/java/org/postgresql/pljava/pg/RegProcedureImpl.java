@@ -18,16 +18,21 @@ import java.lang.invoke.SwitchPoint;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 
+import java.util.BitSet;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
+
+import java.util.stream.IntStream;
 
 import org.postgresql.pljava.annotation.Function.Effects;
 import org.postgresql.pljava.annotation.Function.OnNullInput;
 import org.postgresql.pljava.annotation.Function.Parallel;
 import org.postgresql.pljava.annotation.Function.Security;
 
+import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
@@ -35,6 +40,7 @@ import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.PROCOID; // syscache
+import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
 
 import static org.postgresql.pljava.pg.adt.ArrayAdapter
 	.FLAT_STRING_LIST_INSTANCE;
@@ -51,6 +57,7 @@ import static org.postgresql.pljava.pg.adt.Primitives.INT1_INSTANCE;
 import org.postgresql.pljava.pg.adt.TextAdapter;
 import static org.postgresql.pljava.pg.adt.XMLAdapter.SYNTHETIC_INSTANCE;
 
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
@@ -61,6 +68,8 @@ implements
 	AccessControlled<CatalogObject.EXECUTE>, RegProcedure<M>
 {
 	private static UnaryOperator<MethodHandle[]> s_initializer;
+
+	private final SwitchPoint[] m_sp;
 
 	/* Implementation of Addressed */
 
@@ -113,6 +122,18 @@ implements
 	RegProcedureImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
+		m_sp = new SwitchPoint[] { new SwitchPoint() };
+	}
+
+	@Override
+	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+	{
+		sps.add(m_sp[0]);
+		m_sp[0] = new SwitchPoint();
+		M memo = m_memo;
+		m_memo = null;
+		if ( memo instanceof AbstractMemo<?> )
+			((AbstractMemo<?>)memo).invalidate(sps, postOps);
 	}
 
 	static final int SLOT_LANGUAGE;
@@ -136,6 +157,16 @@ implements
 	static final int SLOT_SRC;
 	static final int SLOT_BIN;
 	static final int SLOT_CONFIG;
+
+	/*
+	 * Slots for some additional computed values that are not exposed in API
+	 * but will be useful here in the internals.
+	 */
+	static final int SLOT_INPUTSTEMPLATE;
+	static final int SLOT_UNRESOLVEDINPUTS;
+	static final int SLOT_OUTPUTSTEMPLATE;
+	static final int SLOT_UNRESOLVEDOUTPUTS;
+
 	static final int NSLOTS;
 
 	static
@@ -144,10 +175,15 @@ implements
 		s_initializer =
 			new Builder<>(RegProcedureImpl.class)
 			.withLookup(lookup())
-			.withSwitchPoint(o -> s_globalPoint[0])
+			.withSwitchPoint(o -> o.m_sp[0])
 			.withSlots(o -> o.m_slots)
-			.withCandidates(RegProcedureImpl.class.getDeclaredMethods())
 
+			.withCandidates(
+				CatalogObjectImpl.Addressed.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Addressed.class)
+			.withDependent("cacheTuple", SLOT_TUPLE)
+
+			.withCandidates(RegProcedureImpl.class.getDeclaredMethods())
 			.withReceiverType(CatalogObjectImpl.Named.class)
 			.withReturnType(Unqualified.class)
 			.withDependent(      "name", SLOT_NAME)
@@ -181,6 +217,11 @@ implements
 			.withDependent(           "src", SLOT_SRC            = i++)
 			.withDependent(           "bin", SLOT_BIN            = i++)
 			.withDependent(        "config", SLOT_CONFIG         = i++)
+
+			.withDependent("inputsTemplate",    SLOT_INPUTSTEMPLATE    = i++)
+			.withDependent("unresolvedInputs",  SLOT_UNRESOLVEDINPUTS  = i++)
+			.withDependent("outputsTemplate",   SLOT_OUTPUTSTEMPLATE   = i++)
+			.withDependent("unresolvedOutputs", SLOT_UNRESOLVEDOUTPUTS = i++)
 
 			.build()
 			/*
@@ -285,7 +326,121 @@ implements
 		}
 	}
 
-	/* computation methods */
+	/* mutable non-API fields that will only be used on the PG thread */
+
+	/**
+	 * This is the idea behind the API {@code memo()} method..
+	 *<p>
+	 * It can be retrieved with the {@link #memo memo} method. The method does
+	 * not synchronize. It is documented to return a valid result only in
+	 * certain circumstances, which an individual {@code Memo} subinterface
+	 * should detail. For example, {@code PLJavaBased} documents that it may be
+	 * obtained within the body of a language-handler method that has been
+	 * passed a {@code RegProcedure<PLJavaBased>}. It will have been placed
+	 * there by code executing on the PG thread; the handler, even if executed
+	 * on another thread, will execute after a synchronizing operation ensuring
+	 * visibility of the write.
+	 */
+	M m_memo;
+
+	/*
+	 * Computation methods for ProceduralLanguage.PLJavaBased API methods
+	 * that happen to be implemented here for now.
+	 */
+
+	static final EnumSet<ArgMode> s_parameterModes =
+		EnumSet.of(ArgMode.IN, ArgMode.INOUT, ArgMode.VARIADIC);
+
+	static final EnumSet<ArgMode> s_resultModes =
+		EnumSet.of(ArgMode.INOUT, ArgMode.OUT, ArgMode.TABLE);
+
+	static final BitSet s_noBits = new BitSet(0);
+
+	private static TupleDescriptor inputsTemplate(RegProcedureImpl<?> o)
+	throws SQLException
+	{
+		List<Simple> names = o.argNames();
+		List<RegType> types = o.allArgTypes();
+
+		if ( null == types )
+		{
+			types = o.argTypes();
+			return synthesizeDescriptor(types, names, null);
+		}
+
+		List<ArgMode> modes = o.argModes();
+		BitSet select = new BitSet(modes.size());
+		IntStream.range(0, modes.size())
+			.filter(i -> s_parameterModes.contains(modes.get(i)))
+			.forEach(select::set);
+
+		return synthesizeDescriptor(types, names, select);
+	}
+
+	private static BitSet unresolvedInputs(RegProcedureImpl<?> o)
+	throws SQLException
+	{
+		TupleDescriptor td = o.inputsTemplate();
+		BitSet unr = new BitSet(0);
+		IntStream.range(0, td.size())
+			.filter(i -> td.get(i).type().needsResolution())
+			.forEach(unr::set);
+		return unr;
+	}
+
+	private static TupleDescriptor outputsTemplate(RegProcedureImpl<?> o)
+	throws SQLException
+	{
+		RegTypeImpl returnType = (RegTypeImpl)o.returnType();
+
+		if ( RegType.VOID == returnType )
+			return null;
+
+		if ( RegType.RECORD != returnType )
+			return returnType.notionalDescriptor();
+
+		/*
+		 * For plain unmodified RECORD, there's more work to do. If there are
+		 * declared outputs, gin up a descriptor from those. If there aren't,
+		 * this can only be a function that relies on every call site supplying
+		 * a column definition list; return null.
+		 */
+		List<ArgMode> modes = o.argModes();
+		if ( null == modes )
+			return null; // Nothing helpful here. Must rely on call site.
+
+		BitSet select = new BitSet(modes.size());
+		IntStream.range(0, modes.size())
+			.filter(i -> s_resultModes.contains(modes.get(i)))
+			.forEach(select::set);
+
+		if ( select.isEmpty() )
+			return null; // No INOUT/OUT/TABLE cols; still need call site.
+
+		/*
+		 * Build a descriptor from the INOUT/OUT/TABLE types and names.
+		 */
+
+		List<RegType> types = o.allArgTypes();
+		List<Simple> names = o.argNames();
+
+		return synthesizeDescriptor(types, names, select);
+	}
+
+	private static BitSet unresolvedOutputs(RegProcedureImpl<?> o)
+	throws SQLException
+	{
+		TupleDescriptor td = o.outputsTemplate();
+		if ( null == td )
+			return RegType.VOID == o.returnType() ? s_noBits : null;
+		BitSet unr = new BitSet(0);
+		IntStream.range(0, td.size())
+			.filter(i -> td.get(i).type().needsResolution())
+			.forEach(unr::set);
+		return unr;
+	}
+
+	/* computation methods for API */
 
 	private static ProceduralLanguage language(RegProcedureImpl o)
 	throws SQLException
@@ -474,6 +629,67 @@ implements
 		TupleTableSlot s = o.cacheTuple();
 		return
 			s.get(Att.PROCONFIG, FLAT_STRING_LIST_INSTANCE);
+	}
+
+	/*
+	 * API-like methods not actually exposed as RegProcedure API.
+	 * There are exposed on the RegProcedure.Memo subinterface
+	 * ProceduralLanguage.PLJavaBased. These implementations could
+	 * conceivably be moved to the implementation of that, so that
+	 * not all RegProcedure instances would haul around four extra slots.
+	 */
+	public TupleDescriptor inputsTemplate()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_INPUTSTEMPLATE];
+			return (TupleDescriptor)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	public BitSet unresolvedInputs()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_UNRESOLVEDINPUTS];
+			BitSet unr = (BitSet)h.invokeExact(this, h);
+			return (BitSet)unr.clone();
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	public TupleDescriptor outputsTemplate()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_OUTPUTSTEMPLATE];
+			return (TupleDescriptor)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	public BitSet unresolvedOutputs()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_UNRESOLVEDOUTPUTS];
+			BitSet unr = (BitSet)h.invokeExact(this, h);
+			return null == unr ? null : (BitSet)unr.clone();
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	/* API methods */
@@ -804,6 +1020,45 @@ implements
 	@Override
 	public M memo()
 	{
-		throw notyet();
+		/*
+		 * See the m_memo declaration comments on this lack of synchronization.
+		 */
+		return m_memo;
+	}
+
+	public static abstract class AbstractMemo<M extends Memo<M>>
+	implements Memo<M>
+	{
+		/**
+		 * The {@code RegProcedure} instance carrying this memo.
+		 */
+		protected final RegProcedureImpl<M> m_carrier;
+
+		protected AbstractMemo(RegProcedureImpl<? super M> carrier)
+		{
+			assert threadMayEnterPG() : "AbstractMemo thread";
+			if ( null != carrier.m_memo )
+				throw new AssertionError("carrier already has a memo");
+			@SuppressWarnings("unchecked")
+			RegProcedureImpl<M> narrowed = (RegProcedureImpl<M>)carrier;
+			m_carrier = narrowed;
+		}
+
+		public RegProcedureImpl<M> apply()
+		{
+			assert threadMayEnterPG() : "AbstractMemo thread";
+			assert null == m_carrier.m_memo : "carrier memo became nonnull";
+
+			@SuppressWarnings("unchecked")
+			M self = (M)this;
+
+			m_carrier.m_memo = self;
+			return m_carrier;
+		}
+
+		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+		{
+			m_carrier.m_memo = null;
+		}
 	}
 }

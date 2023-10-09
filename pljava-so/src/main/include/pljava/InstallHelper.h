@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -59,10 +59,10 @@ extern bool pljavaLoadingAsExtension;
 
 /*
  * Another way of getting the library path: if invoked by the fmgr before
- * initialization is complete, save the last function Oid seen (trusted or
- * untrusted) ... can be used later to get the library path if needed.
- * isPLJavaFunction can use the stashed information to determine whether an
- * arbitrary function Oid is a function built on PL/Java, without relying on
+ * initialization is complete, save the last function Oid seen ...
+ * can be used later to get the library path if needed. isPLJavaFunction
+ * can use the stashed information to determine whether an arbitrary
+ * function Oid is a function built on PL/Java, without relying on
  * assumptions about the language name, etc.
  *
  * It can return the language name and/or trusted flag if non-null pointers
@@ -70,7 +70,13 @@ extern bool pljavaLoadingAsExtension;
  */
 extern char *pljavaFnOidToLibPath(Oid fn, char **langName, bool *trusted);
 
-extern Oid pljavaTrustedOid, pljavaUntrustedOid;
+/*
+ * Some oid that can be taken to refer to PL/Java (because PostgreSQL passed it
+ * as a target to one of PL/Java's entry points, and it wasn't rejected by the
+ * validator), and so can be used for possible chores like ascertaining the
+ * pg_language or the shared-object name by which we are known.
+ */
+extern Oid pljavaOid;
 
 extern bool InstallHelper_isPLJavaFunction(
 	Oid fn, char **langName, bool *trusted);

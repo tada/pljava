@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -18,7 +18,7 @@
 #include "org_postgresql_pljava_internal_Relation.h"
 #include "pljava/DualState.h"
 #include "pljava/Exception.h"
-#include "pljava/Invocation.h"
+#include "pljava/Function.h"
 #include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
@@ -208,7 +208,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 		{
 			jint idx;
 			TupleDesc tupleDesc = self->rd_att;
-			jobject typeMap = Invocation_getTypeMap();
+			jobject typeMap = Function_currentTypeMap();
 
 			jint   count  = JNI_getArrayLength(_indexes);
 			Datum* values = (Datum*)palloc(count * sizeof(Datum));

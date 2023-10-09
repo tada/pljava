@@ -691,7 +691,12 @@ Type Type_fromOid(Oid typeId, jobject typeMap)
 
 	/* For some reason, the anyarray is *not* an array with anyelement as the
 	 * element type. We'd like to see it that way though.
-	 * XXX would we, or does that mistake something intended in PostgreSQL?
+	 * XXX this is a longstanding PL/Java misconception about the polymorphic
+	 * types in PostgreSQL. When a function is declared with types like
+	 * ANYARRAY and ANYELEMENT, there is supposed to be a step involving
+	 * funcapi.c routines like get_fn_expr_argtype to resolve them to specific
+	 * types for the current call site. Another thing to be sure to handle
+	 * correctly in the API revamp.
 	 */
 	if(typeId == ANYARRAYOID)
 	{

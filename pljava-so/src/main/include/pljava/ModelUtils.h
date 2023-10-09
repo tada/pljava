@@ -24,6 +24,10 @@ extern "C" {
 
 extern void pljava_ModelUtils_initialize(void);
 
+extern void pljava_ModelUtils_inlineDispatch(PG_FUNCTION_ARGS);
+
+extern Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool validating);
+
 extern void pljava_ResourceOwner_unregister(void);
 
 /*

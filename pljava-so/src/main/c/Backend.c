@@ -987,6 +987,11 @@ static void initPLJavaClasses(void)
 		"(Ljava/lang/String;Ljava/lang/ClassLoader;[B)Ljava/lang/Class;",
 		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass
 		},
+		{
+		"_window",
+		"(Ljava/lang/Class;)[Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1window
+		},
 		{ 0, 0, 0 }
 	};
 	jclass cls;
@@ -1756,7 +1761,81 @@ static void registerGUCOptions(void)
 #undef PLJAVA_ENABLE_DEFAULT
 #undef PLJAVA_IMPLEMENTOR_FLAGS
 
-static inline Datum internalCallHandler(bool trusted, PG_FUNCTION_ARGS);
+extern PLJAVADLLEXPORT Datum pljavaDispatchRoutine(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pljavaDispatchRoutine);
+
+Datum pljavaDispatchRoutine(PG_FUNCTION_ARGS)
+{
+	Invocation ctx;
+	Datum retval = 0;
+
+	/*
+	 * Just in case it could be helpful in offering diagnostics later, hang
+	 * on to an Oid that is known to refer to PL/Java (because it got here).
+	 * It's cheap, and can be followed back to the right language and
+	 * handler function entries later if needed.
+	 *
+	 * Note that doing this here, in a meta-language dispatcher, changes the
+	 * meaning somewhat. No longer is this necessarily an oid for a routine in
+	 * the familiar PL/Java language; it is the oid of a routine in some
+	 * PL/Java-based language. It's still good for pinning down the path to our
+	 * shared object, but is now more ambiguous as far as what pg_language entry
+	 * it identifies. (To some extent, this has been the case for a while now
+	 * anyway, since sqlj.alias_java_language.)
+	 */
+	pljavaOid = fcinfo->flinfo->fn_oid;
+
+	if ( IS_COMPLETE != initstage )
+	{
+		deferInit = false;
+		initsequencer( initstage, false);
+	}
+
+	Invocation_pushInvocation(&ctx);
+	PG_TRY();
+	{
+		retval = pljava_ModelUtils_callDispatch(fcinfo, false);
+		Invocation_popInvocation(false);
+	}
+	PG_CATCH();
+	{
+		Invocation_popInvocation(true);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+	return retval;
+}
+
+extern PLJAVADLLEXPORT Datum pljavaDispatchInline(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pljavaDispatchInline);
+
+Datum pljavaDispatchInline(PG_FUNCTION_ARGS)
+{
+	Invocation ctx;
+
+	if ( IS_COMPLETE != initstage )
+	{
+		deferInit = false;
+		initsequencer( initstage, false);
+	}
+
+	Invocation_pushInvocation(&ctx);
+	PG_TRY();
+	{
+		pljava_ModelUtils_inlineDispatch(fcinfo);
+		Invocation_popInvocation(false);
+	}
+	PG_CATCH();
+	{
+		Invocation_popInvocation(true);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	PG_RETURN_VOID();
+}
+
+static inline Datum legacyCallHandler(PG_FUNCTION_ARGS);
 
 extern PLJAVADLLEXPORT Datum javau_call_handler(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_call_handler);
@@ -1766,7 +1845,7 @@ PG_FUNCTION_INFO_V1(javau_call_handler);
  */
 Datum javau_call_handler(PG_FUNCTION_ARGS)
 {
-	return internalCallHandler(false, fcinfo);
+	return legacyCallHandler(fcinfo);
 }
 
 extern PLJAVADLLEXPORT Datum java_call_handler(PG_FUNCTION_ARGS);
@@ -1777,11 +1856,11 @@ PG_FUNCTION_INFO_V1(java_call_handler);
  */
 Datum java_call_handler(PG_FUNCTION_ARGS)
 {
-	return internalCallHandler(true, fcinfo);
+	return legacyCallHandler(fcinfo);
 }
 
 static inline Datum
-internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
+legacyCallHandler(PG_FUNCTION_ARGS)
 {
 	Invocation ctx;
 	Datum retval = 0;
@@ -1794,7 +1873,7 @@ internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	 * It's cheap, and can be followed back to the right language and
 	 * handler function entries later if needed.
 	 */
-	*(trusted ? &pljavaTrustedOid : &pljavaUntrustedOid) = funcoid;
+	pljavaOid = funcoid;
 	if ( IS_COMPLETE != initstage )
 	{
 		deferInit = false;
@@ -1804,8 +1883,7 @@ internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		retval = Function_invoke(
-			funcoid, trusted, forTrigger, false, true, fcinfo);
+		retval = Function_invoke(funcoid, forTrigger, false, true, fcinfo);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
@@ -1817,14 +1895,14 @@ internalCallHandler(bool trusted, PG_FUNCTION_ARGS)
 	return retval;
 }
 
-static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS);
+static Datum internalValidator(PG_FUNCTION_ARGS, bool legacy);
 
 extern PLJAVADLLEXPORT Datum javau_validator(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(javau_validator);
 
 Datum javau_validator(PG_FUNCTION_ARGS)
 {
-	return internalValidator(false, fcinfo);
+	return internalValidator(fcinfo, true);
 }
 
 extern PLJAVADLLEXPORT Datum java_validator(PG_FUNCTION_ARGS);
@@ -1832,40 +1910,24 @@ PG_FUNCTION_INFO_V1(java_validator);
 
 Datum java_validator(PG_FUNCTION_ARGS)
 {
-	return internalValidator(true, fcinfo);
+	return internalValidator(fcinfo, true);
 }
 
-static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
+extern PLJAVADLLEXPORT Datum pljavaDispatchValidator(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pljavaDispatchValidator);
+
+Datum pljavaDispatchValidator(PG_FUNCTION_ARGS)
+{
+	return internalValidator(fcinfo, false);
+}
+
+static Datum internalValidator(PG_FUNCTION_ARGS, bool legacy)
 {
 	Oid funcoid = PG_GETARG_OID(0);
 	Invocation ctx;
-	Oid *oidSaveLocation = NULL;
 
 	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
 		PG_RETURN_VOID();
-
-	/*
-	 * In the call handler, which could be called heavily, funcoid gets
-	 * unconditionally stored to one of these two locations, rather than
-	 * spending extra cycles deciding whether to store it or not. A validator
-	 * will not be called as heavily, and can afford to check here whether
-	 * an Oid needs to be stored or not. The situation to avoid is where
-	 * funcoid gets stored here, as an Oid from which PL/Java's library path can
-	 * be found, but the function then gets rejected by the validator, leaving
-	 * the stored Oid invalid and useless for that purpose. Therefore, choose
-	 * here whether and where to store it, but store it only within the PG_TRY
-	 * block, and replace with InvalidOid again in the PG_CATCH.
-	 */
-	if ( trusted )
-	{
-		if ( InvalidOid == pljavaTrustedOid )
-			oidSaveLocation = &pljavaTrustedOid;
-	}
-	else
-	{
-		if ( InvalidOid == pljavaUntrustedOid )
-			oidSaveLocation = &pljavaUntrustedOid;
-	}
 
 	if ( IS_PLJAVA_INSTALLING > initstage )
 	{
@@ -1889,17 +1951,31 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	Invocation_pushInvocation(&ctx);
 	PG_TRY();
 	{
-		if ( NULL != oidSaveLocation )
-			*oidSaveLocation = funcoid;
+		/*
+		 * In the call handler, which could be called heavily, funcoid gets
+		 * unconditionally stored to pljavaOid, rather than spending extra
+		 * cycles deciding whether to store it or not. A validator will not be
+		 * called as heavily, and can afford to check here whether an Oid needs
+		 * to be stored or not. The situation to avoid is where funcoid gets
+		 * stored here, as an Oid from which PL/Java's library path can be
+		 * found, but the function then gets rejected by the validator,
+		 * leaving the stored Oid invalid and useless for that purpose.
+		 * Therefore, choose whether to store it, here within the PG_TRY block,
+		 * but replace with InvalidOid again if the PG_CATCH happens.
+		 */
+		if ( InvalidOid == pljavaOid )
+			pljavaOid = funcoid;
 
-		Function_invoke(
-			funcoid, trusted, false, true, check_function_bodies, NULL);
+		if ( legacy )
+			Function_invoke(funcoid, false, true, check_function_bodies, NULL);
+		else
+			pljava_ModelUtils_callDispatch(fcinfo, true);
 		Invocation_popInvocation(false);
 	}
 	PG_CATCH();
 	{
-		if ( NULL != oidSaveLocation )
-			*oidSaveLocation = InvalidOid;
+		if ( funcoid == pljavaOid )
+			pljavaOid = InvalidOid;
 
 		Invocation_popInvocation(true);
 		PG_RE_THROW();
@@ -2096,10 +2172,8 @@ Java_org_postgresql_pljava_internal_Backend__1myLibraryPath(JNIEnv *env, jclass 
 
 	if ( NULL == pljavaLoadPath )
 	{
-		Oid funcoid = pljavaTrustedOid;
+		Oid funcoid = pljavaOid;
 
-		if ( InvalidOid == funcoid )
-			funcoid = pljavaUntrustedOid;
 		if ( InvalidOid == funcoid )
 			return NULL;
 
@@ -2210,4 +2284,33 @@ Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass(JNIE
 	(*env)->ReleaseByteArrayElements(env, image, bytes, JNI_ABORT);
 	(*env)->ReleaseStringUTFChars(env, name, utfName);
 	return newcls;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend_EarlyNatives
+ * Method:    _window
+ * Signature: (Ljava/lang/Class;)[Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1window(JNIEnv *env, jclass cls, jclass component)
+{
+	jobject r = (*env)->NewObjectArray(env, (jsize)1, component, NULL);
+	if ( NULL == r )
+		return NULL;
+
+#define POPULATE(thing) do {\
+	jobject b = (*env)->NewDirectByteBuffer(env, \
+	&thing, sizeof thing);\
+	if ( NULL == b )\
+		return NULL;\
+	(*env)->SetObjectArrayElement(env, r, \
+	(jsize)org_postgresql_pljava_internal_Backend_##thing, \
+	b);\
+} while (0)
+
+	POPULATE(check_function_bodies);
+
+#undef POPULATE
+
+	return r;
 }

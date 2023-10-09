@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -15,6 +15,10 @@ package org.postgresql.pljava.internal;
 import java.io.InputStream;
 import java.io.IOException;
 
+import java.lang.annotation.Native;
+
+import java.nio.ByteBuffer;
+
 import java.sql.SQLException;
 import java.sql.SQLDataException;
 import java.util.ArrayList;
@@ -22,6 +26,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import java.util.function.BooleanSupplier;
 
 import org.postgresql.pljava.elog.ELogHandler; // for javadoc
 
@@ -49,6 +55,14 @@ public class Backend
 
 	static final int JAVA_MAJOR = Runtime.version().major();
 
+	/*
+	 * Indices (index, singular, for now) into array of ByteBuffer returned by
+	 * EarlyNatives._window
+	 */
+	@Native private static final int check_function_bodies = 0;
+
+	public static final BooleanSupplier validateBodies;
+
 	static
 	{
 		IAMPGTHREAD.set(Boolean.TRUE);
@@ -71,6 +85,10 @@ public class Backend
 		{
 			throw new ExceptionInInitializerError(e);
 		}
+
+		ByteBuffer[] bs = EarlyNatives._window(ByteBuffer.class);
+		ByteBuffer cfb = bs[check_function_bodies];
+		validateBodies = () -> 0 != doInPG(() -> cfb.get(0));
    }
 
 	private static final Pattern s_gucList = Pattern.compile(String.format(
@@ -419,5 +437,7 @@ public class Backend
 		private static native boolean _forbidOtherThreads();
 		private static native Class<?> _defineClass(
 			String name, ClassLoader loader, byte[] buf);
+		private static native ByteBuffer[] _window(
+			Class<ByteBuffer> component);
 	}
 }

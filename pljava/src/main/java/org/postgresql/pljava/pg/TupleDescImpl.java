@@ -12,6 +12,7 @@
 package org.postgresql.pljava.pg;
 
 import org.postgresql.pljava.model.*;
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
 import static org.postgresql.pljava.model.RegType.RECORD;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
@@ -19,6 +20,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.DualState;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.pg.TargetListImpl.Projected;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
@@ -26,19 +28,33 @@ import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.DatumUtils.addressOf;
 import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
 
+import java.lang.invoke.MethodHandle;
+import static java.lang.invoke.MethodHandles.constant;
+import static java.lang.invoke.MethodHandles.lookup;
+import static java.lang.invoke.MethodType.methodType;
+import java.lang.invoke.SwitchPoint;
+import static java.lang.Math.ceil;
+
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import static java.nio.ByteOrder.nativeOrder;
+
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CoderResult;
 
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 
 import java.util.AbstractList;
+import static java.util.Arrays.fill;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.function.BiFunction;
+import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
 import java.util.function.ToIntBiFunction;
 
@@ -76,7 +92,7 @@ import java.util.function.ToIntBiFunction;
 abstract class TupleDescImpl extends AbstractList<Attribute>
 implements TupleDescriptor
 {
-	private final ByteBuffer m_td;
+	private final MethodHandle m_tdH;
 	private final Attribute[] m_attrs;
 	private final State m_state;
 
@@ -137,8 +153,20 @@ implements TupleDescriptor
 	 */
 	private static final ToIntBiFunction<ByteBuffer,Integer> s_getAndAddPlain;
 
+	private static final MethodHandle s_everNull;
+	private static final MethodHandle s_throwInvalidated;
+
+	private static ByteBuffer throwInvalidated()
+	{
+		throw new IllegalStateException(
+			"use of stale TupleDescriptor outdated by a DDL change");
+	}
+
 	static
 	{
+		assert Integer.BYTES == SIZEOF_Oid : "sizeof Oid";
+		assert Integer.BYTES == SIZEOF_pg_attribute_atttypmod : "sizeof typmod";
+
 		if ( 4 == SIZEOF_TUPLEDESC_TDREFCOUNT )
 		{
 			s_getAndAddPlain = (b,i) ->
@@ -152,6 +180,44 @@ implements TupleDescriptor
 			throw new ExceptionInInitializerError(
 				"Implementation needed for platform with " +
 				"sizeof TupleDesc->tdrefcount = " +SIZEOF_TUPLEDESC_TDREFCOUNT);
+
+		s_everNull = constant(ByteBuffer.class, null);
+
+		try
+		{
+			s_throwInvalidated = lookup().findStatic(TupleDescImpl.class,
+				"throwInvalidated", methodType(ByteBuffer.class));
+		}
+		catch ( ReflectiveOperationException e )
+		{
+			throw new ExceptionInInitializerError(e);
+		}
+	}
+
+	private ByteBuffer bufferIfValid()
+	{
+		try
+		{
+			return (ByteBuffer)m_tdH.invokeExact();
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	/**
+	 * Called after the {@code SwitchPoint} has been invalidated.
+	 *<p>
+	 * Only happens for a {@link Cataloged} descriptor, on the PG thread, as a
+	 * consequence of invalidation of the {@link RegClass} that defines it.
+	 */
+	void invalidate()
+	{
+		assert threadMayEnterPG() : "TupleDescImpl slice thread";
+
+		m_state.release();
+		fill(m_attrs, null);
 	}
 
 	/**
@@ -178,25 +244,43 @@ implements TupleDescriptor
 	 */
 	ByteBuffer slice(int index)
 	{
+		assert threadMayEnterPG() : "TupleDescImpl slice thread";
+
+		ByteBuffer td = bufferIfValid();
+
 		int len = SIZEOF_FORM_PG_ATTRIBUTE;
 		int off = OFFSET_TUPLEDESC_ATTRS + len * index;
 		len = ATTRIBUTE_FIXED_PART_SIZE; // TupleDesc hasn't got the whole thing
-		// Java 13: m_td.slice(off, len).order(m_td.order())
-		ByteBuffer bnew = m_td.duplicate();
+		// Java 13: td.slice(off, len).order(td.order())
+		ByteBuffer bnew = td.duplicate();
 		bnew.position(off).limit(off + len);
-		return bnew.slice().order(m_td.order());
+		return bnew.slice().order(td.order());
 	}
 
+	/**
+	 * Construct a descriptor given a {@code ByteBuffer} windowing a native one.
+	 * @param td ByteBuffer over a native TupleDesc
+	 * @param sp SwitchPoint that the instance will rely on to detect
+	 * invalidation, or null if invalidation will not be possible.
+	 * @param useState whether a native TupleDesc is associated, and therefore a
+	 * State object must be used to release it on unreachability of this object.
+	 * @param ctor constructor to be used for each Attribute instance. (The
+	 * Attribute constructors also determine, indirectly, what SwitchPoint, if
+	 * any, the Attribute instances will rely on to detect invalidation.)
+	 */
 	private TupleDescImpl(
-		ByteBuffer td, boolean useState,
+		ByteBuffer td, SwitchPoint sp, boolean useState,
 		BiFunction<TupleDescImpl,Integer,Attribute> ctor)
 	{
 		assert threadMayEnterPG() : "TupleDescImpl construction thread";
 
 		m_state = useState ? new State(this, td) : null;
-		m_td = asReadOnlyNativeOrder(td);
+
+		MethodHandle c = constant(ByteBuffer.class, asReadOnlyNativeOrder(td));
+		m_tdH = (null == sp) ? c : sp.guardWithTest(c, s_throwInvalidated);
+
 		Attribute[] attrs =
-			new Attribute [ (m_td.capacity() - OFFSET_TUPLEDESC_ATTRS)
+			new Attribute [ (td.capacity() - OFFSET_TUPLEDESC_ATTRS)
 							/ SIZEOF_FORM_PG_ATTRIBUTE ];
 
 		for ( int i = 0 ; i < attrs.length ; ++ i )
@@ -212,7 +296,7 @@ implements TupleDescriptor
 	private TupleDescImpl(RegType type)
 	{
 		m_state = null;
-		m_td = null;
+		m_tdH = s_everNull;
 		m_attrs = new Attribute[] { new AttributeImpl.OfType(this, type) };
 	}
 
@@ -324,13 +408,23 @@ implements TupleDescriptor
 		 * isn't).
 		 */
 		assert -1 == refcount : "can any ephemeral TupleDesc be refcounted?";
-		ByteBuffer copy = ByteBuffer.allocate(td.capacity()).put(td);
-		return new Ephemeral(copy);
+		return new Ephemeral(td);
+	}
+
+	private static ByteBuffer asNonDirectNativeOrder(ByteBuffer bb)
+	{
+		if ( bb.isDirect() )
+		{
+			ByteBuffer copy = ByteBuffer.allocate(bb.capacity()).put(bb);
+			bb = copy;
+		}
+		return bb.order(nativeOrder());
 	}
 
 	@Override
 	public Attribute sqlGet(int index)
 	{
+		bufferIfValid(); // just for the check
 		return m_attrs[index - 1];
 	}
 
@@ -346,9 +440,13 @@ implements TupleDescriptor
 	@Override
 	public Attribute get(int index)
 	{
+		bufferIfValid(); // just for the check
 		return m_attrs[index];
 	}
 
+	/**
+	 * A tuple descriptor for a row type that appears in the catalog.
+	 */
 	static class Cataloged extends TupleDescImpl implements Interned
 	{
 		private final RegClass m_relation;// using its SwitchPoint, keep it live
@@ -362,7 +460,7 @@ implements TupleDescriptor
 			 * true is passed for useState.
 			 */
 			super(
-				td, true,
+				td, c.m_cacheSwitchPoint, true,
 				(o, i) -> CatalogObjectImpl.Factory.formAttribute(
 					c.oid(), i, () -> new AttributeImpl.Cataloged(c))
 			);
@@ -377,6 +475,11 @@ implements TupleDescriptor
 		}
 	}
 
+	/**
+	 * A tuple descriptor that is not in the catalog, but has been interned and
+	 * can be identified by {@code RECORD} and a distinct type modifier for the
+	 * life of the backend.
+	 */
 	static class Blessed extends TupleDescImpl implements Interned
 	{
 		private final RegType m_rowType; // using its SwitchPoint, keep it live
@@ -384,20 +487,22 @@ implements TupleDescriptor
 		Blessed(ByteBuffer td, RegTypeImpl t)
 		{
 			/*
-			 * A Blessed tuple descriptor has no associated RegClass, so we grab
-			 * the SwitchPoint from the associated RegType, even though no
-			 * invalidation event for it is ever expected. In fromByteBuffer,
-			 * if we see a non-reference-counted descriptor, we grab one
-			 * straight from the type cache instead. But sometimes, the one
-			 * in PostgreSQL's type cache is non-reference counted, and that's
-			 * ok, because that one will be good for the life of the process.
-			 * So we do need to check, in this constructor, whether to pass true
-			 * or false for useState. (Checking with getAndAddPlain(0) is a bit
-			 * goofy, but it was already set up, matched to the field width,
-			 * does the job.)
+			 * A Blessed tuple descriptor has no associated RegClass, and is
+			 * expected to live for the life of the backend without invalidation
+			 * events, so we pass null for the SwitchPoint, and a constructor
+			 * that will build AttributeImpl.Transient instances.
+			 *
+			 * If the caller, fromByteBuffer, saw a non-reference-counted
+			 * descriptor, it grabbed one straight from the type cache instead.
+			 * But sometimes, the one in PostgreSQL's type cache is
+			 * non-reference counted, and that's ok, because that one will be
+			 * good for the life of the process. So we do need to check, in this
+			 * constructor, whether to pass true or false for useState.
+			 * (Checking with getAndAddPlain(0) is a bit goofy, but it was
+			 * already set up, matched to the field width, does the job.)
 			 */
 			super(
-				td, -1 != s_getAndAddPlain.applyAsInt(td, 0),
+				td, null, -1 != s_getAndAddPlain.applyAsInt(td, 0),
 				(o, i) -> new AttributeImpl.Transient(o, i)
 			);
 
@@ -411,13 +516,17 @@ implements TupleDescriptor
 		}
 	}
 
+	/**
+	 * A tuple descriptor that is not in the catalog, has not been interned, and
+	 * is useful only so long as a reference is held.
+	 */
 	static class Ephemeral extends TupleDescImpl
 	implements TupleDescriptor.Ephemeral
 	{
 		private Ephemeral(ByteBuffer td)
 		{
 			super(
-				td, false,
+				asNonDirectNativeOrder(td), null, false,
 				(o, i) -> new AttributeImpl.Transient(o, i)
 			);
 		}
@@ -431,12 +540,14 @@ implements TupleDescriptor
 		@Override
 		public Interned intern()
 		{
+			TupleDescImpl sup = (TupleDescImpl)this; // bufferIfValid is private
+
 			return doInPG(() ->
 			{
-				TupleDescImpl sup = this; // its m_td is private
+				ByteBuffer td = sup.bufferIfValid();
 
 				ByteBuffer direct = ByteBuffer.allocateDirect(
-					sup.m_td.capacity()).put(sup.m_td.rewind());
+					td.capacity()).put(td.rewind());
 
 				int assigned = _assign_record_type_typmod(direct);
 
@@ -453,6 +564,10 @@ implements TupleDescriptor
 		}
 	}
 
+	/**
+	 * A specialized, synthetic tuple descriptor representing a single column
+	 * of the given {@code RegType}.
+	 */
 	static class OfType extends TupleDescImpl
 	implements TupleDescriptor.Ephemeral
 	{
@@ -503,10 +618,92 @@ implements TupleDescriptor
 				super.javaStateUnreachable(nativeStateLive);
 		}
 
+		private void release()
+		{
+			releaseFromJava();
+		}
+
 		private long address()
 		{
 			return guardedLong();
 		}
+	}
+
+	static Ephemeral synthesizeDescriptor(
+		List<RegType> types, List<Simple> names, BitSet selected)
+	{
+		int n = types.size();
+		IntFunction<String> toName;
+		if ( null == names )
+			toName = i -> "";
+		else
+		{
+			assert names.size() == n;
+			toName = i -> names.get(i).nonFolded();
+		}
+
+		if ( null != selected )
+			assert selected.length() <= n;
+		else
+		{
+			selected = new BitSet(n);
+			selected.set(0, n);
+		}
+
+		CharsetEncoder enc = SERVER_ENCODING.newEncoder();
+		float maxbpc = enc.maxBytesPerChar();
+		int alignmentModulus = ALIGNOF_INT;
+		int maxToAlign = alignmentModulus - 1;
+		int alignmask = maxToAlign;
+		int sizeTypeTypmodBool = 2 * Integer.BYTES + 1;
+
+		int size =
+			selected.stream()
+			.map(i -> toName.apply(i).length())
+			.map(len ->
+				sizeTypeTypmodBool + (int)ceil(len*maxbpc) + 1 + maxToAlign)
+			.reduce(0, Math::addExact);
+
+		ByteBuffer direct =
+			ByteBuffer.allocateDirect(size)
+			.alignedSlice(ALIGNOF_INT).order(nativeOrder());
+
+		selected.stream().forEachOrdered(i ->
+		{
+			int pos = direct.position();
+			int misalign = direct.alignmentOffset(pos, alignmentModulus);
+			pos += - misalign & alignmask;
+			direct.position(pos);
+
+			RegType t = types.get(i);
+			direct.putInt(t.oid()).putInt(t.modifier());
+
+			/*
+			 * The C code will want a value for attndims, about which the docs
+			 * for pg_attribute say: Presently, the number of dimensions of an
+			 * array is not enforced, so any nonzero value effectively means
+			 * "it's an array".
+			 */
+			direct.put(t.element().isValid() ? (byte)1 : (byte)0);
+
+			pos = direct.position();
+			CharBuffer cb = CharBuffer.wrap(toName.apply(i));
+			CoderResult rslt = enc.encode(cb, direct, true);
+			if ( rslt.isUnderflow() )
+				rslt = enc.flush(direct);
+			if ( ! rslt.isUnderflow() )
+				throw new AssertionError("name to server encoding: " + rslt);
+			enc.reset();
+			direct.put((byte)'\0');
+			while ( '\0' != direct.get(pos) )
+				++ pos;
+			if ( ++ pos != direct.position() )
+				throw new AssertionError("server encoding of name has NUL");
+		});
+
+		int c = selected.cardinality();
+
+		return new Ephemeral(doInPG(() -> _synthesizeDescriptor(c, direct)));
 	}
 
 	/**
@@ -514,4 +711,6 @@ implements TupleDescriptor
 	 * return the assigned typmod rather than {@code void}.
 	 */
 	private static native int _assign_record_type_typmod(ByteBuffer bb);
+
+	private static native ByteBuffer _synthesizeDescriptor(int n,ByteBuffer bb);
 }
