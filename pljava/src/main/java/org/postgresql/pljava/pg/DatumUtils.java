@@ -254,13 +254,18 @@ public /*XXX*/ class DatumUtils
 		if ( BITS_PER_BITMAPWORD == Long.SIZE )
 		{
 			long[] ls = b.toLongArray();
-			int size = SIZEOF_NodeTag + SIZEOF_INT + ls.length * Long.BYTES;
-			ByteBuffer bb = ByteBuffer.allocateDirect(size);
+			int size = OFFSET_Bitmapset_words + ls.length * Long.BYTES;
+			ByteBuffer bb =
+				ByteBuffer.allocateDirect(size + Long.BYTES - 1)
+				.alignedSlice(Long.BYTES);
 			bb.order(nativeOrder());
-			assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
-			bb.putInt(T_Bitmapset);
+			if ( PG_VERSION_NUM >= 160000 )
+			{
+				assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
+				bb.putInt(T_Bitmapset);
+			}
 			assert SIZEOF_INT == Integer.BYTES : "sizeof int";
-			bb.putInt(ls.length);
+			bb.putInt(ls.length).position(OFFSET_Bitmapset_words);
 			LongBuffer dst = bb.asLongBuffer();
 			dst.put(ls);
 			return asReadOnlyNativeOrder(bb.rewind());
@@ -271,13 +276,18 @@ public /*XXX*/ class DatumUtils
 			int widthLessOne = Integer.BYTES - 1;
 			int size = (bs.length + widthLessOne) & ~widthLessOne;
 			int words = size / Integer.BYTES;
-			size += SIZEOF_NodeTag + SIZEOF_INT;
-			ByteBuffer bb = ByteBuffer.allocateDirect(size);
+			size += OFFSET_Bitmapset_words;
+			ByteBuffer bb =
+				ByteBuffer.allocateDirect(size + Integer.BYTES - 1)
+				.alignedSlice(Integer.BYTES);
 			bb.order(nativeOrder());
-			assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
-			bb.putInt(T_Bitmapset);
+			if ( PG_VERSION_NUM >= 160000 )
+			{
+				assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
+				bb.putInt(T_Bitmapset);
+			}
 			assert SIZEOF_INT == Integer.BYTES : "sizeof int";
-			bb.putInt(words);
+			bb.putInt(words).position(OFFSET_Bitmapset_words);
 			IntBuffer dst = bb.asIntBuffer();
 
 			IntBuffer src = ByteBuffer.wrap(bs)
@@ -293,11 +303,15 @@ public /*XXX*/ class DatumUtils
 	static BitSet fromBitmapset(ByteBuffer bb)
 	{
 		bb.rewind().order(nativeOrder());
-		assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
-		if ( T_Bitmapset != bb.getInt() )
-			throw new AssertionError("not a bitmapset: " + bb);
+		if ( PG_VERSION_NUM >= 160000 )
+		{
+			assert SIZEOF_NodeTag == Integer.BYTES : "sizeof NodeTag";
+			if ( T_Bitmapset != bb.getInt() )
+				throw new AssertionError("not a bitmapset: " + bb);
+		}
 		assert SIZEOF_INT == Integer.BYTES : "sizeof int";
 		int words = bb.getInt();
+		bb.position(OFFSET_Bitmapset_words);
 
 		if ( BITS_PER_BITMAPWORD == Long.SIZE )
 		{

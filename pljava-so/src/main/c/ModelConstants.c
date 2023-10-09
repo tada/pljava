@@ -135,6 +135,8 @@ static int32 constants[] = {
 	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, nargs),
 	TYPEOFFSET(FunctionCallInfoBaseData, fcinfo, args),
 
+	TYPEOFFSET(Bitmapset, Bitmapset, words),
+
 
 
 	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS, offsetof(struct TupleDescData, attrs)),
@@ -186,14 +188,19 @@ static int32 constants[] = {
 
 	CONSTANT(T_Invalid),
 	CONSTANT(T_AggState),
-	CONSTANT(T_Bitmapset),
 	CONSTANT(T_CallContext),
-	CONSTANT(T_ErrorSaveContext),
 	CONSTANT(T_EventTriggerData),
 	CONSTANT(T_ReturnSetInfo),
 	CONSTANT(T_TriggerData),
 	CONSTANT(T_WindowAggState),
 	CONSTANT(T_WindowObjectData),
+#if PG_VERSION_NUM >= 160000
+	CONSTANT(T_Bitmapset),
+	CONSTANT(T_ErrorSaveContext),
+#else
+	CONSTANTEXPR(T_Bitmapset, T_Invalid),
+	CONSTANTEXPR(T_ErrorSaveContext, T_Invalid),
+#endif
 
 
 

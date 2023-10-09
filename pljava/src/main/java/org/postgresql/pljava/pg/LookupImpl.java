@@ -74,6 +74,7 @@ import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_fcinfo_isnull;
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_fcinfo_nargs;
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_NodeTag;
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_Oid;
+import static org.postgresql.pljava.pg.ModelConstants.T_Invalid;
 import static org.postgresql.pljava.pg.ModelConstants.T_AggState;
 import static org.postgresql.pljava.pg.ModelConstants.T_CallContext;
 import static org.postgresql.pljava.pg.ModelConstants.T_ErrorSaveContext;
@@ -1239,6 +1240,8 @@ class LookupImpl implements RegProcedure.Lookup
 
 				int tag = m_context.getInt(0);
 
+				if ( T_Invalid == tag )
+					return null;
 				if ( T_TriggerData == tag )
 					return m_contextImpl = new TriggerDataImpl();
 				if ( T_EventTriggerData == tag )

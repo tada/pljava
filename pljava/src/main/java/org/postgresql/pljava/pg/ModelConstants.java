@@ -255,6 +255,8 @@ public abstract class ModelConstants
 	@Native private static final int IDX_OFFSET_fcinfo_nargs         = 33;
 	@Native private static final int IDX_OFFSET_fcinfo_args          = 34;
 
+	@Native private static final int IDX_OFFSET_Bitmapset_words      = 35;
+
 
 
 	@Native private static final int IDX_OFFSET_TUPLEDESC_ATTRS      = 40;
@@ -308,14 +310,14 @@ public abstract class ModelConstants
 	 */
 	@Native private static final int IDX_T_Invalid            = 110;
 	@Native private static final int IDX_T_AggState           = 111;
-	@Native private static final int IDX_T_Bitmapset          = 112;
-	@Native private static final int IDX_T_CallContext        = 113;
-	@Native private static final int IDX_T_ErrorSaveContext   = 114;
-	@Native private static final int IDX_T_EventTriggerData   = 115;
-	@Native private static final int IDX_T_ReturnSetInfo      = 116;
-	@Native private static final int IDX_T_TriggerData        = 117;
-	@Native private static final int IDX_T_WindowAggState     = 118;
-	@Native private static final int IDX_T_WindowObjectData   = 119;
+	@Native private static final int IDX_T_CallContext        = 112;
+	@Native private static final int IDX_T_EventTriggerData   = 113;
+	@Native private static final int IDX_T_ReturnSetInfo      = 114;
+	@Native private static final int IDX_T_TriggerData        = 115;
+	@Native private static final int IDX_T_WindowAggState     = 116;
+	@Native private static final int IDX_T_WindowObjectData   = 117;
+	@Native private static final int IDX_T_Bitmapset          = 118;
+	@Native private static final int IDX_T_ErrorSaveContext   = 119;
 
 
 
@@ -396,6 +398,8 @@ public abstract class ModelConstants
 	public static final int OFFSET_fcinfo_nargs;
 	public static final int OFFSET_fcinfo_args;
 
+	public static final int OFFSET_Bitmapset_words;
+
 
 
 	public static final int OFFSET_TUPLEDESC_ATTRS;
@@ -450,14 +454,14 @@ public abstract class ModelConstants
 	 */
 	public static final int T_Invalid;
 	public static final int T_AggState;
-	public static final int T_Bitmapset;
 	public static final int T_CallContext;
-	public static final int T_ErrorSaveContext;
 	public static final int T_EventTriggerData;
 	public static final int T_ReturnSetInfo;
 	public static final int T_TriggerData;
 	public static final int T_WindowAggState;
 	public static final int T_WindowObjectData;
+	public static final int T_Bitmapset;
+	public static final int T_ErrorSaveContext;
 
 
 
@@ -541,6 +545,8 @@ public abstract class ModelConstants
 			OFFSET_fcinfo_nargs       = n.get(IDX_OFFSET_fcinfo_nargs);
 			OFFSET_fcinfo_args        = n.get(IDX_OFFSET_fcinfo_args);
 
+			OFFSET_Bitmapset_words    = n.get(IDX_OFFSET_Bitmapset_words);
+
 
 
 			n.gap(IDX_OFFSET_TUPLEDESC_ATTRS);
@@ -602,14 +608,14 @@ public abstract class ModelConstants
 			n.gap(IDX_T_Invalid);
 			T_Invalid            = n.get(IDX_T_Invalid);
 			T_AggState           = n.get(IDX_T_AggState);
-			T_Bitmapset          = n.get(IDX_T_Bitmapset);
 			T_CallContext        = n.get(IDX_T_CallContext);
-			T_ErrorSaveContext   = n.get(IDX_T_ErrorSaveContext);
 			T_EventTriggerData   = n.get(IDX_T_EventTriggerData);
 			T_ReturnSetInfo      = n.get(IDX_T_ReturnSetInfo);
 			T_TriggerData        = n.get(IDX_T_TriggerData);
 			T_WindowAggState     = n.get(IDX_T_WindowAggState);
 			T_WindowObjectData   = n.get(IDX_T_WindowObjectData);
+			T_Bitmapset          = n.get(IDX_T_Bitmapset);
+			T_ErrorSaveContext   = n.get(IDX_T_ErrorSaveContext);
 
 
 
