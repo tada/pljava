@@ -1,1 +1,1 @@
-moduleSearchIndex = [{"l":"org.postgresql.pljava"}]
+moduleSearchIndex = [{"l":"org.postgresql.pljava"}];updateSearchResults();
