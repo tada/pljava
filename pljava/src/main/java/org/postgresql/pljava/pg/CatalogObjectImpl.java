@@ -499,7 +499,7 @@ public class CatalogObjectImpl implements CatalogObject
 				{
 				case TypeRelationId:
 					fieldRead = RegType.CLASSID;
-					return RegTypeImpl.NoModifier::new;
+					return RegTypeImpl.constructorFor(objId);
 				case ProcedureRelationId:
 					fieldRead = RegProcedure.CLASSID;
 					return RegProcedureImpl::new;

@@ -129,6 +129,40 @@ extends
 	interface TypeAnalyze extends Memo<TypeAnalyze> { }
 	interface TypeSubscript extends Memo<TypeSubscript> { }
 
+	/**
+	 * Interface additionally implemented by an instance that represents a type
+	 * (such as the PostgreSQL polymorphic pseudotypes or the even wilder "any"
+	 * type) needing resolution to an actual type used at a given call site.
+	 */
+	interface Unresolved extends RegType
+	{
+		/**
+		 * Returns true, indicating resolution to an actual type is needed.
+		 */
+		@Override
+		default boolean needsResolution()
+		{
+			return true;
+		}
+	}
+
+	/**
+	 * Whether this instance represents a type (such as the PostgreSQL
+	 * polymorphic pseudotypes or the even wilder "any" type) needing resolution
+	 * to an actual type used at a given call site.
+	 *<p>
+	 * This information does not come from the {@code pg_type} catalog, but
+	 * simply reflects PostgreSQL-version-specific knowledge of which types
+	 * require such treatment.
+	 *<p>
+	 * This default implementation returns false.
+	 * @see Unresolved#needsResolution
+	 */
+	default boolean needsResolution()
+	{
+		return false;
+	}
+
 	short length();
 	boolean byValue();
 	Type type();
