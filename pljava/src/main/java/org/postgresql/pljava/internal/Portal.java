@@ -43,6 +43,14 @@ public class Portal
 	private static class State
 	extends DualState.SingleSPIcursorClose<Portal>
 	{
+		/**
+		 * Briefly holds a reference to the referent between
+		 * {@code close()} and {@code javaStateReleased}.
+		 *<p>
+		 * (The reference held by the superclass isn't available then.)
+		 */
+		private Portal m_oldRef;
+
 		private State(
 			DualState.Key cookie, Portal referent, long ro, long portal)
 		{
@@ -76,6 +84,20 @@ public class Portal
 				unpin();
 			}
 		}
+
+		private void close()
+		{
+			m_oldRef = referent();
+			super.releaseFromJava();
+		}
+
+		@Override
+		protected void javaStateReleased(boolean nativeStateLive)
+		{
+			super.javaStateReleased(nativeStateLive);
+			if ( null != m_oldRef )
+				m_oldRef.m_plan = null;
+		}
 	}
 
 	/**
@@ -84,11 +106,7 @@ public class Portal
 	 */
 	public void close()
 	{
-		doInPG(() ->
-		{
-			m_state.releaseFromJava();
-			m_plan = null;
-		});
+		m_state.close();
 	}
 
 	/**
