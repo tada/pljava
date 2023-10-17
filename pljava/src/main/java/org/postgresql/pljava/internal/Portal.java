@@ -25,36 +25,29 @@ import java.sql.SQLException;
  */
 public class Portal
 {
-	/*
-	 * Hold a reference to the Java ExecutionPlan object as long as we might be
-	 * using it, just to make sure Java unreachability doesn't cause it to
-	 * mop up its native plan state while the portal might still be using it.
-	 */
-	private ExecutionPlan m_plan;
-
 	private final State m_state;
 
 	Portal(DualState.Key cookie, long ro, long pointer, ExecutionPlan plan)
 	{
-		m_state = new State(cookie, this, ro, pointer);
-		m_plan = plan;
+		m_state = new State(cookie, this, ro, pointer, plan);
 	}
 
 	private static class State
 	extends DualState.SingleSPIcursorClose<Portal>
 	{
-		/**
-		 * Briefly holds a reference to the referent between
-		 * {@code close()} and {@code javaStateReleased}.
-		 *<p>
-		 * (The reference held by the superclass isn't available then.)
+		/*
+		 * Hold a reference to the Java ExecutionPlan object as long as we might
+		 * be using it, just to make sure Java unreachability doesn't cause it
+		 * to mop up its native plan state while the portal might still want it.
 		 */
-		private Portal m_oldRef;
+		private ExecutionPlan m_plan;
 
 		private State(
-			DualState.Key cookie, Portal referent, long ro, long portal)
+			DualState.Key cookie, Portal referent, long ro, long portal,
+			ExecutionPlan plan)
 		{
 			super(cookie, referent, ro, portal);
+			m_plan = plan;
 		}
 
 		/**
@@ -85,18 +78,11 @@ public class Portal
 			}
 		}
 
-		private void close()
-		{
-			m_oldRef = referent();
-			super.releaseFromJava();
-		}
-
 		@Override
 		protected void javaStateReleased(boolean nativeStateLive)
 		{
 			super.javaStateReleased(nativeStateLive);
-			if ( null != m_oldRef )
-				m_oldRef.m_plan = null;
+			m_plan = null;
 		}
 	}
 
@@ -106,7 +92,7 @@ public class Portal
 	 */
 	public void close()
 	{
-		m_state.close();
+		m_state.releaseFromJava();
 	}
 
 	/**
