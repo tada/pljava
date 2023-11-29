@@ -121,6 +121,47 @@
 		},
 
 		{
+			name : "FreeBSD",
+
+			object_extension : ".o",
+
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("freebsd");
+			},
+
+			compile : function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_include.resolve("freebsd").toString());
+				defines.put("FreeBSD", null);
+				flags.add("-c");
+				if(isDebugEnabled)
+					flags.add("-g");
+				var compileProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(pgxs.formatDefines(defines));
+					l.addAll(pgxs.formatIncludes(includes));
+					l.addAll(flags);
+					l.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				return runCommand(compileProcess);
+			},
+
+			link : function(cc, flags, files, target_path) {
+				if(isDebugEnabled)
+					flags.add("-g");
+				flags.add("-shared-libgcc");
+				var linkingProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(flags);
+					l.addAll(of("-shared", "-o", "lib" + library_name + ".so"));
+					l.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				return runCommand(linkingProcess);
+			}
+		},
+								
+		{
 			name : "Mac OS X",
 
 			object_extension : ".o",
