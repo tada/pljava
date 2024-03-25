@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,28 +25,29 @@ import java.sql.SQLException;
  */
 public class Portal
 {
-	/*
-	 * Hold a reference to the Java ExecutionPlan object as long as we might be
-	 * using it, just to make sure Java unreachability doesn't cause it to
-	 * mop up its native plan state while the portal might still be using it.
-	 */
-	private ExecutionPlan m_plan;
-
 	private final State m_state;
 
 	Portal(DualState.Key cookie, long ro, long pointer, ExecutionPlan plan)
 	{
-		m_state = new State(cookie, this, ro, pointer);
-		m_plan = plan;
+		m_state = new State(cookie, this, ro, pointer, plan);
 	}
 
 	private static class State
 	extends DualState.SingleSPIcursorClose<Portal>
 	{
+		/*
+		 * Hold a reference to the Java ExecutionPlan object as long as we might
+		 * be using it, just to make sure Java unreachability doesn't cause it
+		 * to mop up its native plan state while the portal might still want it.
+		 */
+		private ExecutionPlan m_plan;
+
 		private State(
-			DualState.Key cookie, Portal referent, long ro, long portal)
+			DualState.Key cookie, Portal referent, long ro, long portal,
+			ExecutionPlan plan)
 		{
 			super(cookie, referent, ro, portal);
+			m_plan = plan;
 		}
 
 		/**
@@ -76,6 +77,13 @@ public class Portal
 				unpin();
 			}
 		}
+
+		@Override
+		protected void javaStateReleased(boolean nativeStateLive)
+		{
+			super.javaStateReleased(nativeStateLive);
+			m_plan = null;
+		}
 	}
 
 	/**
@@ -84,11 +92,7 @@ public class Portal
 	 */
 	public void close()
 	{
-		doInPG(() ->
-		{
-			m_state.releaseFromJava();
-			m_plan = null;
-		});
+		m_state.releaseFromJava();
 	}
 
 	/**
