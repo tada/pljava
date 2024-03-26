@@ -1941,10 +1941,10 @@ void Backend_warnJEP411(bool isCommit)
 			"Java features that will be phased out in future Java versions. "
 			"Those changes will come in releases after Java 17."),
 		errhint(
-			"For migration planning, Java versions up to and including 17 "
-			"remain fully usable with this version of PL/Java, and Java 17 "
-			"is positioned as a long-term support release. For details on "
-			"how PL/Java will adapt, please bookmark "
+			"For migration planning, this version of PL/Java can still "
+			"enforce policy in Java versions up to and including 22, "
+			"and Java 17 and 21 are positioned as long-term support releases. "
+			"For details on how PL/Java will adapt, please bookmark "
 			"https://github.com/tada/pljava/wiki/JEP-411")
 	));
 }
