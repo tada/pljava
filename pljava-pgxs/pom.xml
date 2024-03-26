@@ -40,27 +40,9 @@
 
 	<profiles>
 		<profile>
-			<id>nashorngone</id>
-			<activation>
-				<jdk>[15,22)</jdk>
-			</activation>
-			<dependencies>
-				<dependency>
-					<groupId>org.graalvm.js</groupId>
-					<artifactId>js</artifactId>
-					<version>20.1.0</version>
-				</dependency>
-				<dependency>
-					<groupId>org.graalvm.js</groupId>
-					<artifactId>js-scriptengine</artifactId>
-					<version>20.1.0</version>
-				</dependency>
-			</dependencies>
-		</profile>
-		<profile>
 			<id>nashornmod</id>
 			<activation>
-				<jdk>[22,)</jdk>
+				<jdk>[15,)</jdk>
 			</activation>
 			<dependencies>
 				<dependency>
