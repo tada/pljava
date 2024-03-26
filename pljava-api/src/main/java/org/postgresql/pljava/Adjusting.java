@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -147,10 +147,10 @@ public final class Adjusting
 		 * {@link Exception#getSuppressed getSuppressed}. The return is
 		 * immediate, without any remaining names being tried, if an exception
 		 * is caught that is not assignable to a class in the
-		 * <var>expected</var> list. Such an exception will be passed to the
-		 * <var>onUnexpected</var> handler if that is non-null; otherwise,
-		 * it will be returned (or added to the suppressed list of the
-		 * exception to be returned) just as expected exceptions are.
+		 * <var>expected</var> list. Such an exception is returned (or added to
+		 * the suppressed list of an exception already to be returned) only if
+		 * the <var>onUnexpected</var> handler is null; otherwise, it is passed
+		 * to the handler and does not affect the method's return.
 		 * @param setter typically a method reference for a method that
 		 * takes a string key and some value.
 		 * @param value the value to pass to the setter
@@ -165,8 +165,10 @@ public final class Adjusting
 		 * immediate, without trying remaining names, if any.
 		 * @param names one or more String keys to be tried in order until
 		 * the action succeeds.
-		 * @return null if any attempt succeeded, otherwise an exception,
-		 * which may have further exceptions in its suppressed list.
+		 * @return null if any attempt succeeded, or if the first exception
+		 * caught was passed to the onUnexpected handler; otherwise the first
+		 * exception caught, which may have further exceptions in its suppressed
+		 * list.
 		 */
 		public static <T, V extends T> Exception setFirstSupported(
 			SetMethod<? super T> setter, V value,
