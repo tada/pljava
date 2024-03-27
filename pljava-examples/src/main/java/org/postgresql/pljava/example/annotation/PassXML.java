@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -272,6 +272,44 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 		" WHERE extname = 'pljava'"
 	}
 )
+
+@SQLAction(implementor="postgresql_xml",
+	provides="xml_java_ge_22", requires="javaSpecificationGE", install=
+	"SELECT CASE WHEN" +
+	" javatest.javaSpecificationGE('22')" +
+	" THEN set_config('pljava.implementors', 'xml_java_ge_22,' || " +
+	" current_setting('pljava.implementors'), true) " +
+	"END"
+)
+
+@SQLAction(implementor="xml_java_ge_22", requires="lowLevelXMLEcho", install=
+	"WITH" +
+	" s(how) AS (SELECT unnest('{5,6,7}'::int[]))," +
+	" r(isdoc) AS (" +
+	" SELECT" +
+	"  javatest.lowlevelxmlecho(" +
+	/*
+	 * A truly minimal DTD, <!DOCTYPE a>, cannot be ignored by Java 22's SAX/DOM
+	 * parser (though it can be, when using the StAX API). NullPointerException
+	 * calling getActiveGrammar().isImmutable() is the result. Reported on
+	 * bugreport.java.com but still awaiting assignment of a bug ID. Including
+	 * either an externalID or an internal subset (like the empty [] here)
+	 * avoids the issue.
+	 */
+	"   '<!DOCTYPE a []><a/>'::xml, how, params) IS DOCUMENT" +
+	" FROM" +
+	"  s," +
+	"  (SELECT null::void AS ignoreDTD) AS params" +
+	" )" +
+	"SELECT" +
+	" CASE WHEN every(isdoc)" +
+	"  THEN javatest.logmessage('INFO',    'jdk.xml.dtd.support=ignore OK')" +
+	"  ELSE javatest.logmessage('WARNING', 'jdk.xml.dtd.support=ignore NG')" +
+	" END " +
+	"FROM" +
+	" r"
+)
+
 @MappedUDT(schema="javatest", name="onexml", structure="c1 xml",
 		   implementor="postgresql_xml",
            comment="A composite type mapped by the PassXML example class")
@@ -783,8 +821,7 @@ public class PassXML implements SQLData
 	 *<p>
 	 * Column names in the <em>adjust</em> row are case-insensitive versions of
 	 * the method names in {@link Adjusting.XML.Parsing}, and the value of each
-	 * column should be of the appropriate type (at present, boolean for all of
-	 * them).
+	 * column should be of the appropriate type (if the method has a parameter).
 	 * @param adjust A row type as described above, possibly of no columns if no
 	 * adjustments are wanted
 	 * @param axp An instance of Adjusting.XML.Parsing
@@ -804,6 +841,8 @@ public class PassXML implements SQLData
 				axp.lax(adjust.getBoolean(i));
 			else if ( "allowDTD".equalsIgnoreCase(k) )
 				axp.allowDTD(adjust.getBoolean(i));
+			else if ( "ignoreDTD".equalsIgnoreCase(k) )
+				axp.ignoreDTD();
 			else if ( "externalGeneralEntities".equalsIgnoreCase(k) )
 				axp.externalGeneralEntities(adjust.getBoolean(i));
 			else if ( "externalParameterEntities".equalsIgnoreCase(k) )

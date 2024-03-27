@@ -4232,6 +4232,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		@Override
+		public T ignoreDTD()
+		{
+			return setFirstSupportedProperty(IGNORE, DTDSUPPORT);
+		}
+
+		@Override
 		public T elementAttributeLimit(int limit)
 		{
 			return setFirstSupportedProperty(limit,

@@ -302,6 +302,17 @@ public final class Adjusting
 			T allowDTD(boolean v);
 
 			/**
+			 * Specifies that any DTD should be ignored (neither processed nor
+			 * rejected as an error).
+			 *<p>
+			 * This treatment is available in Java 22 and later.
+			 * In earlier Java versions, this will not succeed. Where it is
+			 * supported, the most recent call of this method or of
+			 * {@link #allowDTD allowDTD} will be honored.
+			 */
+			T ignoreDTD();
+
+			/**
 			 * Whether to retrieve external "general" entities (those
 			 * that can be used in the document body) declared in the DTD.
 			 */
