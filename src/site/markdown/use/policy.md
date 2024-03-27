@@ -372,11 +372,16 @@ release, so relying on it is not recommended.
 
 The developers of Java have elected to phase out important language features
 used by PL/Java to enforce policy. The changes will come in releases after
-Java 17. For migration planning, Java versions up to and including 17
-remain fully usable with this version of PL/Java, and Java 17
-is positioned as a long-term support release. For details on
-how PL/Java will adapt, please bookmark [the JEP 411 topic][jep411]
-on the PL/Java wiki.
+Java 17. For migration planning, this version of PL/Java can still enable
+policy enforcement in Java versions up to and including 22, and Java 17 and 21
+are positioned as long-term support releases. (There is a likelihood,
+increasing with later Java versions, even before policy stops being enforceable,
+that some internal privileged operations by Java itself, or other libraries,
+will cease to work transparently, and may have to be manually added to a site's
+PL/Java policy.)
+
+For details on how PL/Java will adapt, please bookmark
+[the JEP 411 topic][jep411] on the PL/Java wiki.
 
 
 [pfsyn]: https://docs.oracle.com/en/java/javase/14/security/permissions-jdk1.html#GUID-7942E6F8-8AAB-4404-9FE9-E08DD6FFCFFA
