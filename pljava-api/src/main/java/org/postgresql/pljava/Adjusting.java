@@ -151,12 +151,30 @@ public final class Adjusting
 		 * the suppressed list of an exception already to be returned) only if
 		 * the <var>onUnexpected</var> handler is null; otherwise, it is passed
 		 * to the handler and does not affect the method's return.
+		 *<p>
+		 * For some purposes, a single call of this method may not suffice: if
+		 * alternate means to establish a desired configuration have existed and
+		 * are not simply alternate property names that will accept the same
+		 * value. For such a case, this method may be called more than once. The
+		 * caller abandons the sequence of calls after the first call that
+		 * returns null (indicating that it either succeeded, or incurred an
+		 * unexpected exception and passed it to the <var>onUnexpected</var>
+		 * handler. Otherwise, the exception returned by the first call can be
+		 * passed as <var>caught</var> to the next call, instead of passing the
+		 * usual null. (When a non-null <var>caught</var> is passed, it will be
+		 * returned on failure, even if an unexpected exception has been caught;
+		 * therefore, should it ever be necessary to chain more than two of
+		 * these calls, the caller should abandon the sequence as soon as a call
+		 * returns null <em>or</em> returns its <var>caught</var> argument with
+		 * no growth of its suppressed list.)
 		 * @param setter typically a method reference for a method that
 		 * takes a string key and some value.
 		 * @param value the value to pass to the setter
 		 * @param expected a list of exception classes that can be foreseen
 		 * to indicate that a key was not recognized, and the operation
 		 * should be retried with the next possible key.
+		 * @param caught null, or an exception returned by a preceding call if
+		 * an operation cannot be implemented with one call of this method
 		 * @param onUnexpected invoked, if non-null, on an {@code Exception}
 		 * that is caught and matches nothing in the expected list, instead
 		 * of returning it. If this parameter is null, such an exception is
@@ -167,16 +185,17 @@ public final class Adjusting
 		 * the action succeeds.
 		 * @return null if any attempt succeeded, or if the first exception
 		 * caught was passed to the onUnexpected handler; otherwise the first
-		 * exception caught, which may have further exceptions in its suppressed
-		 * list.
+		 * exception caught (if the caller supplied a non-null
+		 * <var>caught</var>, then that exception), which may have further
+		 * exceptions in its suppressed list.
 		 */
 		public static <T, V extends T> Exception setFirstSupported(
 			SetMethod<? super T> setter, V value,
 			List<Class<? extends Exception>> expected,
+			Exception caught,
 			Consumer<? super Exception> onUnexpected, String... names)
 		{
 			requireNonNull(expected);
-			Exception caught = null;
 			for ( String name : names )
 			{
 				try
@@ -204,6 +223,18 @@ public final class Adjusting
 				}
 			}
 			return caught;
+		}
+
+		/**
+		 * Calls the six-argument overload passing null for <var>caught</var>.
+		 */
+		public static <T, V extends T> Exception setFirstSupported(
+			SetMethod<? super T> setter, V value,
+			List<Class<? extends Exception>> expected,
+			Consumer<? super Exception> onUnexpected, String... names)
+		{
+			return setFirstSupported(
+				setter, value, expected, null, onUnexpected, names);
 		}
 
 		/**
