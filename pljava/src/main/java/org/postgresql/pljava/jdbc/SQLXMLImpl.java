@@ -3933,6 +3933,10 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
+			/*
+			 * If changing these wrapping conventions, change them also in
+			 * AdjustingDOMSource.get()
+			 */
 			catch ( SAXException e )
 			{
 				throw new SQLDataException(e.getMessage(), "22000", e);
@@ -5555,10 +5559,21 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 
 			Exception e = exceptions();
-			if ( null != e )
-				throw normalizedException(e);
 
-			return ds;
+			if ( null == e )
+				return ds;
+
+			/*
+			 * If changing these wrapping conventions, change them also in
+			 * XMLCopier.saxCopy()
+			 */
+			if ( e instanceof SAXException )
+				throw new SQLDataException(e.getMessage(), "22000", e);
+
+			if ( e instanceof IOException )
+				throw new SQLException(e.getMessage(), "58030", e);
+
+			throw normalizedException(e);
 		}
 
 		@Override
