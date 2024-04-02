@@ -291,10 +291,9 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 	/*
 	 * A truly minimal DTD, <!DOCTYPE a>, cannot be ignored by Java 22's SAX/DOM
 	 * parser (though it can be, when using the StAX API). NullPointerException
-	 * calling getActiveGrammar().isImmutable() is the result. Reported on
-	 * bugreport.java.com but still awaiting assignment of a bug ID. Including
-	 * either an externalID or an internal subset (like the empty [] here)
-	 * avoids the issue.
+	 * calling getActiveGrammar().isImmutable() is the result. Bug: JDK-8329295
+	 * Including either an externalID or an internal subset (like the empty []
+	 * here) avoids the issue.
 	 */
 	"   '<!DOCTYPE a []><a/>'::xml, how, params) IS DOCUMENT" +
 	" FROM" +
