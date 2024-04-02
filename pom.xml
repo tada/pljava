@@ -39,7 +39,7 @@
 			<archive>https://www.postgresql.org/list/pljava-dev/</archive>
 			<otherArchives>
 				<otherArchive>https://web.archive.org/web/*/http://lists.pgfoundry.org/pipermail/pljava-dev/</otherArchive>
-				<otherArchive>gmane.comp.db.postgresql.pljava on news.gmane.io</otherArchive>
+				<otherArchive>news://news.gmane.io/gmane.comp.db.postgresql.pljava</otherArchive>
 			</otherArchives>
 		</mailingList>
 	</mailingLists>
