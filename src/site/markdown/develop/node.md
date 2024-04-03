@@ -20,12 +20,18 @@ project's repository, as a way to keep as much as possible of the testing code
 common across platforms.
 
 The overall flavor, and even some of the method names, follow the `PostgresNode`
-Perl module that has been part of PostgreSQL's "PGXS" extension-building tools
-since 2015, so a quick review of that follows.
+Perl module that became part of PostgreSQL's "PGXS" extension-building tools
+in 2015, so a quick review of that follows.
 
-## Similarities to PostgreSQL's `PostgresNode` Perl module
+For PostgreSQL 15, the module distributed with PostgreSQL was renamed from
+`PostgresNode` to `PostgreSQL::Test::Cluster`, with no essential change in
+functionality (though `get_new_node` did become, simply, `new`). To avoid
+needless churn, this Java class still has the historical name and methods.
 
-When used from a testing script written in Perl, the methods of `PostgresNode`
+## Similarities to the upstream `PostgreSQL::Test::Cluster` Perl module
+
+When used from a testing script written in Perl, the methods of
+`PostgreSQL::Test::Cluster`
 make it easy to spin up and tear down one or more PostgreSQL instances, running
 in temporary directories, listening on temporary ports, non-interfering with
 each other or with production instances using the standard locations and ports,
@@ -41,7 +47,7 @@ $n1->stop();                # stop the server
 $n1->clean_node();          # recursively delete the temporary location
 ```
 
-`PostgresNode.pm` illustrates the immense utility of making just a few
+`PostgreSQL::Test::Cluster` illustrates the immense utility of making just a few
 well-chosen methods available, when there is already an expressive scripting
 language at hand (Perl) for putting those methods to use.
 
@@ -65,9 +71,10 @@ n1.clean_node()
 ```
 
 `jshell` has to be run with a rather lengthy command line to get to this point;
-more on that later. But once started, it presents a familiar `PostgresNode`-like
+more on that later. But once started, it presents a familiar
+`PostgreSQL::Test::Cluster`-like
 environment. As the example shows, `jshell` is lenient about statement-ending
-semicolons. (It is still advisable to use them, though; that leniency has fiddly
+semicolons. (Using them is still advisable, though; that leniency has fiddly
 exceptions, such as not applying to pasted text.)
 
 ## `Node.class` in detail

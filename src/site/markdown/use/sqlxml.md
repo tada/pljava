@@ -419,6 +419,12 @@ only existing methods for setting features/properties, as described
 `setFirstSupportedFeature` and `setFirstSupportedProperty` methods
 in PL/Java's `Adjusting` API.
 
+When running on Java 22 or later, there is also a fallback catalog that can
+satisfy requests for a small number of DTDs that are defined by the Java
+platform. The behavior when this fallback resolver cannot satisfy a request
+can be configured by setting the `jdk.xml.jdkcatalog.resolve` property, for
+which, again, the `setFirstSupportedProperty` method can be used.
+
 ### Extended API to set the content of a PL/Java `SQLXML` instance
 
 When a `SQLXML` instance is returned from a PL/Java function, or passed in to
