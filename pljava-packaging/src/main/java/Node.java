@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -127,16 +127,18 @@ import static java.util.stream.StreamSupport.stream;
  * to the installer jar anyway, it will also contain some methods intended to be
  * useful for tasks related to installation and testing. The idea is not to go
  * overboard, but supply a few methods largely modeled on the most basic ones of
- * PostgreSQL's {@code PostgresNode.pm}, with the idea that they can be invoked
- * from {@code jshell} if its classpath includes the installer jar (and one of
- * the PostgreSQL JDBC drivers).
+ * PostgreSQL's {@code PostgreSQL::Test::Cluster} Perl module (formerly named
+ * {@code PostgresNode}, from which the name of this class was taken). The
+ * methods can be invoked from {@code jshell} if its classpath includes the
+ * installer jar (and one of the PostgreSQL JDBC drivers).
  *<p>
  * An
  * <a href="../../../../../../develop/node.html">introduction with examples</a>
  * is available.
  *<p>
- * Unlike the many capabilities of {@code PostgresNode.pm}, this only deals in
- * TCP sockets bound to {@code localhost} ({@code StandardProtocolFamily.UNIX}
+ * Unlike the many capabilities of {@code PostgreSQL::Test::Cluster}, this only
+ * deals in TCP sockets bound to {@code localhost}
+ * ({@code StandardProtocolFamily.UNIX}
  * finally arrived in Java 16 but this class does not support it yet) and only
  * a few of the most basic operations.
  *<p>
@@ -2623,9 +2625,9 @@ public class Node extends JarX {
 	 * Waits for the {@code postmaster.pid} file to have the right contents
 	 * (the right pid for process <em>p</em>, and ready status for PG 10+).
 	 *<p>
-	 * The {code PostgresNode.pm} version of this is also used when shutting
-	 * down, and waits for the file to go away; that could be implemented here,
-	 * but not today.
+	 * The {@code PostgreSQL:Test:Cluster} version of this is also used when
+	 * shutting down, and waits for the file to go away; that could be
+	 * implemented here, but not today.
 	 */
 	private void wait_for_pid_file(Process p, ProcessHandle.Info info)
 	throws Exception

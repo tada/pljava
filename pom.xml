@@ -39,7 +39,7 @@
 			<archive>https://www.postgresql.org/list/pljava-dev/</archive>
 			<otherArchives>
 				<otherArchive>https://web.archive.org/web/*/http://lists.pgfoundry.org/pipermail/pljava-dev/</otherArchive>
-				<otherArchive>gmane.comp.db.postgresql.pljava on news.gmane.io</otherArchive>
+				<otherArchive>news://news.gmane.io/gmane.comp.db.postgresql.pljava</otherArchive>
 			</otherArchives>
 		</mailingList>
 	</mailingLists>
@@ -70,45 +70,20 @@
 
 	<profiles>
 		<profile>
-			<id>nashorngone</id>
+			<id>nashornmod</id>
 			<activation>
 				<jdk>[15,)</jdk>
 			</activation>
 			<build>
 				<plugins>
 					<plugin>
-						<groupId>org.codehaus.mojo</groupId>
-						<artifactId>properties-maven-plugin</artifactId>
-						<version>1.0.0</version>
-						<executions>
-							<execution>
-								<phase>initialize</phase>
-								<goals>
-									<goal>set-system-properties</goal>
-								</goals>
-								<configuration>
-									<properties>
-										<polyglot.js.nashorn-compat>
-											true
-										</polyglot.js.nashorn-compat>
-									</properties>
-								</configuration>
-							</execution>
-						</executions>
-					</plugin>
-					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-antrun-plugin</artifactId>
 						<dependencies>
 							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js</artifactId>
-								<version>20.1.0</version>
-							</dependency>
-							<dependency>
-								<groupId>org.graalvm.js</groupId>
-								<artifactId>js-scriptengine</artifactId>
-								<version>20.1.0</version>
+								<groupId>org.openjdk.nashorn</groupId>
+								<artifactId>nashorn-core</artifactId>
+								<version>15.4</version>
 							</dependency>
 						</dependencies>
 					</plugin>
@@ -132,17 +107,17 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-install-plugin</artifactId>
-					<version>2.5.2</version><!-- later versions are Java 7+ -->
+					<version>3.1.0</version><!-- version requires Java8+ -->
 				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-resources-plugin</artifactId>
-					<version>3.0.1</version><!-- later versions are Java 7+ -->
+					<version>3.3.0</version><!-- version requires Java 8+ -->
 				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-compiler-plugin</artifactId>
-					<version>3.8.1</version>
+					<version>3.10.1</version><!-- version requires Java 8+ -->
 				</plugin>
 			</plugins>
 		</pluginManagement>
@@ -152,7 +127,7 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
 					<encoding>${project.build.sourceEncoding}</encoding>
-					<release>9</release>
+					<release>9</release><!-- we are building for Java 9 -->
 					<showDeprecation>true</showDeprecation>
 					<showWarnings>true</showWarnings>
 				</configuration>
@@ -160,24 +135,17 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
-				<version>3.0.2</version>
+				<version>3.3.0</version><!-- version requires Java 8+ -->
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.0.0-M4</version>
+				<version>3.0.0-M7</version><!-- version requires Java 8+ -->
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-site-plugin</artifactId>
-				<version>3.9.1</version>
-				<dependencies>
-					<dependency>
-						<groupId>net.trajano.wagon</groupId>
-						<artifactId>wagon-git</artifactId>
-						<version>2.0.4</version>
-					</dependency>
-				</dependencies>
+				<version>3.12.1</version><!-- version requires Java 8+ -->
 				<configuration>
 					<relativizeDecorationLinks>false</relativizeDecorationLinks>
 				</configuration>
@@ -197,7 +165,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-project-info-reports-plugin</artifactId>
-				<version>3.1.0</version>
+				<version>3.4.5</version><!-- version requires Java 8+ -->
 			</plugin>
 		</plugins>
 	</reporting>

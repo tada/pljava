@@ -40,20 +40,15 @@
 
 	<profiles>
 		<profile>
-			<id>nashorngone</id>
+			<id>nashornmod</id>
 			<activation>
 				<jdk>[15,)</jdk>
 			</activation>
 			<dependencies>
 				<dependency>
-					<groupId>org.graalvm.js</groupId>
-					<artifactId>js</artifactId>
-					<version>20.1.0</version>
-				</dependency>
-				<dependency>
-					<groupId>org.graalvm.js</groupId>
-					<artifactId>js-scriptengine</artifactId>
-					<version>20.1.0</version>
+					<groupId>org.openjdk.nashorn</groupId>
+					<artifactId>nashorn-core</artifactId>
+					<version>15.4</version>
 				</dependency>
 			</dependencies>
 		</profile>
