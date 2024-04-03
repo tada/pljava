@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of mid-2023, the following version constraints are known.
+As of spring 2024, the following version constraints are known.
 
 ## Java
 
@@ -67,6 +67,6 @@ The PL/Java 1.6 series does not support PostgreSQL earlier than 9.5.
 More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.
 
-PL/Java 1.6.6 has been successfully built and run on at least one platform
+PL/Java 1.6.7 has been successfully built and run on at least one platform
 with PostgreSQL versions from 16 to 9.5, the latest maintenance
 release for each.
