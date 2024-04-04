@@ -80,17 +80,17 @@ import org.postgresql.pljava.model.TupleTableSlot;
  * you can see, in the output messages, how the API presents that information.
  */
 @SQLAction(requires = "pljavahandler language", install = {
-"CREATE OR REPLACE FUNCTION javatest.glot_validator(oid)" +
+"CREATE OR REPLACE FUNCTION javatest.glot64_validator(oid)" +
 " RETURNS void" +
 " LANGUAGE pljavahandler AS 'org.postgresql.pljava.example.polyglot.Glot64'",
 
-"COMMENT ON FUNCTION javatest.glot_validator(oid) IS " +
+"COMMENT ON FUNCTION javatest.glot64_validator(oid) IS " +
 "'Validator function for the glot64 procedural language'",
 
 "CREATE LANGUAGE glot64" +
 " HANDLER sqlj.pljavaDispatchRoutine" +
 " INLINE  sqlj.pljavaDispatchInline" +
-" VALIDATOR javatest.glot_validator",
+" VALIDATOR javatest.glot64_validator",
 
 "COMMENT ON LANGUAGE glot64 IS " +
 "'The glot64 procedural language, which is implemented atop PL/Java, " +
@@ -116,7 +116,7 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "DROP FUNCTION javatest.hello()",
 "DO LANGUAGE glot64 'QnllIGJ5ZSEK'",
 "DROP LANGUAGE glot64",
-"DROP FUNCTION javatest.glot_validator(oid)"
+"DROP FUNCTION javatest.glot64_validator(oid)"
 })
 public class Glot64 implements InlineBlocks, Routines
 {
