@@ -10,6 +10,89 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.7
+
+This is the seventh minor update in the PL/Java 1.6 series. It adds support
+for FreeBSD and for building and running with Java 22, and fixes some bugs,
+with few other notable changes. Further information on the changes may be found
+below.
+
+$h3 Version compatibility
+
+PL/Java 1.6.7 can be built against recent PostgreSQL versions including 16, and
+older ones back to 9.5, using Java SE 9 or later. The Java version used at
+runtime does not have to be the same version used for building. PL/Java itself
+can run on any Java version 9 or later. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+Some builds of Java 20 are affected by a bug, [JDK-8309515][]. PL/Java will
+report an error if detects it is affected by that bug, and the solution can be
+to use a Java version earlier than 20, or one recent enough to have the bug
+fixed. The bug has been fixed in Java 21.
+
+$h3 Changes
+
+$h4 Changes in XML support
+
+$h5 Java 22's new XML property to control DTD processing is supported
+
+Java 22 introduces a new property, `jdk.xml.dtd.support`, which can take values
+`allow`, `deny`, and `ignore`.
+
+The values `allow` and `deny` provide a new way to specify behavior that could
+already be requested by other means, and the `allowDTD(boolean)` method of
+PL/Java's `Adjusting.XML` API now tries this property first, falling back to the
+older means on Java releases that do not support it.
+
+The value `ignore` offers a previously-unavailable behavior where an XML
+document with a DTD can be successfully parsed but with its DTD ignored. A new
+method `ignoreDTD()` is added to the `Adjusting.XML` API to request this
+treatment, and will only succeed on Java 22 or later. The last-invoked of this
+method and `allowDTD(boolean)` will govern.
+
+In Java 22, bug [JDK-8329295][] can cause parsing to fail when `ignoreDTD` is in
+effect, if the document has only a minimal DTD and the SAX or DOM API is used.
+
+$h4 Build system
+
+The build logic that is implemented in JavaScript is now executed using the
+Nashorn engine, either included with Java through release 14, or downloaded
+by Maven for Java 15 and later. The build system was formerly downloading the
+JavaScript engine from GraalVM to build on Java 15 and later, but a new version
+of that engine needed for Java 22 would have complicated version management.
+
+Versions of some Maven plugins used at build time
+[have been updated](${ghpull}468) where critical vulnerabilities were reported.
+
+$h3 Enhancement requests addressed
+
+* [Build on FreeBSD](${ghpull}478)
+* [Vulnerable Maven plugins used at build time](${ghbug}449)
+
+$h3 Bugs fixed
+
+* ["PostgreSQL backend function after an elog(ERROR)" in class loading](${ghbug}471)
+* [XML parsing errors reported as XX000 when DOM API is used](${ghbug}481)
+
+$h3 Credits
+
+Thanks in release 1.6.7 to Francisco Miguel Biete Banon, Bear Giles, Achilleas
+Mantzios, `hunterpayne`, `kamillo`.
+
+[JDK-8329295]: https://bugs.openjdk.org/browse/JDK-8329295
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.6.6
 
 This is the sixth minor update in the PL/Java 1.6 series. It adds support
@@ -94,17 +177,6 @@ $h3 Bugs fixed
 [adjlax]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.Parsing.html#method.summary
 [adjsfs]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.html#method.detail
 [egsfs]: https://github.com/tada/pljava/blob/V1_6_6/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/PassXML.java#L528
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.5
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -39,13 +39,6 @@ import java.util.List;
  */
 public class Portal implements org.postgresql.pljava.model.Portal
 {
-	/*
-	 * Hold a reference to the Java ExecutionPlan object as long as we might be
-	 * using it, just to make sure Java unreachability doesn't cause it to
-	 * mop up its native plan state while the portal might still be using it.
-	 */
-	private ExecutionPlan m_plan;
-
 	private TupleDescriptor m_tupdesc;
 
 	private TupleTableSlotImpl m_slot;
@@ -70,18 +63,26 @@ public class Portal implements org.postgresql.pljava.model.Portal
 
 	Portal(long ro, long cxt, long pointer, ExecutionPlan plan)
 	{
-		m_state = new State(this, ResourceOwnerImpl.fromAddress(ro), pointer);
+		m_state =
+			new State(this, ResourceOwnerImpl.fromAddress(ro), pointer, plan);
 		m_context = MemoryContextImpl.fromAddress(cxt);
-		m_plan = plan;
 	}
 
 	private static class State
 	extends DualState.SingleSPIcursorClose<Portal>
 	{
+		/*
+		 * Hold a reference to the Java ExecutionPlan object as long as we might
+		 * be using it, just to make sure Java unreachability doesn't cause it
+		 * to mop up its native plan state while the portal might still want it.
+		 */
+		private ExecutionPlan m_plan;
+
 		private State(
-			Portal referent, Lifespan span, long portal)
+			Portal referent, Lifespan span, long portal, ExecutionPlan plan)
 		{
 			super(referent, span, portal);
+			m_plan = plan;
 		}
 
 		/**
@@ -111,6 +112,13 @@ public class Portal implements org.postgresql.pljava.model.Portal
 				unpin();
 			}
 		}
+
+		@Override
+		protected void javaStateReleased(boolean nativeStateLive)
+		{
+			super.javaStateReleased(nativeStateLive);
+			m_plan = null;
+		}
 	}
 
 	/**
@@ -119,13 +127,9 @@ public class Portal implements org.postgresql.pljava.model.Portal
 	 */
 	public void close()
 	{
-		doInPG(() ->
-		{
-			m_state.releaseFromJava();
-			m_plan = null;
-			m_tupdesc = null;
-			m_slot = null;
-		});
+		m_state.releaseFromJava();
+		m_tupdesc = null;
+		m_slot = null;
 	}
 
 	/**

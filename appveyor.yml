@@ -12,56 +12,32 @@ environment:
   APPVEYOR_RDP_PASSWORD: MrRobot@2020
   VCVARSALL: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat
   matrix:
-#   - SYS: MINGW
-#     JDK: 9
-#     PG: 14
-#   - SYS: MINGW
-#     JDK: 10
-#     PG: 14
     - SYS: MINGW
       JDK: 11
-      PG: 14
+      PG: pacman
     - SYS: MINGW
-      JDK: 12
-      PG: 14
+      JDK: 17
+      PG: pacman
     - SYS: MINGW
-      JDK: 13
-      PG: 14
+      JDK: 19
+      PG: pacman
     - SYS: MINGW
-      JDK: 14
-      PG: 14
-    - SYS: MINGW
-      JDK: 15
+      JDK: 21
+      PG: pacman
+    - SYS: MSVC
+      JDK: 21
+      PG: 15
+    - SYS: MSVC
+      JDK: 21
       PG: 14
     - SYS: MSVC
-      JDK: 15
+      JDK: 21
       PG: 13
 #   - SYS: MSVC
-#     JDK: 14
-#     PG: 13
-#   - SYS: MSVC
-#     JDK: 13
-#     PG: 13
-#   - SYS: MSVC
-#     JDK: 12
-#     PG: 13
-    - SYS: MSVC
-      JDK: 11
-      PG: 13
-#   - SYS: MSVC
-#     JDK: 10
-#     PG: 13
-#   - SYS: MSVC
-#     JDK: 9
+#     JDK: 21
 #     PG: 12
 #   - SYS: MSVC
-#     JDK: 14
-#     PG: 11
-#   - SYS: MSVC
-#     JDK: 14
-#     PG: 10
-#   - SYS: MSVC
-#     JDK: 14
+#     JDK: 11
 #     PG: 9.6
 before_build:
   - ps: .appveyor/appveyor_download_java.ps1

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -982,6 +982,7 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
+		static final SchemaVariant REL_1_6_7       = REL_1_6_0;
 		static final SchemaVariant REL_1_6_6       = REL_1_6_0;
 		static final SchemaVariant REL_1_6_5       = REL_1_6_0;
 		static final SchemaVariant REL_1_6_4       = REL_1_6_0;

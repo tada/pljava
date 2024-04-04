@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -3986,6 +3986,10 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), lh);
 				xr.parse(sxs.getInputSource());
 			}
+			/*
+			 * If changing these wrapping conventions, change them also in
+			 * AdjustingDOMSource.get()
+			 */
 			catch ( SAXException e )
 			{
 				throw new SQLDataException(e.getMessage(), "22000", e);
@@ -4207,6 +4211,10 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		private static final String JDK17 = "jdk.xml.";
 		private static final String LIMIT =
 			"http://www.oracle.com/xml/jaxp/properties/"; // "legacy" since 17
+		protected static final String DTDSUPPORT = "jdk.xml.dtd.support";
+		protected static final String ALLOW = "allow";
+		protected static final String IGNORE = "ignore";
+		protected static final String DENY = "deny";
 
 		private Exception m_signaling;
 		private Exception m_quiet;
@@ -4278,6 +4286,12 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			return allowDTD(false).externalGeneralEntities(false)
 				.externalParameterEntities(false).loadExternalDTD(false)
 				.xIncludeAware(false).expandEntityReferences(false);
+		}
+
+		@Override
+		public T ignoreDTD()
+		{
+			return setFirstSupportedProperty(IGNORE, DTDSUPPORT);
 		}
 
 		@Override
@@ -4381,12 +4395,29 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 	abstract static class SAXDOMCommon<T extends Adjusting.XML.Parsing<T>>
 	extends AdjustingJAXPParser<T>
 	{
+		protected abstract Exception tryFirstSupportedFeature(
+			Exception caught, boolean value, String... names);
+
+		protected abstract Exception tryFirstSupportedProperty(
+			Exception caught, Object value, String... names);
+
+		protected abstract T self();
+
 		@Override
 		public T allowDTD(boolean v) {
-			return setFirstSupportedFeature( !v,
+			Exception caught =
+				tryFirstSupportedProperty(null, v ? ALLOW : DENY, DTDSUPPORT);
+
+			if ( null == caught )
+				return self();
+
+			caught = tryFirstSupportedFeature(caught, !v,
 				"http://apache.org/xml/features/disallow-doctype-decl",
 				"http://xerces.apache.org/xerces2-j/features.html" +
 					"#disallow-doctype-decl");
+
+			addQuiet(caught);
+			return self();
 		}
 
 		@Override
@@ -5020,17 +5051,17 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			private Dummy() { }
 
 			@Override
-			public AdjustingSAXSource setFirstSupportedFeature(
-				boolean value, String... names)
+			protected Exception tryFirstSupportedFeature(
+				Exception caught, boolean value, String... names)
 			{
-				return this;
+				return caught;
 			}
 
 			@Override
-			public AdjustingSAXSource setFirstSupportedProperty(
-				Object value, String... names)
+			protected Exception tryFirstSupportedProperty(
+				Exception caught, Object value, String... names)
 			{
-				return this;
+				return caught;
 			}
 
 			@Override
@@ -5180,18 +5211,44 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		}
 
 		@Override
-		public AdjustingSAXSource setFirstSupportedFeature(
-			boolean value, String... names)
+		protected Exception tryFirstSupportedFeature(
+			Exception caught, boolean value, String... names)
 		{
 			XMLReader r = theReader();
 			if ( null == r ) // pending exception, nothing to be done
-				return this;
+				return caught;
 
-			addQuiet(setFirstSupported(r::setFeature, value,
+			return setFirstSupported(r::setFeature, value,
 				List.of(SAXNotRecognizedException.class,
 					SAXNotSupportedException.class),
-				this::addSignaling, names));
+				caught, this::addSignaling, names);
+		}
 
+		@Override
+		protected Exception tryFirstSupportedProperty(
+			Exception caught, Object value, String... names)
+		{
+			XMLReader r = theReader();
+			if ( null == r ) // pending exception, nothing to be done
+				return caught;
+
+			return setFirstSupported(r::setProperty, value,
+				List.of(SAXNotRecognizedException.class,
+					SAXNotSupportedException.class),
+				caught, this::addSignaling, names);
+		}
+
+		@Override
+		protected AdjustingSAXSource self()
+		{
+			return this;
+		}
+
+		@Override
+		public AdjustingSAXSource setFirstSupportedFeature(
+			boolean value, String... names)
+		{
+			addQuiet(tryFirstSupportedFeature(null, value, names));
 			return this;
 		}
 
@@ -5199,15 +5256,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public AdjustingSAXSource setFirstSupportedProperty(
 			Object value, String... names)
 		{
-			XMLReader r = theReader();
-			if ( null == r ) // pending exception, nothing to be done
-				return this;
-
-			addQuiet(setFirstSupported(r::setProperty, value,
-				List.of(SAXNotRecognizedException.class,
-					SAXNotSupportedException.class),
-				this::addSignaling, names));
-
+			addQuiet(tryFirstSupportedProperty(null, value, names));
 			return this;
 		}
 
@@ -5296,6 +5345,28 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public AdjustingSAXResult expandEntityReferences(boolean v)
 		{
 			return checkedNoOp();
+		}
+
+		@Override
+		protected Exception tryFirstSupportedFeature(
+			Exception caught, boolean value, String... names)
+		{
+			checkedNoOp();
+			return null;
+		}
+
+		@Override
+		protected Exception tryFirstSupportedProperty(
+			Exception caught, Object value, String... names)
+		{
+			checkedNoOp();
+			return null;
+		}
+
+		@Override
+		protected AdjustingSAXResult self()
+		{
+			return this;
 		}
 
 		@Override
@@ -5404,7 +5475,16 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 
 		@Override
 		public AdjustingStAXSource allowDTD(boolean v) {
-			return setFirstSupportedFeature( v, XMLInputFactory.SUPPORT_DTD);
+			Exception caught =
+				tryFirstSupported(null, v ? ALLOW : DENY, DTDSUPPORT);
+
+			if ( null == caught )
+				return this;
+
+			caught = tryFirstSupported(caught, v, XMLInputFactory.SUPPORT_DTD);
+
+			addQuiet(caught);
+			return this;
 		}
 
 		@Override
@@ -5441,14 +5521,20 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 				XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES);
 		}
 
+		private Exception tryFirstSupported(
+			Exception caught, Object value, String... names)
+		{
+			XMLInputFactory xif = theFactory();
+			return setFirstSupported(xif::setProperty, value,
+				List.of(IllegalArgumentException.class),
+				caught, this::addSignaling, names);
+		}
+
 		@Override
 		public AdjustingStAXSource setFirstSupportedFeature(
 			boolean value, String... names)
 		{
-			XMLInputFactory xif = theFactory();
-			addQuiet(setFirstSupported(xif::setProperty, value,
-				List.of(IllegalArgumentException.class),
-				this::addSignaling, names));
+			addQuiet(tryFirstSupported(null, value, names));
 			return this;
 		}
 
@@ -5456,10 +5542,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public AdjustingStAXSource setFirstSupportedProperty(
 			Object value, String... names)
 		{
-			XMLInputFactory xif = theFactory();
-			addQuiet(setFirstSupported(xif::setProperty, value,
-				List.of(IllegalArgumentException.class),
-				this::addSignaling, names));
+			addQuiet(tryFirstSupported(null, value, names));
 			return this;
 		}
 	}
@@ -5529,10 +5612,21 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 			}
 
 			Exception e = exceptions();
-			if ( null != e )
-				throw normalizedException(e);
 
-			return ds;
+			if ( null == e )
+				return ds;
+
+			/*
+			 * If changing these wrapping conventions, change them also in
+			 * XMLCopier.saxCopy()
+			 */
+			if ( e instanceof SAXException )
+				throw new SQLDataException(e.getMessage(), "22000", e);
+
+			if ( e instanceof IOException )
+				throw new SQLException(e.getMessage(), "58030", e);
+
+			throw normalizedException(e);
 		}
 
 		@Override
@@ -5557,13 +5651,36 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		}
 
 		@Override
+		protected Exception tryFirstSupportedFeature(
+			Exception caught, boolean value, String... names)
+		{
+			DocumentBuilderFactory dbf = theFactory();
+			return setFirstSupported(dbf::setFeature, value,
+				List.of(ParserConfigurationException.class),
+				caught, this::addSignaling, names);
+		}
+
+		@Override
+		protected Exception tryFirstSupportedProperty(
+			Exception caught, Object value, String... names)
+		{
+			DocumentBuilderFactory dbf = theFactory();
+			return setFirstSupported(dbf::setAttribute, value,
+				List.of(IllegalArgumentException.class),
+				caught, this::addSignaling, names);
+		}
+
+		@Override
+		protected AdjustingDOMSource self()
+		{
+			return this;
+		}
+
+		@Override
 		public AdjustingDOMSource setFirstSupportedFeature(
 			boolean value, String... names)
 		{
-			DocumentBuilderFactory dbf = theFactory();
-			addQuiet(setFirstSupported(dbf::setFeature, value,
-				List.of(ParserConfigurationException.class),
-				this::addSignaling, names));
+			addQuiet(tryFirstSupportedFeature(null, value, names));
 			return this;
 		}
 
@@ -5571,10 +5688,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 		public AdjustingDOMSource setFirstSupportedProperty(
 			Object value, String... names)
 		{
-			DocumentBuilderFactory dbf = theFactory();
-			addQuiet(setFirstSupported(dbf::setAttribute, value,
-				List.of(IllegalArgumentException.class),
-				this::addSignaling, names));
+			addQuiet(tryFirstSupportedProperty(null, value, names));
 			return this;
 		}
 
