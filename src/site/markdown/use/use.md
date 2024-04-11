@@ -98,8 +98,8 @@ significant advantages to using the
 
 ### Parallel query
 
-PostgreSQL 9.3 introduced [background worker processes][bgworker]
-(though at least PostgreSQL 9.5 is needed for support in PL/Java),
+PL/Java understands [background worker processes][bgworker]
+in PostgreSQL 9.5 and later,
 and PostgreSQL 9.6 introduced [parallel query][parq].
 
 For details on PL/Java in a background worker or parallel query, see

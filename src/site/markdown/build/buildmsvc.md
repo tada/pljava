@@ -21,9 +21,6 @@ PostgreSQL and PL/Java. Using a *newer* version of Visual Studio (including
 the Community 2015 version) will generally work, while older versions are more
 likely to be problematic.
 
-* PostgreSQL 9.1 to 9.3 were built using Visual Studio 2010.
-* PostgreSQL 9.4 was built using Visual Studio 2013.
-
 ## Software Prerequisites
 
 0. You will need an appropriate version of [Microsoft Visual Studio][msvc]. When
@@ -49,11 +46,6 @@ likely to be problematic.
     be installed. To check, look in the output of that `pg_config` command for
     an `INCLUDEDIR-SERVER` line, and list the directory it refers to. There
     should be a bunch of `*.h` files there.
-
-0. OpenSSL headers: if using an EnterpriseDB PostgreSQL build older than 9.3,
-    these will be missing. They can be obtained from a 9.3 or later
-    EDB PostgreSQL build by copying the `include/openssl` directory and
-    its contents.
 
 0. You will need to install [Maven][mvn] and add it to your PATH so that
 
