@@ -60,7 +60,13 @@ There is a "troubleshooting the build" section at the end of this page.
 
         mvn --version
 
-    succeeds.
+    succeeds. It reports not only the version of Maven, but the version of Java
+    that Maven has found and is using, which must be a Java version supported
+    for building PL/Java (see more on [version compatibility](versions.html)).
+    If Maven is not finding and using the intended Java version, the environment
+    variable `JAVA_HOME` can be set to point to the desired Java installation,
+    and `mvn --version` should then confirm that the Java being found is the
+    one intended.
 
 If you have more than one version installed of PostgreSQL, Java, or the
 compile/link tools, make sure the ones found on your search path are the
