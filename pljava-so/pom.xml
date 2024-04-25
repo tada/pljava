@@ -333,6 +333,7 @@
 	var os_name = java.lang.System.getProperty("os.name");
 	var implementation = null;
 	var extension = null;
+	var pgxs = null;
 	for (var index = 0; index < configuration.length; index ++) {
 		if(configuration[index].probe(os_name)) {
 			implementation = configuration[index];
@@ -342,10 +343,23 @@
 		}
 	}
 
-	var pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
+	if ( null !== implementation )
+		pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
 function execute()
 {
+	if ( null === pgxs )
+	{
+		return plugin.exceptionWrap("\
+No compiling/linking rules were selected for this platform. Rules for \
+supported platforms can be found below 'var configuration = [' in \
+pljava-so/pom.xml. If you believe one of the supported platforms should have \
+matched, studying its probe: function may reveal why it did not match. \
+An expected environment variable might not be set, for example. If your \
+platform is not one of those supported, please consider adding a rule set \
+for it, and submitting a pull request so that PL/Java can support it.", true);
+	}
+
 	try
 	{
 		var files = utils.getFilesWithExtension(source_path, ".c");
