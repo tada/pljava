@@ -159,9 +159,21 @@ public final class PGXSUtils
 		context.setAttribute("buildPaths",
 			(Function<List<String>, Map<String, String>>) this::buildPaths,
 			GLOBAL_SCOPE);
+
 		context.setAttribute("runCommand",
-			(ToIntFunction<ProcessBuilder>) this::runCommand,
-			GLOBAL_SCOPE);
+			(ToIntFunction<ProcessBuilder>) b ->
+			{
+				log.debug("To run: " + b.command());
+				return runCommand(b);
+			}, GLOBAL_SCOPE);
+
+		context.setAttribute("runWindowsCRuntimeCommand",
+			(ToIntFunction<ProcessBuilder>) b ->
+			{
+				log.debug("To run (needs WindowsCRuntime transformation): " +
+					b.command());
+				return runCommand(forWindowsCRuntime(b));
+			}, GLOBAL_SCOPE);
 
 		/*
 		 * Also provide a specialized method useful for a script that may

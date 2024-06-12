@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -66,7 +66,6 @@ public class ScriptingMojo extends AbstractMojo
 			utils = new PGXSUtils(project, getLog());
 			String scriptText = script.getValue();
 			ScriptEngine engine = utils.getScriptEngine(script);
-			getLog().debug(scriptText);
 
 			engine.getContext().setAttribute("session", session,
 				ScriptContext.GLOBAL_SCOPE);
