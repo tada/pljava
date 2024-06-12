@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
@@ -43,6 +44,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.lang.System.getProperty;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Stream.iterate;
 import static javax.script.ScriptContext.GLOBAL_SCOPE;
 
 /**
@@ -312,6 +315,41 @@ public final class PGXSUtils
 		String pgConfigOutput = defaultCharsetDecodeStrict(bytes);
 		return pgConfigOutput.substring(0,
 			pgConfigOutput.length() - System.lineSeparator().length());
+	}
+
+	/**
+	 * Reports the detailed {@code PG_VERSION_STR} for the PostgreSQL version
+	 * found to build against.
+	 *<p>
+	 * This should be found as a C string literal after
+	 * {@code #define PG_VERSION_STR} in
+	 * <var>includedir_server</var>/{@code pg_config.h}.
+	 *<p>
+	 * If the value can be found, it is logged at {@code info} level. Otherwise,
+	 * the exception(s) responsible will be logged at {@code debug} level.
+	 * @param includedir_server pass the result of a previous
+	 * {@code getPgConfigProperty(..., "--includedir_server")}
+	 */
+	public void reportPostgreSQLVersion(String includedir_server)
+	{
+		Path pg_config_h = Paths.get(includedir_server, "pg_config.h");
+		try
+		{
+			log.info(
+				defaultCharsetDecodeStrict(Files.readAllBytes(pg_config_h))
+				.replaceFirst(
+					"(?ms).*^#define\\s++PG_VERSION_STR\\s++(?-s:(.++))$.*+",
+					"Found $1")
+			);
+		}
+		catch ( IOException | IndexOutOfBoundsException e )
+		{
+			log.debug(
+				"in reportPostgreSQLVersion: " +
+				iterate(e, Objects::nonNull, Throwable::getCause)
+				.map(Object::toString).collect(joining("\nCaused by: "))
+			);
+		}
 	}
 
 	/**
