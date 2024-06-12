@@ -27,13 +27,14 @@ import javax.script.ScriptEngine;
 import java.util.Locale;
 
 /**
- * Maven plugin goal to use JavaScript for configuring
+ * Maven plugin goal to use JavaScript (or another JSR 223 script engine)
+ * for configuring
  * {@link org.apache.maven.reporting.MavenReport} during the
  * {@link LifecyclePhase#SITE}.
  * <p>
- * This plugin goal intends to allow the use of JavaScript during {@code SITE}
+ * This plugin goal intends to allow the use of scripting in the {@code SITE}
  * lifecycle phase with the help of {@link ReportScript}. The motivation behind
- * this is the inability to use Maven AntRun during {@code SITE} phase.
+ * this is the inability to use Maven AntRun in the {@code SITE} phase.
  */
 @Mojo(name = "scripted-report")
 @Execute(phase = LifecyclePhase.NONE)
@@ -80,15 +81,17 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	}
 
 	/**
-	 * Returns the path relative to the target site directory of the this report.
+	 * Queries the script for the report output path relative to the target site
+	 * directory.
+	 * <p>
 	 * This value will be used by {@code Maven} to provide a link to the report
 	 * from {@code index.html}.
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
 	 * {@link ReportScript} is available. Invokes
-	 * {@code fun getOutputName(report)} defined in the JavaScript snippet
-	 * associated with the report. No default implementation is provided. User
-	 * must implement the method in JavaScript.
+	 * {@code getOutputName(report)} defined by the script snippet
+	 * associated with the report. No default implementation is provided; the
+	 * script must implement this method.
 	 */
 	@Override
 	public String getOutputName ()
@@ -98,15 +101,15 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	}
 
 	/**
-	 * Returns false if this report will produce output through a
-	 * supplied {@link Sink}, true if it is 'external', producing its output
-	 * some other way.
+	 * Queries the script to return false if this report will produce output
+	 * through a supplied {@link Sink}, or true if it is 'external', producing
+	 * its output some other way.
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
 	 * {@link ReportScript} is available. Invokes
-	 * {@code fun isExternalReport(report)} if defined in the javascript
-	 * snippet associated with the report. Otherwise, the {@code super}
-	 * implementation is invoked effectively.
+	 * {@code isExternalReport(report)} if defined in the script
+	 * snippet associated with the report. Otherwise, the implementation
+	 * inherited by this class is effectively invoked.
 	 */
 	@Override
 	public boolean isExternalReport ()
@@ -116,14 +119,14 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	}
 
 	/**
-	 * Returns the name of this report used by {@code Maven} for displaying in
-	 * {@code index.html}.
+	 * Queries the script for the name of this report to be used
+	 * by {@code Maven} for display in {@code index.html}.
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
 	 * {@link ReportScript} is available. Invokes
-	 * {@code fun getName(report, locale)} defined in the javascript
-	 * snippet associated with the report. No default implementation is provided
-	 * . User must implement the method in javascript.
+	 * {@code getName(report, locale)} defined by the script
+	 * snippet associated with the report. No default implementation is
+	 * provided; the script must implement this method.
 	 */
 	@Override
 	public String getName (Locale locale)
@@ -133,14 +136,14 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	}
 
 	/**
-	 * Returns the description of this report, used by {@code Maven} to display
-	 * report description in {@code index.html}.
+	 * Queries the script for the description of this report, to be used
+	 * by {@code Maven} for display in {@code index.html}.
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
 	 * {@link ReportScript} is available. Invokes
-	 * {@code fun getDescription(report, locale)} defined in the javascript
-	 * snippet associated with the report. No default implementation is provided
-	 * . User must implement the method in javascript.
+	 * {@code getDescription(report, locale)} defined in the script
+	 * snippet associated with the report. No default implementation is
+	 * provided; the script must implement this method.
 	 */
 	@Override
 	public String getDescription (Locale locale)
@@ -150,14 +153,15 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	}
 
 	/**
-	 * Returns the category name of this report, used by {@code Maven} to display
-	 * the report under the correct in {@code index.html}.
+	 * Queries the script for the category name of this report, used
+	 * by {@code Maven} to place the report under the correct heading
+	 * in {@code index.html}.
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
 	 * {@link ReportScript} is available. Invokes
-	 * {@code fun getCategoryName(report)} if defined in the javascript
-	 * snippet associated with the report. Otherwise, the {@code super}
-	 * implementation is invoked effectively.
+	 * {@code getCategoryName(report)} if defined by the script
+	 * snippet associated with the report. Otherwise, the implementation
+	 * inherited by this class is effectively invoked.
 	 */
 	@Override
 	public String getCategoryName ()
@@ -167,13 +171,13 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	}
 
 	/**
-	 * Returns true if a report can be generated, false otherwise.
+	 * Queries the script as to whether this report can be generated.
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
 	 * {@link ReportScript} is available. Invokes
-	 * {@code fun canGenerateReport(report)} if defined in the javascript
-	 * snippet. Otherwise, the {@code super} implementation is invoked
-	 * effectively.
+	 * {@code canGenerateReport(report)} if defined by the script
+	 * snippet. Otherwise, the implementation inherited by this class is
+	 * effectively invoked.
 	 */
 	@Override
 	public boolean canGenerateReport ()
@@ -186,9 +190,9 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	 * {@inheritDoc}
 	 * <p>
 	 * Calls {@code setReportScript} to ensure that the instance of
-	 * {@link ReportScript} is available. Invokes the
-	 * {@code fun executeReport(report, locale)} with the instance of the
-	 * current report.
+	 * {@link ReportScript} is available. Invokes its
+	 * {@code executeReport(report, locale)}, passing this instance and
+	 * the supplied locale.
 	 */
 	@Override
 	protected void executeReport (Locale locale) throws MavenReportException
@@ -229,7 +233,7 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	/**
 	 * Default implementation for
 	 * {@link ReportScript#isExternalReport(ReportScriptingMojo)}. Invoked if
-	 * {@code fun isExternalReport(report)} is not defined in the javascript
+	 * {@code isExternalReport(report)} is not defined in the script
 	 * snippet associated with the report.
 	 */
 	boolean isExternalReportDefault ()
@@ -240,7 +244,7 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	/**
 	 * Default implementation of
 	 * {@link ReportScript#getCategoryName(ReportScriptingMojo)}. Invoked if
-	 * {@code fun getCategoryName(report)} is not defined in the javascript
+	 * {@code getCategoryName(report)} is not defined in the script
 	 * snippet associated with the report.
 	 */
 	String getCategoryNameDefault ()
@@ -251,7 +255,7 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	/**
 	 * Default implementation of
 	 * {@link ReportScript#canGenerateReport(ReportScriptingMojo)}. Invoked if
-	 * {@code fun canGenerateReport(report)} is not defined in the javascript
+	 * {@code canGenerateReport(report)} is not defined in the script
 	 * snippet associated with the report.
 	 */
 	boolean canGenerateReportDefault ()
@@ -263,16 +267,17 @@ public class ReportScriptingMojo extends AbstractMavenReport
 	 * Wraps the input object in a {@link MavenReportException}.
 	 *
 	 * The exception returned is constructed as follows:
-	 * 1) If {@code object} is null, the exception message indicates the same.
-	 * 2) If {@code object} is already a {@link MavenReportException}, return it
-	 * as is.
-	 * 3) If {@code object} is any other {@link Throwable}, set it as the cause
-	 * for the exception.
-	 * {@link MavenReportException} with {@code object} as its cause.
-	 * 4) If {@code object} is a {@link String}, set it as the message of the
-	 * exception.
-	 * 5) For all other case, the message of the exception is set in this format
-	 * , Class Name of object: String representation of object.
+	 *<ul>
+	 * <li>If {@code object} is null, the exception message indicates the same.
+	 * <li>If {@code object} is already a {@link MavenReportException}, it is
+	 * returned as is.
+	 * <li>If {@code object} is any other {@link Throwable}, it is used as
+	 * the wrapping exception's cause.
+	 * <li>If {@code object} is a {@link String}, it is used as
+	 * the wrapping exception's message.
+	 * <li>If it is any other object, the wrapping exception's message is set in
+	 * this format: Class mame of object: String representation of object.
+	 *</ul>
 	 *
 	 * @param object to wrap in MavenReportException
 	 * @return object wrapped inside a {@link MavenReportException}
@@ -286,7 +291,8 @@ public class ReportScriptingMojo extends AbstractMavenReport
 		else if (object instanceof Throwable)
 		{
 			Throwable t = (Throwable) object;
-			MavenReportException exception = new MavenReportException(t.getMessage());
+			MavenReportException exception =
+				new MavenReportException(t.getMessage());
 			exception.initCause(t);
 			return exception;
 		}
