@@ -66,6 +66,8 @@
 		Paths.get(base_dir_path, "..", "pljava", "target", "javah-include").toString()
 	));
 
+	utils.reportPostgreSQLVersion(includedir_server);
+
 	var base_defines = new HashMap();
 	base_defines.put("PLJAVA_SO_VERSION", project.parent.version);
 	if ( cc.equalsIgnoreCase("gcc") )
@@ -239,7 +241,7 @@
 					l.addAll(files);
 				});
 				compileProcess.directory(output_dir.toFile());
-				return runCommand(utils.forWindowsCRuntime(compileProcess));
+				return runWindowsCRuntimeCommand(compileProcess);
 			},
 
 			link : function(cc, flags, files, target_path) {
@@ -256,7 +258,7 @@
 					l.addAll(of("-L" + pkglibdir, "-Bdynamic", "-lpostgres"));
 				});
 				linkingProcess.directory(target_path.toFile());
-				return runCommand(utils.forWindowsCRuntime(linkingProcess));
+				return runWindowsCRuntimeCommand(linkingProcess);
 			}
 		},
 

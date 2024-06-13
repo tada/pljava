@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,18 +25,20 @@ import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 
 import javax.script.Invocable;
-import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static javax.script.ScriptContext.ENGINE_SCOPE;
+
 /**
- * Maven plugin goal to use JavaScript during any of build lifecycle phases.
+ * Maven plugin goal to use JavaScript (or another JSR 223 script engine)
+ * during any of build lifecycle phases.
  * <p>
- * The Mojo provides a limited subset of the functionality provided Maven AntRun
- * Plugin. This is intentional to simplify usage as this maven plugin is
- * specifically targeted at building Pl/Java native code.
+ * The Mojo provides a limited subset of the functionality of the Maven AntRun
+ * Plugin. This is intentional to simplify usage, as this Maven plugin is
+ * specifically targeted at building PL/Java native code.
  */
 @Mojo(name = "scripted-goal", defaultPhase = LifecyclePhase.COMPILE,
       requiresDependencyResolution = ResolutionScope.TEST)
@@ -55,8 +57,17 @@ public class ScriptingMojo extends AbstractMojo
 	private PGXSUtils utils;
 
 	/**
-	 * Executes the javascript code inside {@code script} tag inside plugin
+	 * Executes the script code inside the {@code script} tag in the plugin
 	 * configuration.
+	 *<p>
+	 * Uses {@link PGXSUtils#getScriptEngine PGXSUtils.getScriptEngine}
+	 * to instantiate the engine, and then makes these items available in
+	 * the engine's scope (in addition to those placed there by
+	 * {@link PGXSUtils#getScriptEngine getScriptEngine} itself):
+	 *<dl>
+	 * <dt>session<dd>The Maven session object
+	 * <dt>plugin<dd>This object
+	 *</dl>
 	 */
 	@Override
 	public void execute () throws MojoExecutionException, MojoFailureException
@@ -66,21 +77,15 @@ public class ScriptingMojo extends AbstractMojo
 			utils = new PGXSUtils(project, getLog());
 			String scriptText = script.getValue();
 			ScriptEngine engine = utils.getScriptEngine(script);
-			getLog().debug(scriptText);
 
-			engine.getContext().setAttribute("session", session,
-				ScriptContext.GLOBAL_SCOPE);
-			engine.getContext().setAttribute("plugin", this,
-				ScriptContext.GLOBAL_SCOPE);
-			engine.put("quoteStringForC",
-				(Function<String, String>) utils::quoteStringForC);
-			engine.put("setProjectProperty",
-				(BiConsumer<String, String>) this::setProjectProperty);
-			engine.put("getPgConfigProperty",
-				(Function<String, String>) this::getPgConfigProperty);
+			engine.getContext().setAttribute("session", session, ENGINE_SCOPE);
+			engine.getContext().setAttribute("plugin", this, ENGINE_SCOPE);
+
 			engine.eval(scriptText);
 
-			GoalScript goal = ((Invocable) engine).getInterface(GoalScript.class);
+			GoalScript goal =
+				((Invocable) engine).getInterface(GoalScript.class);
+
 			AbstractMojoExecutionException exception = goal.execute();
 			if (exception != null)
 				throw exception;
@@ -96,63 +101,33 @@ public class ScriptingMojo extends AbstractMojo
 	}
 
 	/**
-	 * Sets the value of a property for the current project.
-	 *
-	 * @param property key to use for property
-	 * @param value the value of property to set
-	 */
-	public void setProjectProperty (String property, String value)
-	{
-		project.getProperties().setProperty(property, value);
-	}
-
-	/**
-	 * Returns the value of a pg_config property.
-	 *
-	 * @param property property whose value is to be retrieved from pg_config
-	 * @return output of pg_config executed with the input property as argument
-	 */
-	public String getPgConfigProperty (String property)
-	{
-		try
-		{
-			String pgConfigCommand = System.getProperty("pgsql.pgconfig");
-			return utils.getPgConfigProperty(pgConfigCommand, property);
-		}
-		catch (Exception e)
-		{
-			getLog().error(e);
-			return null;
-		}
-	}
-
-	/**
-	 * Wraps the input object in a {@link AbstractMojoExecutionException}.
+	 * Wraps the input object in an {@link AbstractMojoExecutionException}.
 	 *
 	 * The returned exception is constructed as follows:
-	 * 1) If {@code object} is null, then {@link MojoExecutionException} is used
-	 * to wrap and the message indicates that null value was thrown by the script.
-	 * 2) If {@code object} is already a {@link MojoExecutionException}, return
-	 * it as is.
-	 * 3) If {@code object} is already a {@link MojoFailureException}, return it
-	 * as is.
+	 *<ul>
+	 * <li>If {@code object} is null, then {@link MojoExecutionException} is
+	 * used to wrap and the message indicates that a null value was thrown
+	 * by the script.
+	 * <li>If {@code object} is already a {@link MojoExecutionException}, it is
+	 * returned as is.
+	 * <li>If {@code object} is already a {@link MojoFailureException}, it is
+	 * returned as is.
+	 * <li>For the steps below, the wrapping exception is chosen according to
+	 * the value of the {@code scriptFailure} parameter.
+	 * <li>If {@code object} is any other {@link Throwable}, set it as
+	 * the wrapping exception's cause.
+	 * <li>If {@code object} is a {@link String}, set it as the wrapping
+	 * exception's message.
+	 * <li>For any other object, the message of the exception is set in
+	 * this format: Class name of object: String representation of object.
+	 *</ul>
 	 *
-	 * For the steps, below the wrapping exception is chosen according to the
-	 * the value of {@code scriptFailure} parameter.
-	 *
-	 * 4) If {@code object} is any other {@link Throwable}, set it as the cause
-	 * for the exception.
-	 * 5) If {@code object} is a {@link String}, set it as the message of the
-	 * exception.
-	 * 6) For all other case, the message of the exception is set in this format
-	 * , Class Name of object: String representation of object.
-	 *
-	 * @param object to wrap in AbstractMojoExecutionException
-	 * @param scriptFailure if true, use a MojoExecutionException for wrapping
-	 *                      otherwise use MojoFailureException. this parameter
-	 *                      is ignored, if the object is null or instance of
+	 * @param object an object to wrap in an AbstractMojoExecutionException
+	 * @param scriptFailure if true, use a MojoExecutionException for wrapping,
+	 *                      otherwise use MojoFailureException. This parameter
+	 *                      is ignored if the object is null or an instance of
 	 *                      MojoExecutionException or MojoFailureException
-	 * @return object wrapped inside a {@link AbstractMojoExecutionException}
+	 * @return object wrapped inside an {@link AbstractMojoExecutionException}
 	 */
 	public AbstractMojoExecutionException exceptionWrap(Object object,
 														boolean scriptFailure)

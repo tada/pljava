@@ -170,6 +170,8 @@ function executeReport(report, locale)
 			 */
 			"-locale",      locale.toString(),
 			"-quiet",
+			"--show-members", "package",
+			"--show-types",   "package",
 			/*
 			 * Options that are passed to the doclet.
 			 */

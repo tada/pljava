@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
@@ -43,7 +44,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.lang.System.getProperty;
-import static javax.script.ScriptContext.GLOBAL_SCOPE;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Stream.iterate;
+import static javax.script.ScriptContext.ENGINE_SCOPE;
 
 /**
  * Utility methods to simplify and hide the bland implementation details
@@ -74,11 +77,47 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Returns a ScriptEngine with some basic utilities for scripting.
+	 * Returns a ScriptEngine with some useful engine-scoped bindings
+	 * supplied for the convenience of the script.
+	 *<p>
+	 * These bindings are placed in the engine's scope:
+	 *<dl>
+	 * <dt>project<dd>The Maven project instance
+	 * <dt>utils<dd>This object
+	 * <dt>error, warn, info, debug<dd>Consumers of {@link CharSequence} that
+	 * will log a message through Maven with the corresponding severity
+	 * <dt>diag<dd>A BiConsumer of {@link Diagnostic.Kind} and a
+	 * {@link CharSequence}, to log a message through Maven with its severity
+	 * determined by the {@code Diagnostic.Kind}.
+	 * <dt>runCommand<dd>A function from {@link ProcessBuilder} to {@code int}
+	 * that will run the specified command and return its exit status. The
+	 * command and arguments are first logged through Maven at {@code debug}
+	 * level.
+	 * <dt>runWindowsCRuntimeCommand<dd>A function from {@link ProcessBuilder}
+	 * to {@code int} that will apply the
+	 * {@link #forWindowsCRuntime forWindowsCRuntime} transformation to the
+	 * arguments and then run the specified command and return its exit
+	 * status. The command and arguments are first logged through Maven at
+	 * {@code debug} level, and before the transformation is applied.
+	 * <dt>buildPaths<dd>Separates a list of pathnames into those that belong
+	 * on a class path and those that belong on a module path.
+	 * <dt>getPgConfigProperty<dd>Returns the output of {@code pg_config} when
+	 * run with the given single argument.
+	 * <dt>isProfileActive<dd>Predicate indicating whether a named Maven profile
+	 * is active.
+	 * <dt>quoteStringForC<dd>Transforms a {@code String} into a C string
+	 * literal representing it.
+	 * <dt>resolve<dd>A direct reference to the {code Path.resolve} overload
+	 * with {@code Path} parameter types, to work around some versions of
+	 * graaljs being unable to determine which overload a script intends.
+	 * <dt>setProjectProperty<dd>Sets a property of the Maven project to a
+	 * supplied value.
+	 *</dl>
 	 *
 	 * @param script the script block element in the configuration block of the
-	 *               plugin in the project
-	 * @return ScriptEngine based on the engine and mime type provided in the
+	 * plugin in the project object model. Its {@code mimetype} or
+	 * {@code engine} attribute will be used to find a suitable engine
+	 * @return ScriptEngine based on the engine and/or MIME type provided in the
 	 * script block
 	 */
 	ScriptEngine getScriptEngine(PlexusConfiguration script)
@@ -108,8 +147,9 @@ public final class PGXSUtils
 					" mimetype defined.");
 			else
 			{
-				ScriptEngineManager manager = new ScriptEngineManager(
-					new ScriptEngineLoader(ScriptingMojo.class.getClassLoader()));
+				ScriptEngineManager manager =
+					new ScriptEngineManager(new ScriptEngineLoader(
+						ScriptingMojo.class.getClassLoader()));
 
 				if (engineName != null)
 					engine = manager.getEngineByName(engineName);
@@ -134,6 +174,15 @@ public final class PGXSUtils
 			log.error(e);
 		}
 
+		ScriptContext context = engine.getContext();
+
+		/*
+		 * Give the script convenient access to the Maven project and this
+		 * object.
+		 */
+		context.setAttribute("project", project, ENGINE_SCOPE);
+		context.setAttribute("utils", this, ENGINE_SCOPE);
+
 		/*
 		 * Give the script some convenient methods for logging to the Maven log.
 		 * Only supply the versions with one CharSequence parameter, in case of
@@ -141,24 +190,14 @@ public final class PGXSUtils
 		 * have another way to get access to the Log instance and use its other
 		 * methods; these are just for convenience.
 		 */
-		ScriptContext context = engine.getContext();
-		context.setAttribute("debug",
-			(Consumer<CharSequence>) log::debug, GLOBAL_SCOPE);
 		context.setAttribute("error",
-			(Consumer<CharSequence>) log::error, GLOBAL_SCOPE);
+			(Consumer<CharSequence>) log::error, ENGINE_SCOPE);
 		context.setAttribute("warn",
-			(Consumer<CharSequence>) log::warn, GLOBAL_SCOPE);
+			(Consumer<CharSequence>) log::warn, ENGINE_SCOPE);
 		context.setAttribute("info",
-			(Consumer<CharSequence>) log::info, GLOBAL_SCOPE);
-		context.setAttribute("isProfileActive",
-			(Function<String, Boolean>) this::isProfileActive,
-			GLOBAL_SCOPE);
-		context.setAttribute("buildPaths",
-			(Function<List<String>, Map<String, String>>) this::buildPaths,
-			GLOBAL_SCOPE);
-		context.setAttribute("runCommand",
-			(ToIntFunction<ProcessBuilder>) this::runCommand,
-			GLOBAL_SCOPE);
+			(Consumer<CharSequence>) log::info, ENGINE_SCOPE);
+		context.setAttribute("debug",
+			(Consumer<CharSequence>) log::debug, ENGINE_SCOPE);
 
 		/*
 		 * Also provide a specialized method useful for a script that may
@@ -184,14 +223,62 @@ public final class PGXSUtils
 					break;
 				}
 			}
-			), GLOBAL_SCOPE);
+			), ENGINE_SCOPE);
 
 		/*
-		 * Give the script convenient access to the Maven project and this
-		 * object.
+		 * Supply a runCommand function to which the script can supply
+		 * a ProcessBuilder after configuring it as needed, and an alias
+		 * runWindowsCRuntimeCommand that does the same, but applies the
+		 * forWindowsCRuntime transformation to the ProcessBuilder's arguments
+		 * first. Two aliases are used so that the command arguments can be
+		 * logged (at debug level) in either case, and before the transformation
+		 * is applied, in the Windows case.
 		 */
-		context.setAttribute("project", project, GLOBAL_SCOPE);
-		context.setAttribute("utils", this, GLOBAL_SCOPE);
+		context.setAttribute("runCommand",
+			(ToIntFunction<ProcessBuilder>) b ->
+			{
+				log.debug("To run: " + b.command());
+				return runCommand(b);
+			}, ENGINE_SCOPE);
+
+		context.setAttribute("runWindowsCRuntimeCommand",
+			(ToIntFunction<ProcessBuilder>) b ->
+			{
+				log.debug("To run (needs WindowsCRuntime transformation): " +
+					b.command());
+				return runCommand(forWindowsCRuntime(b));
+			}, ENGINE_SCOPE);
+
+		/*
+		 * Convenient access to some other methods provided here.
+		 */
+		context.setAttribute("buildPaths",
+			(Function<List<String>, Map<String, String>>) this::buildPaths,
+			ENGINE_SCOPE);
+
+		context.setAttribute("getPgConfigProperty",
+			(Function<String, String>) p ->
+			{
+				try
+				{
+					return getPgConfigProperty(p);
+				}
+				catch ( Exception e )
+				{
+					log.error(e);
+					return null;
+				}
+			}, ENGINE_SCOPE);
+
+		context.setAttribute("isProfileActive",
+			(Function<String, Boolean>) this::isProfileActive,
+			ENGINE_SCOPE);
+
+		context.setAttribute("quoteStringForC",
+			(Function<String, String>) this::quoteStringForC, ENGINE_SCOPE);
+
+		context.setAttribute("setProjectProperty",
+			(BiConsumer<String, String>)this::setProjectProperty, ENGINE_SCOPE);
 
 		/*
 		 * A graaljs bug (graalvm/graaljs#254) means that when you are passing
@@ -200,7 +287,7 @@ public final class PGXSUtils
 		 * (Path,Path) function to make it a little more blindingly obvious.
 		 */
 		context.setAttribute("resolve", (BinaryOperator<Path>)Path::resolve,
-			GLOBAL_SCOPE);
+			ENGINE_SCOPE);
 
 		return engine;
 	}
@@ -210,7 +297,7 @@ public final class PGXSUtils
 	 * escaped where appropriate using the C conventions.
 	 *
 	 * @param s string to be escaped
-	 * @return a C compatible String enclosed in double quotes
+	 * @return a C string literal representing <var>s</var>
 	 */
 	public String quoteStringForC (String s)
 	{
@@ -261,7 +348,8 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Returns the string decoded from input bytes using default platform charset.
+	 * Returns the string decoded from input bytes using default platform
+	 * charset.
 	 *
 	 * @param bytes byte array to be decoded
 	 * @return string decoded from input bytes
@@ -276,30 +364,27 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Returns the output, decoded using default platform charset, of the input
-	 * command executed with the input argument.
+	 * Returns the output, decoded using default platform charset, of the
+	 * {@code pg_config} command executed with the single supplied argument.
 	 * <p>
-	 * If the input parameter {@code pgConfigCommand} is empty or null,
-	 * {@code pg_config} is used as the default value. If multiple version of
-	 * {@code pg_config} are available or {@code pg_config} is not present on
-	 * the path, consider passing an absolute path to {@code pg_config}. It is
-	 * also recommended that only a single property be passed at a time.
+	 * If multiple versions of {@code pg_config} are available or
+	 * {@code pg_config} is not present on the path, the system property
+	 * {@code pgsql.pgconfig} should be set as an absolute path to the desired
+	 * executable.
 	 *
-	 * @param pgConfigCommand pg_config command to execute
 	 * @param pgConfigArgument argument to be passed to the command
 	 * @return output of the input command executed with the input argument
 	 * @throws IOException if unable to read output of the command
 	 * @throws InterruptedException if command does not complete successfully
 	 */
-	public String getPgConfigProperty (String pgConfigCommand,
-	                                   String pgConfigArgument)
+	public String getPgConfigProperty (String pgConfigArgument)
 		throws IOException, InterruptedException
 	{
-		if (pgConfigCommand == null || pgConfigCommand.isEmpty())
-			pgConfigCommand = "pg_config";
+		String pgConfigCommand =
+			System.getProperty("pgsql.pgconfig", "pg_config");
 
-		ProcessBuilder processBuilder = new ProcessBuilder(pgConfigCommand,
-			pgConfigArgument);
+		ProcessBuilder processBuilder =
+			new ProcessBuilder(pgConfigCommand, pgConfigArgument);
 		processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
 		Process process = processBuilder.start();
 		process.getOutputStream().close();
@@ -315,8 +400,54 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Returns a ProcessBuilder with suitable defaults and arguments added from
-	 * input function.
+	 * Reports the detailed {@code PG_VERSION_STR} for the PostgreSQL version
+	 * found to build against.
+	 *<p>
+	 * This should be found as a C string literal after
+	 * {@code #define PG_VERSION_STR} in
+	 * <var>includedir_server</var>/{@code pg_config.h}.
+	 *<p>
+	 * If the value can be found, it is logged at {@code info} level. Otherwise,
+	 * the exception(s) responsible will be logged at {@code debug} level.
+	 * @param includedir_server pass the result of a previous
+	 * {@code getPgConfigProperty(..., "--includedir_server")}
+	 */
+	public void reportPostgreSQLVersion(String includedir_server)
+	{
+		Path pg_config_h = Paths.get(includedir_server, "pg_config.h");
+		try
+		{
+			log.info(
+				defaultCharsetDecodeStrict(Files.readAllBytes(pg_config_h))
+				.replaceFirst(
+					"(?ms).*^#define\\s++PG_VERSION_STR\\s++(?-s:(.++))$.*+",
+					"Found $1")
+			);
+		}
+		catch ( IOException | IndexOutOfBoundsException e )
+		{
+			log.debug(
+				"in reportPostgreSQLVersion: " +
+				iterate(e, Objects::nonNull, Throwable::getCause)
+				.map(Object::toString).collect(joining("\nCaused by: "))
+			);
+		}
+	}
+
+	/**
+	 * Sets the value of a property for the current project.
+	 *
+	 * @param property key to use for property
+	 * @param value the value of property to set
+	 */
+	public void setProjectProperty (String property, String value)
+	{
+		project.getProperties().setProperty(property, value);
+	}
+
+	/**
+	 * Returns a ProcessBuilder with suitable defaults and arguments added
+	 * by the supplied <var>consumer</var>.
 	 *
 	 * @param consumer function which adds arguments to the ProcessBuilder
 	 * @return ProcessBuilder with input arguments and suitable defaults
@@ -358,7 +489,7 @@ public final class PGXSUtils
 	 * Returns true if the profile with given name exists and is active, false
 	 * otherwise.
 	 * <p>
-	 * A warning is logged if the no profile with the input name exists in the
+	 * A warning is logged if no profile with the input name exists in the
 	 * current project.
 	 *
 	 * @param profileName name of profile to check
@@ -381,8 +512,13 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Returns a map with two elements with {@code classpath} and {@code modulepath}
-	 * as keys and their joined string paths as the respective values.
+	 * Returns a two-element map with with {@code classpath} and
+	 * {@code modulepath} as keys and their joined string paths as the
+	 * respective values.
+	 *<p>
+	 * For each supplied element,
+	 * {@link #shouldPlaceOnModulepath shouldPlaceOnModulepath} is used to
+	 * determine which path the element is added to.
 	 *
 	 * @param elements list of elements to build classpath and modulepath from
 	 * @return a map containing the {@code classpath} and {@code modulepath}
@@ -399,7 +535,8 @@ public final class PGXSUtils
 			{
 				if (element.contains(pathSeparator))
 					log.warn(String.format("cannot add %s to path because " +
-						"it contains path separator %s", element, pathSeparator));
+						"it contains path separator %s",
+						element, pathSeparator));
 				else if (shouldPlaceOnModulepath(element))
 					modulepathElements.add(element);
 				else
@@ -419,11 +556,13 @@ public final class PGXSUtils
 	 * Returns true if the element should be placed on the module path.
 	 * <p>
 	 * An file path element should be placed on the module path if it points to
-	 * 1) a directory with a top level {@code module-info.class} file
-	 * 2) a {@code JAR} file having a {@code module-info.class} entry or the
+	 * <ol>
+	 * <li>a directory with a top level {@code module-info.class} file
+	 * <li>a {@code JAR} file having a {@code module-info.class} entry or the
 	 * {@code Automatic-Module-Name} as a manifest attribute
+	 * </ol>
 	 *
-	 * @param filePath the filepath to check whether is a module
+	 * @param filePath the filepath to check
 	 * @return true if input path should go on modulepath, false otherwise
 	 * @throws IOException any thrown by the underlying file operations
 	 */
@@ -454,9 +593,10 @@ public final class PGXSUtils
 	}
 
 	/**
-	 * Returns the list of files with given extension in the input directory.
+	 * Returns a list of files with given extension in and below
+	 * the input directory.
 	 *
-	 * @param sourceDirectory to list files inside
+	 * @param sourceDirectory root of the tree of files to list
 	 * @param extension to filter files to be selected
 	 * @return list of strings of absolute paths of files
 	 */
@@ -479,9 +619,9 @@ public final class PGXSUtils
 	}
 
 	/*
-	 * The same method is duplicated in pljava-packaging/Node.java . While making
-	 * changes to this method, review the other occurrence also and replicate the
-	 * changes there if desirable.
+	 * This method is duplicated in pljava-packaging/Node.java. If making
+	 * changes to this method, review the other occurrence also and replicate
+	 * the changes there if desirable.
 	 */
 	/**
 	 * Adjust the command arguments of a {@code ProcessBuilder} so that they
@@ -489,7 +629,7 @@ public final class PGXSUtils
 	 * the argument parsing algorithm of the usual C run-time code, when it is
 	 * known that the command will not be handled first by {@code cmd}.
 	 *<p>
-	 * This transformation must account for the way the C runtime will
+	 * This transformation must account for the way the Windows C runtime will
 	 * ultimately parse the parameters apart, and also for the behavior of
 	 * Java's runtime in assembling the command line that the invoked process
 	 * will receive.
@@ -498,7 +638,7 @@ public final class PGXSUtils
 	 * should result from parsing.
 	 * @return The same ProcessBuilder, with the argument list rewritten as
 	 * necessary to produce the original list as a result of Windows C runtime
-	 * parsing,
+	 * parsing.
 	 * @throws IllegalArgumentException if the ProcessBuilder does not have at
 	 * least the first command element (the executable to run)
 	 * @throws UnsupportedOperationException if the arguments passed, or system
