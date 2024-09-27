@@ -187,7 +187,6 @@ Java_org_postgresql_pljava_internal_PgSavepoint__1rollback(JNIEnv* env, jclass c
 	PG_TRY();
 	{
 		unwind(RollbackAndReleaseCurrentSubTransaction, xid, nestLevel);
-		SPI_restore_connection();
 	}
 	PG_CATCH();
 	{

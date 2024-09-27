@@ -90,7 +90,11 @@ bool pljavaViableXact()
 
 char *pljavaDbName()
 {
+#if PG_VERSION_NUM >= 170000
+	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
+#else
 	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
+#endif
 	{
 		char *shortlived;
 		static char *longlived;
@@ -110,7 +114,11 @@ char *pljavaDbName()
 
 static char *origUserName()
 {
+#if PG_VERSION_NUM >= 170000
+	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
+#else
 	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
+#endif
 	{
 		char *shortlived;
 		static char *longlived;
@@ -354,8 +362,12 @@ char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 
 bool InstallHelper_shouldDeferInit()
 {
-	if ( IsBackgroundWorker || IsAutoVacuumWorkerProcess() )
-		return true;
+#if PG_VERSION_NUM >= 170000
+	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
+#else
+	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
+#endif
+			return true;
 
 	if ( ! IsBinaryUpgrade )
 		return false;
