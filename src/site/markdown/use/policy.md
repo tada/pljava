@@ -373,7 +373,7 @@ release, so relying on it is not recommended.
 The developers of Java have elected to phase out important language features
 used by PL/Java to enforce policy. The changes will come in releases after
 Java 17. For migration planning, this version of PL/Java can still enable
-policy enforcement in Java versions up to and including 22, and Java 17 and 21
+policy enforcement in Java versions up to and including 23, and Java 17 and 21
 are positioned as long-term support releases. (There is a likelihood,
 increasing with later Java versions, even before policy stops being enforceable,
 that some internal privileged operations by Java itself, or other libraries,
