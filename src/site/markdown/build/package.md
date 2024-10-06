@@ -25,13 +25,6 @@ When building a package, you are
 encouraged to set the default `pljava.libjvm_location` to the library of a
 JRE version that is expected to be present on your platform.
 
-**Note:** when building on Windows, the `-Dpljava.libjvmdefault` option is
-likely to produce a failed build or the wrong stored value for the library
-path. A fix for this option on Windows is unlikely (see [issue 190][bug190]);
-if preparing a package for Windows, it will be simplest to use a patch that
-changes the definition of `PLJAVA_LIBJVMDEFAULT` in
-`pljava-so/src/main/c/Backend.c`.
-
 [locatejvm]: ../install/locatejvm.html
 [bug190]: https://github.com/tada/pljava/issues/190
 
@@ -139,7 +132,7 @@ the package.
 
 `-Dpljava.libjvmdefault=`_path/to/jvm-shared-object_
 : As suggested earlier, please use this option to build a useful default
-into PL/Java for the `pljava.libjvm_location` PostgreSQL variable, users
+into PL/Java for the `pljava.libjvm_location` PostgreSQL variable, so users
 of your package will not need to set that variable before
 `CREATE EXTENSION pljava` works.
 
@@ -189,8 +182,11 @@ those needed to support `ALTER EXTENSION UPGRADE`.
 
 It also contains the `pljava-api` jar, needed for developing Java code to use
 in a database with PL/Java, and the `pljava-examples` jar. As discussed above,
-these may be omitted from a base package and supplied separately, if packaging
-guidelines require.
+the examples jar may be omitted from a base package and supplied separately,
+if packaging guidelines require, and the API jar may be included also in a
+`-devel` package that installs it in a standard Java-library location. (However,
+the API jar cannot be omitted from the base package; it is needed at runtime, in
+the `SHAREDIR/pljava` location where the extension expects it.)
 
 The self-extracting jar consults `pg_config` at the time of extraction to
 determine where the files should be installed.
@@ -226,9 +222,10 @@ will have on the target system.
 
 In addition to the files named in the self-extractor's output, additional
 files could be included in the package (if guidelines require the README
-or COPYRIGHT, for example). As discussed above, the `pljava-api` jar could
-be filtered from the list if it will be delivered in a separate `-devel`
-package, and the same could be done for `pljava-examples`.
+or COPYRIGHT, for example). As discussed above, the `pljava-examples` jar could
+be filtered from the list if it will be delivered in a separate
+package, and the `pljava-api` jar could be additionally delivered in a separate
+`-devel` package (but must not be excluded from the base package).
 
 [install]: ../install/install.html
 

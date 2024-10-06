@@ -211,26 +211,5 @@ dependency when [building your own projects that _use_ PL/Java][jproj].
 
 ### Troubleshooting the build
 
-If something fails, two tricks may be helpful. The C compilation may produce
-a lot of nuisance warnings, because the Maven plugin driving it enables many
-types of warning that would be impractical to fix. With many warnings it may
-be difficult to pick out messages that matter.
-
-If the link step of the build reports that the symbol `rint` is undefined you
-are probably using an older version of Visual Studio (2010) with a newer version
-of Postgresql (9.4). This symbol is defined in Visual Studio 2013 and later and
-the Postgresql 9.4 headers lack the appropriate conditional options for the
-older compilers. You will need to use a newer version of Visual Studio.
-
-On a machine with many cores, messages from several compilation threads may be
-intermingled in the output so that related messages are hard to identify.
-The option `-Dnar.cores=1` will force the messages into a sequential order
-(and has little effect on the speed of a PL/Java build).
-
-The `-X` option will add a lot of information on the details of Maven's
-build activities.
-
-    mvn  -X  -Dnar.cores=1  clean  install
-
-There is a more comprehensive "troubleshooting the build" section
+There is an extensive "troubleshooting the build" section
 on the [main build page][mbp].
