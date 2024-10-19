@@ -40,8 +40,7 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 
 `pljava.enable`
 : Setting this variable `off` prevents PL/Java startup from completing, until
-    the variable is later set `on`. It can be useful when
-    [installing PL/Java on PostgreSQL versions before 9.2][pre92].
+    the variable is later set `on`. It can be useful in some debugging settings.
 
 `pljava.implementors`
 : A list of "implementor names" that PL/Java will recognize when processing
