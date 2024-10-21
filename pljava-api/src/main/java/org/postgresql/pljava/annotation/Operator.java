@@ -115,6 +115,16 @@ public @interface Operator
 	 * different, so the two functions can be distinguished by overloading). A
 	 * typical case would be the twin of a cross-type function like {@code add}
 	 * that is commutative, so using the same name makes sense.
+	 *<p>
+	 * When derived by commutation, the synthetic function simply calls the
+	 * base function with the parameters swapped. For negation, the base
+	 * function must return {@code boolean} or {@code Boolean}, and the
+	 * synthetic function returns true for false, false for true, and null
+	 * for null. This will give familiar SQL behavior in many cases. For a base
+	 * function with {@code onNullInput=CALLED}, if it can return non-null
+	 * boolean results on some null inputs, it may be necessary to code
+	 * a negator or commutator by hand if the synthetic one would not have
+	 * the intended semantics.
 	 */
 	String[] synthetic() default {};
 
@@ -129,16 +139,6 @@ public @interface Operator
 	 * (which must be different) reversed. A typical case would be the twin of a
 	 * cross-type operator like {@code +} that is commutative, so using the same
 	 * name makes sense.
-	 *<p>
-	 * When derived by commutation, the synthetic function simply calls the
-	 * base function with the parameters swapped. For negation, the base
-	 * function must return {@code boolean} or {@code Boolean}, and the
-	 * synthetic function returns true for false, false for true, and null
-	 * for null. This will give familiar SQL behavior in many cases. For a base
-	 * function with {@code onNullInput=CALLED}, if it can return non-null
-	 * boolean results on some null inputs, it may be necessary to code
-	 * a negator or commutator by hand if the synthetic one would not have
-	 * the intended semantics.
 	 */
 	String[] commutator() default {};
 

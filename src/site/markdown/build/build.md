@@ -60,7 +60,13 @@ There is a "troubleshooting the build" section at the end of this page.
 
         mvn --version
 
-    succeeds.
+    succeeds. It reports not only the version of Maven, but the version of Java
+    that Maven has found and is using, which must be a Java version supported
+    for building PL/Java (see more on [version compatibility](versions.html)).
+    If Maven is not finding and using the intended Java version, the environment
+    variable `JAVA_HOME` can be set to point to the desired Java installation,
+    and `mvn --version` should then confirm that the Java being found is the
+    one intended.
 
 If you have more than one version installed of PostgreSQL, Java, or the
 compile/link tools, make sure the ones found on your search path are the
@@ -222,30 +228,6 @@ build issues that are commonly asked about.*
 
 [btwp]: https://github.com/tada/pljava/wiki/Build-tips
 
-#### Not all `[ERROR]`s are errors
-
-In the part of the build that compiles the native code, you may see lines of
-output starting with `[ERROR]`, but the build completes and shows success for
-all subprojects.
-
-Maven is capturing output from the C compiler and adding a tag at the front of
-each line. If the line from the C compiler contains the string `warning:` then
-Maven adds a `[WARNING]` tag at the front of the line; otherwise it adds
-`[ERROR]`. That is how Maven can turn a multiple-line warning, like
-
-```
-type/String.c: In function 'String_createJavaString':
-type/String.c:132:43: warning: conversion to 'jlong' from 'Size' may change
-                      the sign of the result [-Wsign-conversion]
-   bytebuf = JNI_newDirectByteBuffer(utf8, srcLen);
-                                           ^
-```
-
-(where only the second line contains `warning:`) into what looks like one
-`[WARNING]` and several `[ERROR]`s.
-
-If the compiler reports any actual errors, the build will fail.
-
 #### Capture the output of `mvn -X`
 
 The `-X` option will add a lot of information on the details of Maven's
@@ -259,3 +241,11 @@ On the first run, Maven will produce a lot of output while downloading all
 of the dependencies needed to complete the build. It is better, if the build
 fails, to simply run Maven again and capture the output of that run, which
 will not include all of the downloading activity.
+
+As an alternative, the flood of messages reflecting successful dependency
+downloads in a first run can be suppressed by adding this option on the `mvn`
+command line:
+
+```
+-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+```

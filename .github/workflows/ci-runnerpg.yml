@@ -3,7 +3,10 @@
 # does not have a PostgreSQL version in the build matrix. The version that's
 # preinstalled is the version you get.
 
-name: PL/Java CI with PostgreSQL version supplied by the runner
+name: CI with runner-supplied PostgreSQL version
+
+permissions:
+  contents: read
 
 on:
   push:
@@ -22,7 +25,7 @@ jobs:
         oscc:
           - os: ubuntu-latest
             cc: gcc
-          - os: macos-latest
+          - os: macos-12
             cc: clang
 #         - os: windows-latest
 #           cc: msvc

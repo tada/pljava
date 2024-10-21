@@ -451,18 +451,6 @@ string (`\A\z` in Java syntax):
 That workaround would also cause the replacement to happen if the input string
 is completely empty to start with, which might not be what's wanted.
 
-#### Syntax in older PostgreSQL versions
-
-The desugared syntax shown above can be used in PostgreSQL versions as old
-as 9.5. In 9.4 and 9.3, the same syntax, but with `=>` replaced by `:=` for
-the named parameters, can be used. The functions remain usable in still
-earlier PostgreSQL versions, but with increasingly convoluted SQL syntax
-needed to call them; before 9.3, for example, there was no `LATERAL` in a
-`SELECT`, and a function could not refer to earlier `FROM` items. Before 9.0,
-named-parameter notation can't be used in function calls. Before 8.4, the
-functions would have to be declared without their `DEFAULT` clauses and the
-`IntervalStyle` settings, and would not work with PostgreSQL interval values.
-
 ### Minimizing startup time
 
 Saxon is a large library, and benefits greatly from precompilation into a
