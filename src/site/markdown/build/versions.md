@@ -1,6 +1,6 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of spring 2024, the following version constraints are known.
+As of fall 2024, the following version constraints are known.
 
 ## Java
 
@@ -25,9 +25,9 @@ That also allows PL/Java to take advantage of recent Java implementation
 advances such as [class data sharing][cds].
 
 Some builds of Java 20 are affected by a bug, [JDK-8309515][]. PL/Java will
-report an error if detects it is affected by that bug, and the solution can be
-to use a Java version earlier than 20, or one recent enough to have the bug
-fixed. The bug is fixed in Java 21.
+report an error if it detects it is affected by that bug, and the solution can
+be to use a Java version earlier than 20, or one recent enough to have the bug
+fixed. The bug was fixed in Java 21.
 
 PL/Java has been successfully used with [Oracle Java][orj] and with
 [OpenJDK][], which is available with
@@ -67,6 +67,6 @@ The PL/Java 1.6 series does not support PostgreSQL earlier than 9.5.
 More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.
 
-PL/Java 1.6.7 has been successfully built and run on at least one platform
-with PostgreSQL versions from 16 to 9.5, the latest maintenance
+PL/Java 1.6.8 has been successfully built and run on at least one platform
+with PostgreSQL versions from 17 to 9.5, the latest maintenance
 release for each.

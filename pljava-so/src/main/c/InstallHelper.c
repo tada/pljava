@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,6 +14,7 @@
 #include <access/xact.h>
 #include <catalog/pg_language.h>
 #include <catalog/pg_proc.h>
+#include <commands/dbcommands.h>
 #include <commands/extension.h>
 #include <commands/portalcmds.h>
 #include <executor/spi.h>
@@ -43,6 +44,9 @@
 #include "pljava/PgObject.h"
 #include "pljava/type/String.h"
 
+#if PG_VERSION_NUM < 170000
+#define AmAutoVacuumWorkerProcess() IsAutoVacuumWorkerProcess()
+#define AmBackgroundWorkerProcess() IsBackgroundWorker
 /*
  * As of 9.6.1, IsBackgroundWorker still does not
  * have PGDLLIMPORT, but MyBgworkerEntry != NULL can be used in MSVC instead.
@@ -50,11 +54,11 @@
  * One thing it's needed for is to avoid dereferencing MyProcPort in a
  * background worker, where it's not set.
  */
-#include <commands/dbcommands.h>
 #if defined(_MSC_VER)
 #include <postmaster/bgworker.h>
 #define IsBackgroundWorker (MyBgworkerEntry != NULL)
 #endif
+#endif /* PG_VERSION_NUM < 170000 */
 
 /*
  * The name of the table the extension scripts will create to pass information
@@ -90,7 +94,7 @@ bool pljavaViableXact()
 
 char *pljavaDbName()
 {
-	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
+	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
 	{
 		char *shortlived;
 		static char *longlived;
@@ -110,7 +114,7 @@ char *pljavaDbName()
 
 static char *origUserName()
 {
-	if ( IsAutoVacuumWorkerProcess() || IsBackgroundWorker )
+	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
 	{
 		char *shortlived;
 		static char *longlived;
@@ -354,8 +358,8 @@ char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 
 bool InstallHelper_shouldDeferInit()
 {
-	if ( IsBackgroundWorker || IsAutoVacuumWorkerProcess() )
-		return true;
+	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
+			return true;
 
 	if ( ! IsBinaryUpgrade )
 		return false;

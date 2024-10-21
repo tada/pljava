@@ -21,9 +21,6 @@ PostgreSQL and PL/Java. Using a *newer* version of Visual Studio (including
 the Community 2015 version) will generally work, while older versions are more
 likely to be problematic.
 
-* PostgreSQL 9.1 to 9.3 were built using Visual Studio 2010.
-* PostgreSQL 9.4 was built using Visual Studio 2013.
-
 ## Software Prerequisites
 
 0. You will need an appropriate version of [Microsoft Visual Studio][msvc]. When
@@ -49,11 +46,6 @@ likely to be problematic.
     be installed. To check, look in the output of that `pg_config` command for
     an `INCLUDEDIR-SERVER` line, and list the directory it refers to. There
     should be a bunch of `*.h` files there.
-
-0. OpenSSL headers: if using an EnterpriseDB PostgreSQL build older than 9.3,
-    these will be missing. They can be obtained from a 9.3 or later
-    EDB PostgreSQL build by copying the `include/openssl` directory and
-    its contents.
 
 0. You will need to install [Maven][mvn] and add it to your PATH so that
 
@@ -219,26 +211,5 @@ dependency when [building your own projects that _use_ PL/Java][jproj].
 
 ### Troubleshooting the build
 
-If something fails, two tricks may be helpful. The C compilation may produce
-a lot of nuisance warnings, because the Maven plugin driving it enables many
-types of warning that would be impractical to fix. With many warnings it may
-be difficult to pick out messages that matter.
-
-If the link step of the build reports that the symbol `rint` is undefined you
-are probably using an older version of Visual Studio (2010) with a newer version
-of Postgresql (9.4). This symbol is defined in Visual Studio 2013 and later and
-the Postgresql 9.4 headers lack the appropriate conditional options for the
-older compilers. You will need to use a newer version of Visual Studio.
-
-On a machine with many cores, messages from several compilation threads may be
-intermingled in the output so that related messages are hard to identify.
-The option `-Dnar.cores=1` will force the messages into a sequential order
-(and has little effect on the speed of a PL/Java build).
-
-The `-X` option will add a lot of information on the details of Maven's
-build activities.
-
-    mvn  -X  -Dnar.cores=1  clean  install
-
-There is a more comprehensive "troubleshooting the build" section
+There is an extensive "troubleshooting the build" section
 on the [main build page][mbp].

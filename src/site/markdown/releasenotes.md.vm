@@ -10,6 +10,90 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.8
+
+This is the eighth minor update in the PL/Java 1.6 series. It adds support
+for PostgreSQL 17, confirms compatibility with Java 23, and makes some slight
+build-process improvements to simplify troubleshooting reported build problems.
+Further information on the changes may be found below.
+
+$h3 Version compatibility
+
+PL/Java 1.6.8 can be built against recent PostgreSQL versions including 17, and
+older ones back to 9.5, using Java SE 9 or later. The Java version used at
+runtime does not have to be the same version used for building. PL/Java itself
+can run on any Java version 9 or later. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+Some builds of Java 20 are affected by a bug, [JDK-8309515][]. PL/Java will
+report an error if it detects it is affected by that bug, and the solution can
+be to use a Java version earlier than 20, or one recent enough to have the bug
+fixed. The bug was fixed in Java 21.
+
+$h3 Changes
+
+$h4 Build system
+
+While building the PL/Java native code, Maven output will include the full
+`PG_VERSION_STR` from the PostgreSQL development files that have been found
+to build against. The string includes platform, compiler, and build notes, as
+reported by the `version` function in SQL. This information should always be
+included when reporting a PL/Java native build issue, so including it in the
+Maven build output will make issues easier to report.
+
+When building with Maven's `-X` / `--debug` option for additional debug output,
+the command arguments of the constructed compiling and linking commands will be
+included in the output, which can be useful in troubleshooting a build problem.
+The arguments are shown just as the compiler/linker is meant to ultimately
+receive them; on a Unix-like platform, that is the Java `List` exactly as seen
+with `ProcessBuilder.command()`. On Windows, that `List` is shown just before
+the final application of extra quoting that simply ensures the compiler/linker
+receives it correctly.
+
+When building with a platform or environment that does not satisfy the `probe`
+predicate of any of the included platform build rules, a Maven error message
+will clearly say so. In earlier versions, an uninformative null pointer
+exception resulted instead. The new message includes guidance on how to add a
+build rule set for a new platform or environment, and possibly contribute it for
+inclusion in PL/Java.
+
+$h4 Documentation
+
+The build documentation now prominently notes that `mvn --version` will show the
+version of Java that Maven has found to use for the build. There had been build
+issues reported that could be traced to Maven finding a different Java
+installation than expected, when that version was not usable to build
+PL/Java 1.6.
+
+The documentation has been shorn of many lingering references to PostgreSQL
+versions older than 9.5, the oldest that PL/Java 1.6 supports, and other
+holdovers from pre-1.6 PL/Java.
+
+$h3 Enhancement requests addressed
+
+* [PostgreSQL 17 support](${ghpull}499)
+
+$h3 Bugs fixed
+
+* [Unhelpful output when build fails because no platform rules matched](${ghbug}485)
+
+$h3 Credits
+
+Thanks in release 1.6.8 to Francisco Miguel Biete Banon for determining the
+changes needed for PostgreSQL 17.
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.6.7
 
 This is the seventh minor update in the PL/Java 1.6 series. It adds support
@@ -81,17 +165,6 @@ Thanks in release 1.6.7 to Francisco Miguel Biete Banon, Bear Giles, Achilleas
 Mantzios, `hunterpayne`, `kamillo`.
 
 [JDK-8329295]: https://bugs.openjdk.org/browse/JDK-8329295
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.6
 
