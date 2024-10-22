@@ -43,6 +43,7 @@ import org.postgresql.pljava.management.SQLDeploymentDescriptor;
 import org.postgresql.pljava.policy.TrialPolicy;
 import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
 import static org.postgresql.pljava.elog.ELogHandler.LOG_WARNING;
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
 import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -149,24 +150,14 @@ public class InstallHelper
 		System.clearProperty(orderKey + ".scalar");
 		System.clearProperty(orderKey + ".mirror");
 
-		String encodingKey = "org.postgresql.server.encoding";
-		String encName = System.getProperty(encodingKey);
-		if ( null == encName )
-			encName = Backend.getConfigOption( "server_encoding");
-		try
-		{
-			Charset cs = Charset.forName(encName);
-			org.postgresql.pljava.internal.Session.s_serverCharset = cs; // poke
-			System.setProperty(encodingKey, cs.name());
-		}
-		catch ( IllegalArgumentException iae )
-		{
-			System.clearProperty(encodingKey);
-		}
+		SERVER_ENCODING.charset(); // this must be set before beginEnforcing()
 
-		/* so it can be granted permissions in the pljava policy */
+		/* so they can be granted permissions in the pljava policy */
 		System.setProperty( "org.postgresql.pljava.codesource",
 			InstallHelper.class.getProtectionDomain().getCodeSource()
+				.getLocation().toString());
+		System.setProperty( "org.postgresql.pljava.codesource.api",
+			Simple.class.getProtectionDomain().getCodeSource()
 				.getLocation().toString());
 
 		setPolicyURLs();

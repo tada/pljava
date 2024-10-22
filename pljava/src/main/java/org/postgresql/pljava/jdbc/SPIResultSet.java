@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2018 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -45,6 +45,8 @@ public class SPIResultSet extends ResultSetBase
 
 	private boolean m_open;
 
+	private boolean m_portalUnwrapped;
+
 	SPIResultSet(SPIStatement statement, Portal portal, long maxRows)
 	throws SQLException
 	{
@@ -57,6 +59,17 @@ public class SPIResultSet extends ResultSetBase
 		m_open = true;
 	}
 
+	public Portal unwrapAsPortal() throws SQLException
+	{
+		if ( ! m_open || null != m_table || null != m_currentRow
+			|| null != m_nextRow || -1 != m_tableRow )
+			throw new IllegalStateException(
+				"too late to unwrap SPIResultSet to Portal");
+		m_portalUnwrapped = true;
+		close();
+		return m_portal;
+	}
+
 	@Override
 	public void close()
 	throws SQLException
@@ -64,7 +77,8 @@ public class SPIResultSet extends ResultSetBase
 		if(m_open)
 		{
 			m_open = false;
-			m_portal.close();
+			if ( ! m_portalUnwrapped )
+				m_portal.close();
 			m_statement.resultSetClosed(this);
 			m_table      = null;
 			m_tableRow   = -1;

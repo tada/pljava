@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,47 +20,40 @@ import java.nio.charset.CharsetDecoder;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 
+import org.postgresql.pljava.adt.spi.Datum;
+
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
+
+import org.postgresql.pljava.pg.DatumImpl;
+
 /**
  * Class adapting a {@code ByteBufferXMLReader} to a
- * {@code VarlenaWrapper.Input}.
+ * {@code Datum.Input}.
  */
 public abstract class VarlenaXMLRenderer
-extends ByteBufferXMLReader implements VarlenaWrapper
+extends ByteBufferXMLReader implements DatumImpl
 {
-	private final VarlenaWrapper.Input m_input;
+	private final Datum.Input m_input;
 
 	protected final CharsetDecoder m_decoder;
 
 	/**
-	 * A duplicate of the {@code VarlenaWrapper.Input}'s byte buffer,
+	 * A duplicate of the {@code Datum.Input}'s byte buffer,
 	 * so its {@code position} can be updated by the
 	 * {@code XMLEventReader} operations without affecting the original
 	 * (therefore multiple streams may read one {@code Input}).
 	 */
 	private ByteBuffer m_movingBuffer;
 
-	public VarlenaXMLRenderer(VarlenaWrapper.Input input) throws SQLException
+	public VarlenaXMLRenderer(Datum.Input input) throws SQLException
 	{
 		m_input = input;
-		Charset cs = Session.implServerCharset();
-		if ( null == cs )
-		{
-			try
-			{
-				input.close();
-			}
-			catch ( IOException e ) { }
-			throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
-				"Charset found to match server encoding; perhaps set " +
-				"org.postgresql.server.encoding system property to a " +
-				"valid Java charset name for the same encoding?", "0A000");
-
-		}
+		Charset cs = SERVER_ENCODING.charset();
 		m_decoder = cs.newDecoder();
 	}
 
 	@Override
-	public long adopt(DualState.Key cookie) throws SQLException
+	public long adopt() throws SQLException
 	{
 		throw new UnsupportedOperationException(
 			"adopt() on a synthetic XML rendering");
@@ -75,7 +68,7 @@ extends ByteBufferXMLReader implements VarlenaWrapper
 	@Override
 	public String toString(Object o)
 	{
-		return m_input.toString(o);
+		return ((DatumImpl)m_input).toString(o);
 	}
 
 	@Override

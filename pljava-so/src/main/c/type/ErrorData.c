@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -34,14 +34,8 @@ jobject pljava_ErrorData_getCurrentError(void)
 
 	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 	p2l.ptrVal = errorData;
-	/*
-	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by
-	 * a nativeRelease call; that's appropriate (for now) as the ErrorData copy
-	 * is being made into JavaMemoryContext, which never gets reset, so only
-	 * unreachability from the Java side will free it.
-	 */
 	jed = JNI_newObjectLocked(s_ErrorData_class, s_ErrorData_init,
-		pljava_DualState_key(), (jlong)0, p2l.longVal);
+		p2l.longVal);
 	return jed;
 }
 
@@ -143,7 +137,7 @@ void pljava_ErrorData_initialize(void)
 	s_ErrorData_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ErrorData"));
 	PgObject_registerNatives2(s_ErrorData_class, methods);
 	s_ErrorData_init = PgObject_getJavaMethod(s_ErrorData_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
+		"(J)V");
 	s_ErrorData_getNativePointer = PgObject_getJavaMethod(s_ErrorData_class, "getNativePointer", "()J");
 }
 

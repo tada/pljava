@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.Invocation;
 
 import org.postgresql.pljava.TriggerException;
 import org.postgresql.pljava.jdbc.TriggerResultSet;
@@ -35,18 +36,17 @@ public class TriggerData implements org.postgresql.pljava.TriggerData
 	private boolean m_suppress = false;
 	private final State m_state;
 
-	TriggerData(DualState.Key cookie, long resourceOwner, long pointer)
+	TriggerData(long pointer)
 	{
-		m_state = new State(cookie, this, resourceOwner, pointer);
+		m_state = new State(this, pointer);
 	}
 
 	private static class State
 	extends DualState.SingleGuardedLong<TriggerData>
 	{
-		private State(
-			DualState.Key cookie, TriggerData td, long ro, long hth)
+		private State(TriggerData td, long hth)
 		{
-			super(cookie, td, ro, hth);
+			super(td, Invocation.current(), hth);
 		}
 
 		/**

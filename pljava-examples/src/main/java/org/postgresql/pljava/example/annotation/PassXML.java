@@ -72,6 +72,8 @@ import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
+
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
 /* Imports needed just for the SAX flavor of "low-level XML echo" below */
@@ -711,8 +713,7 @@ public class PassXML implements SQLData
 			 * for setting the Transformer to use the server encoding.
 			 */
 			if ( howout < 5 )
-				t.setOutputProperty(ENCODING,
-					System.getProperty("org.postgresql.server.encoding"));
+				t.setOutputProperty(ENCODING, SERVER_ENCODING.charset().name());
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -44,14 +44,26 @@ import java.util.BitSet;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List; // for SlotTester
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import org.postgresql.pljava.internal.Invocation;
 import org.postgresql.pljava.internal.Oid;
 import org.postgresql.pljava.internal.PgSavepoint;
+
+import java.lang.reflect.Field;
+import org.postgresql.pljava.Adapter;
+import org.postgresql.pljava.internal.SPI;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
+import org.postgresql.pljava.model.Portal;
+import static org.postgresql.pljava.model.Portal.Direction.FORWARD;
+import org.postgresql.pljava.model.SlotTester;
+import org.postgresql.pljava.model.TupleTableSlot;
+import org.postgresql.pljava.pg.TupleTableSlotImpl;
 
 /**
  * Provides access to the current connection (session) the Java stored
@@ -68,8 +80,40 @@ import org.postgresql.pljava.internal.PgSavepoint;
  * </ul>
  * @author Thomas Hallgren
  */
-public class SPIConnection implements Connection
+public class SPIConnection implements Connection, SlotTester
 {
+	@Override // SlotTester
+	public Portal unwrapAsPortal(ResultSet rs) throws SQLException
+	{
+		return ((SPIResultSet)rs).unwrapAsPortal();
+	}
+
+	@Override // SlotTester
+	@SuppressWarnings("deprecation")
+	public List<TupleTableSlot> test(String query)
+	{
+		try ( Statement s = createStatement() )
+		{
+			ResultSet rs = s.executeQuery(query);
+			Portal p = unwrapAsPortal(rs);
+			return p.fetch(FORWARD, Portal.ALL);
+		}
+		catch ( SQLException e )
+		{
+			throw unchecked(e);
+		}
+	}
+
+	@Override // SlotTester
+	public Adapter adapterPlease(String cname, String field)
+	throws ReflectiveOperationException
+	{
+		Class<? extends SlotTester.Visible> cls =
+			Class.forName(cname).asSubclass(SlotTester.Visible.class);
+		Field f = cls.getField(field);
+		return (Adapter)f.get(null);
+	}
+
 	/**
 	 * The version number of the currently executing PostgreSQL
 	 * server.
