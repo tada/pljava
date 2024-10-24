@@ -162,14 +162,15 @@
 				return runCommand(linkingProcess);
 			}
 		},
-								
+
 		{
-			name : "Mac OS X",
+			name : "Mac OS X - Intel",
 
 			object_extension : ".o",
 
 			probe: function(os_name) {
-				return os_name.toLowerCase().contains("mac os x");
+				return os_name.toLowerCase().contains("mac os x") 
+				&& !java.lang.System.getProperty("os.arch").toLowerCase().contains("aarch64");
 			},
 
 			compile : function(cc, files, output_dir, includes, defines, flags) {
@@ -204,6 +205,62 @@
 			}
 		},
 
+		{
+			name: "Mac OS X - Silicon",
+			object_extension: ".o",
+			probe: function(os_name) {
+				return os_name.toLowerCase().contains("mac os x") 
+				&& java.lang.System.getProperty("os.arch").toLowerCase().contains("aarch64");
+			},
+			compile: function(cc, files, output_dir, includes, defines, flags) {
+				includes.add(java_include.resolve("darwin").toString());
+				defines.put("Darwin", null);
+				
+				// Add ARM64 specific flags
+				flags.add("-arch");
+				flags.add("arm64");
+				flags.add("-c");
+				
+				// Add platform specific macros
+				defines.put("__APPLE__", null);
+				defines.put("__aarch64__", null);
+				
+				if(isDebugEnabled)
+					flags.add("-g");
+				
+				var compileProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(pgxs.formatDefines(defines));
+					l.addAll(pgxs.formatIncludes(includes));
+					l.addAll(flags);
+					l.addAll(files);
+				});
+				compileProcess.directory(output_dir.toFile());
+				return runCommand(compileProcess);
+			},
+			link: function(cc, flags, files, target_path) {
+				// Add ARM64 specific linking flags
+				flags.add("-arch");
+				flags.add("arm64");
+				
+				flags.addAll(of("-bundle_loader", Paths.get(bindir, "postgres").toString()));
+				
+				if(isDebugEnabled)
+					flags.add("-g");
+				
+				var linkingProcess = utils.processBuilder(function(l) {
+					l.add(cc);
+					l.addAll(flags);
+					l.addAll(of("-bundle", "-o", "lib" + library_name + ".bundle"));
+					// Ensure proper architecture linking
+					l.add("-mmacosx-version-min=11.0"); // Minimum macOS Big Sur for ARM support
+					l.addAll(files);
+				});
+				linkingProcess.directory(target_path.toFile());
+				return runCommand(linkingProcess);
+			}
+		},
+		
 		{
 			name : "Windows MinGW",
 
