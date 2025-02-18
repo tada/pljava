@@ -119,7 +119,7 @@ install: |
   "$mvn" clean install --batch-mode \
    -Dpgsql.pgconfig="$pgConfig" \
    -Dpljava.libjvmdefault="$libjvm" \
-   -Psaxon-examples -Ppgjdbc-ng \
+   -Psaxon-examples -Ppgjdbc \
    -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
 script: |
@@ -136,8 +136,8 @@ script: |
   saxonVer=${saxonVer##*/}
 
   jdbcJar=$(
-    find "$mavenRepo/com/impossibl/pgjdbc-ng/pgjdbc-ng-all" \
-      -name 'pgjdbc-ng-all-*.jar' -print |
+    find "$mavenRepo/org/postgresql/postgresql" \
+      -name 'postgresql-*.jar' -print |
     sort |
     tail -n 1
   )
@@ -150,7 +150,6 @@ script: |
     "--class-path=$packageJar" \
     "-J--add-modules=java.sql.rowset" \
     "-J-Dpgconfig=$pgConfig" \
-    "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" \
     "-J-DmavenRepo=$mavenRepo" \
     "-J-DsaxonVer=$saxonVer" - <<\ENDJSHELL && # continues after here document
 

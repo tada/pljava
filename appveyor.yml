@@ -65,8 +65,8 @@ test_script:
         Select-Object -Last 1
       ).Directory.Name
 
-      $jdbcJar = (Join-Path $mavenRepo "com\impossibl\pgjdbc-ng\pgjdbc-ng-all" |
-        Get-ChildItem -Recurse -Filter pgjdbc-ng-all-*.jar |
+      $jdbcJar = (Join-Path $mavenRepo "org\postgresql\postgresql" |
+        Get-ChildItem -Recurse -Filter postgresql-*.jar |
         Select-Object -Last 1
       ).FullName
 
@@ -577,7 +577,6 @@ test_script:
         "-J--class-path=$packageJar;$jdbcJar" `
         "--class-path=$packageJar" `
         "-J--add-modules=java.sql.rowset,jdk.httpserver" `
-        "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" `
         "-J-Dpgconfig=$pgConfig" `
         "-J-DmavenRepo=$mavenRepo" `
         "-J-DsaxonVer=$saxonVer" -

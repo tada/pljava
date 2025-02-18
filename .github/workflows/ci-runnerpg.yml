@@ -79,7 +79,7 @@ jobs:
       working-directory: pljava
       run: |
         mvn clean install --batch-mode \
-          -Psaxon-examples -Ppgjdbc-ng \
+          -Psaxon-examples -Ppgjdbc \
           -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
     - name: Build PL/Java (Windows MinGW-w64)
@@ -127,7 +127,7 @@ jobs:
         HOME=$( (cd .. && pwd) )
         "$M2"/mvn clean install --batch-mode \
           -Dpgsql.pgconfig="$PGBIN"'\pg_config' \
-          -Psaxon-examples -Ppgjdbc-ng \
+          -Psaxon-examples -Ppgjdbc \
           -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
     - name: Install and test PL/Java
@@ -151,8 +151,8 @@ jobs:
         saxonVer=${saxonVer##*/}
 
         jdbcJar=$(
-          find "$mavenRepo/com/impossibl/pgjdbc-ng/pgjdbc-ng-all" \
-            -name 'pgjdbc-ng-all-*.jar' -print |
+          find "$mavenRepo/org/postgresql/postgresql" \
+            -name 'postgresql-*.jar' -print |
           sort |
           tail -n 1
         )
@@ -200,7 +200,6 @@ jobs:
           "--class-path=$packageJar" \
           "-J--add-modules=java.sql.rowset,jdk.httpserver" \
           "-J-Dpgconfig=$pgConfig" \
-          "-J-Dcom.impossibl.shadow.io.netty.noUnsafe=true" \
           "-J-DmavenRepo=$mavenRepo" \
           "-J-DsaxonVer=$saxonVer" - <<\ENDJSHELL
 
