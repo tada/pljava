@@ -126,10 +126,19 @@ Path libjvm = (
   : javaLibDir.resolve(s_isWindows ? "jvm.dll" : "server/libjvm.so")
 );
 
+// Use deprecated major() here because feature() first appears in Java 10
+int jFeatureVersion = Runtime.version().major();
+
 String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
-if ( 17 < Runtime.version().feature() )
+if ( 17 < jFeatureVersion )
   vmopts += " -Djava.security.manager=allow";
+
+if ( 23 <= jFeatureVersion )
+  vmopts += " --sun-misc-unsafe-memory-access=deny"; // JEP 471
+
+if ( 24 <= jFeatureVersion )
+  vmopts += " --illegal-native-access=deny"; // JEP 472
 
 Node n1 = Node.get_new_node("TestNode1");
 
@@ -206,8 +215,12 @@ try (
   ), tweaks);
 )
 {
+  int pgMajorVersion;
+
   try ( Connection c = n1.connect() )
   {
+    pgMajorVersion = c.getMetaData().getDatabaseMajorVersion();
+
     succeeding = true; // become optimistic, will be using &= below
 
     succeeding &= stateMachine(
@@ -511,8 +524,6 @@ try (
    */
   try ( Connection c = n1.connect() )
   {
-    int majorVersion = c.getMetaData().getDatabaseMajorVersion();
-
     succeeding &= stateMachine(
       "load as non-extension",
       null,
@@ -526,7 +537,7 @@ try (
       (o,p,q) -> null == o
     );
 
-    if ( 13 <= majorVersion )
+    if ( 13 <= pgMajorVersion )
     {
       succeeding &= stateMachine(
         "create unpackaged (PG >= 13)",
@@ -550,13 +561,11 @@ try (
    */
   try ( Connection c = n1.connect() )
   {
-    int majorVersion = c.getMetaData().getDatabaseMajorVersion();
-
     succeeding &= stateMachine(
       "package after loading",
       null,
 
-      q(c, 13 > majorVersion
+      q(c, 13 > pgMajorVersion
         ? "CREATE EXTENSION pljava FROM unpackaged"
         :  "ALTER EXTENSION pljava UPDATE")
       .flatMap(Node::semiFlattenDiagnostics)
