@@ -1,9 +1,10 @@
-# This workflow will build and test PL/Java against the version of PostgreSQL
-# preinstalled in the GitHub Actions runner environment. Naturally, this one
-# does not have a PostgreSQL version in the build matrix. The version that's
-# preinstalled is the version you get.
+# This workflow will build and test PL/Java against a version of PostgreSQL
+# lazily obtained (either preinstalled in the GitHub Actions runner environment,
+# or obtained from a package repository if the runner does not provide one).
+# Arrange for the matrix to include a pg version, for cases where one must be
+# installed.
 
-name: CI with runner-supplied PostgreSQL version
+name: CI lazy getting PostgreSQL
 
 permissions:
   contents: read
@@ -25,43 +26,106 @@ jobs:
         oscc:
           - os: ubuntu-latest
             cc: gcc
-          - os: macos-12
+          - os: macos-13
             cc: clang
+            pg: 17
+          - os: macos-14
+            cc: clang
+            pg: 17
 #         - os: windows-latest
 #           cc: msvc
 #         - os: windows-latest
 #           cc: mingw
-        java: [9, 11, 17, 19, 21]
+        java: [9, 11, 17, 21, 23]
 
     steps:
 
-    - name: Check out PL/Java
-      uses: actions/checkout@v2
-      with:
-        path: pljava
+    - name: Check for JDK preinstalled
+      id: jdkcheck
+      shell: bash
+      env:
+        JAVAVER: ${{ matrix.java }}
+      run: |
+        if
+          candidate="JAVA_HOME_${JAVAVER}_${RUNNER_ARCH}"
+          echo -n "Environment contains $candidate? "
+          [[ -n ${!candidate+set} ]]
+        then
+          echo yes
+          echo >>"$GITHUB_ENV" "JAVA_HOME=${!candidate}"
+          echo >>"$GITHUB_OUTPUT" java_found=true
+        elif
+          candidate="JAVA_HOME_${JAVAVER}_${RUNNER_ARCH,,[A-Z]}"
+          echo -ne 'no\n'"Environment contains $candidate? "
+          [[ -n ${!candidate+set} ]]
+        then
+          echo yes
+          echo >>"$GITHUB_ENV" "JAVA_HOME=${!candidate}"
+          echo >>"$GITHUB_OUTPUT" java_found=true
+        else
+          echo -e 'no\n'"only: ${!JAVA_HOME_*}"
+          echo >>"$GITHUB_OUTPUT" java_found=false
+        fi
 
-    - name: Set up JDK
-      uses: actions/setup-java@v1
+    - name: Fetch a JDK
+      if: ${{ 'false' == steps.jdkcheck.outputs.java_found }}
+      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b
       with:
+        distribution: temurin
         java-version: ${{ matrix.java }}
 
-    - name: Report Java, Maven, and PostgreSQL versions (Linux, macOS)
-      if: ${{ 'Windows' != runner.os }}
+    - name: Compute absolute paths for java and jshell
+      shell: bash
       run: |
-        java -version
-        mvn --version
-        pg_config
+        if [[ $RUNNER_OS == Windows ]]
+        then
+          echo >>"$GITHUB_ENV" "ABS_JAVA=$JAVA_HOME"'\bin\java'
+          echo >>"$GITHUB_ENV" "ABS_JSHELL=$JAVA_HOME"'\bin\jshell'
+        else
+          echo >>"$GITHUB_ENV" "ABS_JAVA=$JAVA_HOME/bin/java"
+          echo >>"$GITHUB_ENV" "ABS_JSHELL=$JAVA_HOME/bin/jshell"
+        fi
 
-    - name: Report Java, Maven, and PostgreSQL versions (Windows)
-      if: ${{ 'Windows' == runner.os }}
+    - name: Set PGCONFIG in environment, installing PostgreSQL if needed
+      shell: bash
+      env:
+        PGVER: ${{ matrix.oscc.pg }}
       run: |
-        java -version
+        if [[ $RUNNER_OS == Linux ]]
+        then
+          echo >>"$GITHUB_ENV" PGCONFIG=pg_config
+        elif [[ $RUNNER_OS == Windows ]]
+        then
+          echo >>"$GITHUB_ENV" PGCONFIG="$PGBIN"'\pg_config'
+        elif [[ $RUNNER_OS == macOS ]]
+        then
+          echo '::group::brew update'
+          brew update
+          echo '::endgroup::'
+          echo "::group::brew install postgresql@$PGVER"
+          # HOMEBREW_GITHUB_ACTIONS will suppress the formula's initdb
+          HOMEBREW_GITHUB_ACTIONS=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 \
+            brew install postgresql@"$PGVER"
+          echo '::endgroup::'
+          pfx=$(brew --prefix postgresql@"$PGVER")
+          echo >>"$GITHUB_ENV" PGCONFIG="$pfx/bin/pg_config"
+        fi
+
+    - name: Report Java, Maven, and PostgreSQL versions
+      shell: bash
+      run: |
+        "$ABS_JAVA" -version
         mvn --version
-        & "$Env:PGBIN\pg_config"
+        "$PGCONFIG"
 
     - name: Obtain PG development files (Ubuntu, PGDG)
       if: ${{ 'Linux' == runner.os }}
       run: |
+        pgver=$("$PGCONFIG" --version)
+        pgver=${pgver##PostgreSQL }
+        pgver=${pgver%% *}
+        pgver=${pgver%.*}
+        echo '::group::Install PGDG key and repo'
         curl -s -S https://www.postgresql.org/media/keys/ACCC4CF8.asc |
         gpg --dearmor |
         sudo dd of=/etc/apt/trusted.gpg.d/apt.postgresql.org.gpg
@@ -71,14 +135,47 @@ jobs:
           "$(lsb_release -cs)-pgdg" \
           main |
         sudo tee /etc/apt/sources.list.d/pgdg.list
+        echo '::endgroup::'
+        echo '::group::apt-get update'
         sudo apt-get update
-        sudo apt-get install postgresql-server-dev-14 libkrb5-dev
+        echo '::endgroup::'
+        echo "::group::apt-get install postgresql-server-dev-$pgver"
+        sudo apt-get install postgresql-server-dev-"$pgver" libkrb5-dev
+        echo '::endgroup::'
+
+    - name: Confirm PostgreSQL development files are present
+      shell: python
+      run: |
+        from os import getenv
+        from os.path import join
+        from re import sub
+        from subprocess import check_output
+
+        pgconfig = getenv('PGCONFIG')
+
+        def ask_pg_config(what):
+          return check_output([pgconfig, '--'+what]).splitlines()[0]
+
+        pgch = join(ask_pg_config('includedir-server'), b'pg_config.h')
+
+        with open(pgch, 'r') as f:
+          line = [ln for ln in f if ln.startswith('#define PG_VERSION_STR ')][0]
+
+        vers = sub(r'#define PG_VERSION_STR "(.*)"\n', r'\1', line)
+
+        print('PostgreSQL development files are present:', vers, sep='\n')
+
+    - name: Check out PL/Java
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        path: pljava
 
     - name: Build PL/Java (Linux, macOS)
       if: ${{ 'Windows' != runner.os }}
       working-directory: pljava
       run: |
         mvn clean install --batch-mode \
+          -Dpgsql.pgconfig="$PGCONFIG" \
           -Psaxon-examples -Ppgjdbc \
           -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
@@ -126,17 +223,14 @@ jobs:
       run: |
         HOME=$( (cd .. && pwd) )
         "$M2"/mvn clean install --batch-mode \
-          -Dpgsql.pgconfig="$PGBIN"'\pg_config' \
+          -Dpgsql.pgconfig="$PGCONFIG" \
           -Psaxon-examples -Ppgjdbc \
           -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
     - name: Install and test PL/Java
-      if: ${{ '9' != matrix.java  ||  'Windows' != runner.os }}
       working-directory: pljava
       shell: bash
       run: |
-        pgConfig=pg_config # runner-supplied, just get it from the PATH
-
         packageJar=$(find pljava-packaging -name pljava-pg*.jar -print)
 
         mavenRepo="$HOME/.m2/repository"
@@ -166,22 +260,16 @@ jobs:
         # used when starting PostgreSQL; pg_ctl has a Windows-specific ability
         # to drop admin privs so postgres will not refuse to start).
         #
-        # The Windows runner seems to have an extra pg_config somewhere on the
-        # path, that reports it was built with MinGW and installed in paths
-        # containing Strawberry that don't really exist. $PGBIN\pg_config refers
-        # to a different build made with MSVC, and those directories really
-        # exist, so specify that one explicitly when running on Windows.
-        #
         # The Git for Windows bash environment includes a find command, and the
         # things found have unixy paths returned. Make them Windowsy here, with
         # a hardcoded assumption they start with /c which should become c: (as
         # appears to be the case in the Windows runner currently).
         #
+        echo '::group::Install files from the package jar'
         if [[ $RUNNER_OS == Windows ]]
         then
           pathSep=';'
-          pgConfig="$PGBIN"'\pg_config'
-          java -Dpgconfig="$pgConfig" -jar "$packageJar"
+          "$ABS_JAVA" -Dpgconfig="$PGCONFIG" -jar "$packageJar"
           function toWindowsPath() {
             local p
             p="c:${1#/c}"
@@ -191,15 +279,16 @@ jobs:
           mavenRepo="$(toWindowsPath "$mavenRepo")"
         else
           pathSep=':'
-          sudo "$JAVA_HOME"/bin/java -Dpgconfig="$pgConfig" -jar "$packageJar"
+          sudo "$ABS_JAVA" -Dpgconfig="$PGCONFIG" -jar "$packageJar"
         fi
+        echo '::endgroup::'
 
-        jshell \
+        "$ABS_JSHELL" \
           -execution local \
           "-J--class-path=$packageJar$pathSep$jdbcJar" \
           "--class-path=$packageJar" \
           "-J--add-modules=java.sql.rowset,jdk.httpserver" \
-          "-J-Dpgconfig=$pgConfig" \
+          "-J-Dpgconfig=$PGCONFIG" \
           "-J-DmavenRepo=$mavenRepo" \
           "-J-DsaxonVer=$saxonVer" \
-	  CI/integration
+          CI/integration
