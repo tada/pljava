@@ -36,7 +36,7 @@ jobs:
 #           cc: msvc
 #         - os: windows-latest
 #           cc: mingw
-        java: [9, 11, 17, 21, 23]
+        java: [11, 17, 21, 23]
 
     steps:
 
@@ -55,7 +55,7 @@ jobs:
           echo >>"$GITHUB_ENV" "JAVA_HOME=${!candidate}"
           echo >>"$GITHUB_OUTPUT" java_found=true
         elif
-          candidate="JAVA_HOME_${JAVAVER}_${RUNNER_ARCH,,[A-Z]}"
+          candidate="JAVA_HOME_${JAVAVER}_$(tr A-Z a-z <<<${RUNNER_ARCH})"
           echo -ne 'no\n'"Environment contains $candidate? "
           [[ -n ${!candidate+set} ]]
         then
