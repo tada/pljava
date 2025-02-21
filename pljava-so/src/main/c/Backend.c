@@ -148,6 +148,23 @@ extern void SQLOutputToChunk_initialize(void);
 extern void SQLOutputToTuple_initialize(void);
 
 
+/*
+ * These typedefs are not exposed in Java's jni.h. Apparently you are supposed
+ * to be really determined if you want to use them. These are copy/pasted from
+ * src/hotspot/share/runtime/arguments.hpp. One silver lining is that they can
+ * be spelled here without the * used in the original, enabling them to be used
+ * succinctly to declare matching prototypes.
+ */
+typedef void JNICALL abort_hook_t(void);
+typedef void JNICALL exit_hook_t(jint code);
+typedef jint JNICALL vfprintf_hook_t(FILE *fp, const char *fmt, va_list args)
+	pg_attribute_printf(2, 0);
+
+/*
+ * This private type is used here as a dynamically-sized list of JavaVMOption,
+ * which will later be copied to a struct of type JavaVMInitArgs (a type that
+ * jni.h does expose).
+ */
 typedef struct {
 	JavaVMOption* options;
 	unsigned int  size;
@@ -163,8 +180,9 @@ static void JVMOptList_addVisualVMName(JVMOptList*);
 static void JVMOptList_addModuleMain(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static char* getModulePath(const char*);
-static jint JNICALL my_vfprintf(FILE*, const char*, va_list)
-	pg_attribute_printf(2, 0);
+static abort_hook_t my_abort;
+static exit_hook_t my_exit;
+static vfprintf_hook_t my_vfprintf;
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
 static void initJavaSession(void);
@@ -655,6 +673,8 @@ static void initsequencer(enum initstage is, bool tolerant)
 			JVMOptList_addVisualVMName(&optList);
 		if ( ! seenModuleMain )
 			JVMOptList_addModuleMain(&optList);
+		JVMOptList_add(&optList, "abort", (void*)my_abort, true);
+		JVMOptList_add(&optList, "exit", (void*)my_exit, true);
 		JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
@@ -1063,7 +1083,60 @@ int Backend_setJavaLogLevel(int logLevel)
 	s_javaLogLevel = logLevel;
 	return oldLevel;
 }
-	
+
+static const char DEATH_HINT[] =
+	"Depending on log_min_messages and whether logging_collector is active, "
+	"relevant information may be near this message in the server log. If "
+	"during VM startup, pljava.vmoptions and other pljava.* settings should "
+	"be checked for mistakes or incompatibility with the Java version of the "
+	"library pljava.libjvm_location points to. Causes can include a misspelled "
+	"entry in pljava.module_path or a jar that can't be opened on that path. "
+	"If during \"CREATE EXTENSION pljava\" and there is little information in "
+	"the log, try in a new session with LOAD rather than CREATE EXTENSION.";
+
+static void onJVMExitOrAbort(void);
+
+static void JNICALL my_abort()
+{
+	onJVMExitOrAbort();
+	ereport(FATAL, (
+		errcode(ERRCODE_CLASS_SQLJRT),
+		errmsg("PostgreSQL backend exiting because Java VM requested abort"),
+		errdetail("Abort requested %s.",
+			s_startingVM ? "during VM startup" : "by already started VM"),
+		errhint(DEATH_HINT)
+	));
+}
+
+static void JNICALL my_exit(jint code)
+{
+	onJVMExitOrAbort();
+	ereport(FATAL, (
+		errcode(ERRCODE_CLASS_SQLJRT),
+		errmsg("PostgreSQL backend exiting because Java VM requested exit "
+			"with code %d", (int)code),
+		errdetail("Exit requested %s.",
+			s_startingVM ? "during VM startup" : "by already started VM"),
+		errhint(DEATH_HINT)
+	));
+}
+
+static void onJVMExitOrAbort()
+{
+	/*
+	 * We will later hit the proc_exit handler, which will try to destroy the
+	 * already-gone JVM if this reference is non-null.
+	 */
+	s_javaVM = NULL;
+	/*
+	 * This does a PostgreSQL UnregisterResourceReleaseCallback, which should
+	 * be painless if the callback hasn't been registered yet. The key is to
+	 * avoid triggering a DualState callback that tries a JNI upcall into
+	 * the already-gone JVM.
+	 */
+	pljava_DualState_unregister();
+}
+
 /**
  * Special purpose logging function called from JNI when verbose is enabled.
  */
@@ -1318,25 +1391,7 @@ static void terminationTimeoutHandler()
  */
 static void _destroyJavaVM(int status, Datum dummy)
 {
-	if(s_javaVM == 0)
-	{
-		if ( s_startingVM )
-		{
-			ereport(FATAL, (
-				errcode(ERRCODE_INTERNAL_ERROR),
-				errmsg("the Java VM exited while loading PL/Java"),
-				errdetail(
-					"The Java VM's exit forces this session to end."),
-				errhint(
-					"This has been known to happen when the entry in "
-					"pljava.module_path for the pljava-api jar has been "
-					"misspelled or the jar cannot be opened. If "
-					"logging_collector is active, there may be useful "
-					"information in the log.")
-					));
-		}
-	}
-	else
+	if(s_javaVM != 0)
 	{
 		Invocation ctx;
 #ifdef USE_PLJAVA_SIGHANDLERS
