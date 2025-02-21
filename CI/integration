@@ -131,8 +131,10 @@ int jFeatureVersion = Runtime.version().major();
 
 String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
-if ( 17 < jFeatureVersion )
-  vmopts += " -Djava.security.manager=allow";
+if ( 24 <= jFeatureVersion ) {
+  vmopts += " -Djava.security.manager=disallow"; // JEP 486
+} else if ( 18 <= jFeatureVersion )
+  vmopts += " -Djava.security.manager=allow"; // JEP 411
 
 if ( 23 <= jFeatureVersion )
   vmopts += " --sun-misc-unsafe-memory-access=deny"; // JEP 471

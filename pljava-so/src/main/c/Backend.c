@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -231,6 +231,15 @@ static bool deferInit = false;
  * handler because a PL/Java function has been declared or redeclared.
  */
 static bool warnJEP411 = true;
+
+/*
+ * Becomes true upon initialization of the Backend class if the Java property
+ * setting java.security.manager=disallow was explicitly in pljava.vmoptions.
+ * That is how to request the fallback nothing-is-enforced mode of operation
+ * that is the only mode available on Java >= 24. Only when all Java code is
+ * 100% trusted should PL/Java be run in this mode.
+ */
+static bool withoutEnforcement = false;
 
 /*
  * Don't bother with the warning unless the JVM in use is later than Java 11.
@@ -1011,6 +1020,10 @@ static void initPLJavaClasses(void)
 	javaMajor = JNI_getStaticIntField(s_Backend_class, fID);
 	javaGT11 = 11 <  javaMajor;
 	javaGE17 = 17 <= javaMajor;
+
+	fID = PgObject_getStaticJavaField(s_Backend_class,\
+		"WITHOUT_ENFORCEMENT", "Z");
+	withoutEnforcement = JNI_getStaticBooleanField(s_Backend_class, fID);
 
 	fID = PgObject_getStaticJavaField(s_Backend_class,
 		"THREADLOCK", "Ljava/lang/Object;");
@@ -1920,7 +1933,7 @@ void Backend_warnJEP411(bool isCommit)
 {
 	static bool warningEmitted = false; /* once only per session */
 
-	if ( warningEmitted  ||  ! warnJEP411 )
+	if ( ! warnJEP411  ||  withoutEnforcement  ||  warningEmitted )
 		return;
 
 	if ( ! isCommit )
@@ -1933,17 +1946,23 @@ void Backend_warnJEP411(bool isCommit)
 
 	ereport(javaGE17 ? WARNING : NOTICE, (
 		errmsg(
-			"[JEP 411] migration advisory: there will be a Java version "
-			"(after Java 17) that will be unable to run PL/Java %s "
-			 "with policy enforcement", SO_VERSION_STRING),
+			"[JEP 411] migration advisory: Java version 24 and later "
+			"cannot run PL/Java %s with policy enforcement", SO_VERSION_STRING),
 		errdetail(
 			"This PL/Java version enforces security policy using important "
-			"Java features that will be phased out in future Java versions. "
-			"Those changes will come in releases after Java 17."),
+			"Java features that upstream Java has disabled as of Java 24, "
+			"as described in JEP 486. In Java 18 through 23, enforcement is "
+			"still available, but requires "
+			"\"-Djava.security.manager=allow\" in \"pljava.vmoptions\". "),
 		errhint(
 			"For migration planning, this version of PL/Java can still "
 			"enforce policy in Java versions up to and including 23, "
 			"and Java 17 and 21 are positioned as long-term support releases. "
+			"Java 24 and later can be used, if wanted, WITH ABSOLUTELY NO "
+			"EXPECTATIONS OF SECURITY, by adding "
+			"\"-Djava.security.manager=disallow\" in \"pljava.vmoptions\". "
+			"This mode should be considered only if all Java code to be used "
+			"is considered completely vetted and trusted. "
 			"For details on how PL/Java will adapt, please bookmark "
 			"https://github.com/tada/pljava/wiki/JEP-411")
 	));

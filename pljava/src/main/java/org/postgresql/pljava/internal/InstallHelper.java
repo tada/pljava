@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -43,6 +43,7 @@ import org.postgresql.pljava.management.SQLDeploymentDescriptor;
 import org.postgresql.pljava.policy.TrialPolicy;
 import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
 import static org.postgresql.pljava.elog.ELogHandler.LOG_WARNING;
+import static org.postgresql.pljava.internal.Backend.WITHOUT_ENFORCEMENT;
 import static org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
@@ -109,10 +110,15 @@ public class InstallHelper
 		setPropertyIfNull( "org.postgresql.database", dbname);
 		if ( null != clustername )
 			setPropertyIfNull( "org.postgresql.cluster", clustername);
-		setPropertyIfNull( "org.postgresql.datadir", datadir);
-		setPropertyIfNull( "org.postgresql.libdir", libdir);
-		setPropertyIfNull( "org.postgresql.sharedir", sharedir);
-		setPropertyIfNull( "org.postgresql.sysconfdir", etcdir);
+
+		if ( ! WITHOUT_ENFORCEMENT )
+		{
+			setPropertyIfNull( "org.postgresql.datadir", datadir);
+			setPropertyIfNull( "org.postgresql.libdir", libdir);
+			setPropertyIfNull( "org.postgresql.sharedir", sharedir);
+			setPropertyIfNull( "org.postgresql.sysconfdir", etcdir);
+		}
+
 		setPropertyIfNull( "org.postgresql.pljava.version", implVersion);
 		setPropertyIfNull( "org.postgresql.pljava.native.version", nativeVer);
 		setPropertyIfNull( "org.postgresql.version",
@@ -165,11 +171,14 @@ public class InstallHelper
 		}
 
 		/* so it can be granted permissions in the pljava policy */
-		System.setProperty( "org.postgresql.pljava.codesource",
-			InstallHelper.class.getProtectionDomain().getCodeSource()
-				.getLocation().toString());
+		if ( ! WITHOUT_ENFORCEMENT )
+		{
+			System.setProperty( "org.postgresql.pljava.codesource",
+				InstallHelper.class.getProtectionDomain().getCodeSource()
+					.getLocation().toString());
 
-		setPolicyURLs();
+			setPolicyURLs();
+		}
 
 		/*
 		 * Construct the strings announcing the versions in use.
@@ -187,18 +196,21 @@ public class InstallHelper
 		String vmVer = System.getProperty( "java.vm.version");
 		String vmInfo = System.getProperty( "java.vm.info");
 
-		try
+		if ( ! WITHOUT_ENFORCEMENT )
 		{
-			new URL("sqlj:x"); // sqlj: scheme must exist before reading policy
-		}
-		catch ( MalformedURLException e )
-		{
-			throw new SecurityException(
+			try
+			{
+				new URL("sqlj:x"); // sqlj scheme must exist when reading policy
+			}
+			catch ( MalformedURLException e )
+			{
+				throw new SecurityException(
 				"failed to create sqlj: URL scheme needed for security policy",
-				e);
-		}
+					e);
+			}
 
-		beginEnforcing();
+			beginEnforcing();
+		}
 
 		StringBuilder sb = new StringBuilder();
 		sb.append( "PL/Java native code (").append( nativeVer).append( ")\n");
@@ -274,9 +286,14 @@ public class InstallHelper
 			{
 				prevURL = Security.getProperty( "policy.url." + prevIndex);
 				if ( null == prevURL )
+				{
+					boolean hint =
+						(2 == urlIndex) && 24 <= Runtime.version().major();
+
 					throw new SQLNonTransientException(String.format(
-						"URL at %d in pljava.policy_urls follows an unset URL",
-						urlIndex), "F0000");
+						"URL at %d in pljava.policy_urls follows an unset URL" +
+						(hint ? (". " + jepSuffix) : ""), urlIndex), "F0000");
+				}
 			}
 			if ( -1 != stopIndex )
 				continue; /* should be last, but resume loop to make sure */
@@ -304,24 +321,22 @@ public class InstallHelper
 	 * layer-inappropriate boilerplate warning message when running on Java 17
 	 * or later, and react if the operation has been disallowed or "degraded".
 	 *<p>
-	 * If {@code getSecurityManager} still returns null after being set, and
-	 * the Java major version is greater than 17, this can be a sign of
-	 * "degradation" of the security API proposed in JEP 411. It may be ignored
-	 * by setting {@code -Dorg.postgresql.pljava.policy.enforcement=none} in
-	 * {@code pljava.vmoptions}. That <em>may</em> permit PL/Java to run, but
-	 * without enforcing any policy at all, no distinction between trusted and
-	 * untrusted functions, and so on. However, given uncertainty around exactly
-	 * how the Java developers will "degrade" the API in a given Java release,
-	 * the result may simply be a different failure of PL/Java to start or
-	 * properly function.
+	 * The expected form of "degradation" as of Java 24 with JEP 486 is for
+	 * {@code setSecurityManager} to throw
+	 * {@code UnsupportedOperationException}. Nonetheless, we still also check
+	 * that {@code getSecurityManager} returns the instance we intended to set.
+	 *<p>
+	 * JEP 486 explicitly allows the property {@code java.security.manager} to
+	 * be set to {@code disallow} at invocation, and this detectably differs
+	 * from its null default (despite the semantic equivalence), so that will be
+	 * the setting to include in {@code pljava.vmoptions} to indicate that
+	 * running without any policy enforcement is ok. When that property is so
+	 * set, this method is not even called.
 	 */
 	private static void beginEnforcing() throws SQLException
 	{
 		String trialURI = System.getProperty(
 			"org.postgresql.pljava.policy.trial");
-
-		String enforcement = System.getProperty(
-			"org.postgresql.pljava.policy.enforcement");
 
 		if ( null != trialURI )
 		{
@@ -349,42 +364,36 @@ public class InstallHelper
 		}
 		catch ( UnsupportedOperationException e )
 		{
-			if ( 17 >= major )
+			if ( 24 >= major )
 				throw new SQLException(
 					"Unexpected failure enabling permission enforcement", e);
 			throw new SQLNonTransientException(
 				"[JEP 411] The Java version selected, " + Runtime.version() +
 				", has not allowed PL/Java to enforce security policy. " +
-				"It may help to add -Djava.security.manager=allow in " +
-				"the pljava.vmoptions setting. However, that may require " +
-				"allowing PL/Java functions to execute with no policy " +
-				"enforcement, or simply lead to a different failure " +
-				"to start. If that is unacceptable, " + jepSuffix, "58000", e);
+				( 24 > major ? allowHint : "" ) + jepSuffix, "58000", e);
 		}
-
-		if ( 17 >= major )
-			throw new SQLException(
-				"Unexpected failure enabling permission enforcement");
-
-		if ( "none".equals(enforcement) )
-			return;
 
 		throw new SQLNonTransientException(
 			"[JEP 411] The Java version selected, " + Runtime.version() +
 			", cannot enforce security policy as this PL/Java version " +
-			"requires. To allow PL/Java to run with no enforcement of " +
-			"security (for example, trusted functions as untrusted), add " +
-			"-Dorg.postgresql.pljava.policy.enforcement=none in the " +
-			"pljava.vmoptions setting. However, this may lead only to a " +
-			"different failure to start. In that case, " +
-			jepSuffix, "58000");
+			"requires. " + ( 24 > major ? allowHint : "" ) + jepSuffix,
+			"58000");
 	}
 
 	private static final String jepSuffix =
+		"With Java 24 and later, this version of PL/Java can only operate " +
+		"with -Djava.security.manager=disallow set in pljava.vmoptions, " +
+		"resulting in no enforcement of any security expectations, no " +
+		"distinction between trusted and untrusted, and so on. If that is " +
+		"unacceptable, " +
 		"pljava.libjvm_location should be pointed to an earlier version " +
 		"of Java, or a newer PL/Java version should be used. For more " +
 		"explanation, please see " +
 		"https://github.com/tada/pljava/wiki/JEP-411";
+
+	private static final String allowHint =
+		"To enforce security policy in Java 18 through 23, the setting " +
+		"-Djava.security.manager=allow must be added in pljava.vmoptions. ";
 
 	/**
 	 * When PL/Java is loaded as an end-in-itself (that is, by {@code LOAD}
