@@ -246,7 +246,11 @@ public class Backend
 	public static List<Identifier.Simple> getListConfigOption(String key)
 	throws SQLException
 	{
-		final Matcher m = s_gucList.matcher(getConfigOption(key));
+		String s = getConfigOption(key);
+		if ( null == s )
+			return null;
+
+		final Matcher m = s_gucList.matcher(s);
 		ArrayList<Identifier.Simple> al = new ArrayList<>();
 		while ( m.find() )
 		{

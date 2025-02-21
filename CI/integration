@@ -142,6 +142,14 @@ if ( 23 <= jFeatureVersion )
 if ( 24 <= jFeatureVersion )
   vmopts += " --illegal-native-access=deny"; // JEP 472
 
+Map<String,String> serverOptions = new HashMap<>(Map.of(
+  "client_min_messages", "info",
+  "pljava.vmoptions", vmopts,
+  "pljava.libjvm_location", libjvm.toString()
+));
+if ( 24 <= jFeatureVersion )
+  serverOptions.put("pljava.allow_unenforced", "java,java_tzset");
+
 Node n1 = Node.get_new_node("TestNode1");
 
 if ( s_isWindows )
@@ -210,11 +218,7 @@ throws Exception
 
 try (
   AutoCloseable t1 = n1.initialized_cluster(tweaks);
-  AutoCloseable t2 = n1.started_server(Map.of(
-    "client_min_messages", "info",
-    "pljava.vmoptions", vmopts,
-    "pljava.libjvm_location", libjvm.toString()
-  ), tweaks);
+  AutoCloseable t2 = n1.started_server(serverOptions, tweaks);
 )
 {
   int pgMajorVersion;

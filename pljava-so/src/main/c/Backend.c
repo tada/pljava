@@ -115,6 +115,7 @@ static char* vmoptions;
 static char* modulepath;
 static char* implementors;
 static char* policy_urls;
+static char* allow_unenforced;
 static int   statementCacheSize;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
@@ -207,6 +208,7 @@ static bool seenModuleMain;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 static char const moduleMainPrefix[] = "-Djdk.module.main=";
 static char const policyUrlsGUC[] = "pljava.policy_urls";
+static char const unenforcedGUC[] = "pljava.allow_unenforced";
 
 /*
  * In a background worker, _PG_init may be called very early, before much of
@@ -457,6 +459,15 @@ ASSIGNSTRINGHOOK(policy_urls)
 		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
+	ASSIGNRETURN(newval);
+}
+
+ASSIGNSTRINGHOOK(allow_unenforced)
+{
+	ASSIGNRETURNIFCHECK(newval);
+	allow_unenforced = (char *)newval;
+	if ( IS_PLJAVA_FOUND < initstage )
+		Function_clearFunctionCache();
 	ASSIGNRETURN(newval);
 }
 
@@ -1672,6 +1683,21 @@ static void registerGUCOptions(void)
 		assign_policy_urls,
 		NULL); /* show hook */
 
+	STRING_GUC(
+		unenforcedGUC,
+		"Which PL/Java-based PLs may execute without security enforcement",
+		"List the language names (such as javau) separated by commas. When "
+		"PL/Java is loaded with -Djava.security.manager=disallow (as is "
+		"needed on Java 24 and later), only functions in the languages named "
+		"here can be executed.",
+		&allow_unenforced,
+		NULL, /* boot value */
+		PGC_SUSET,
+		PLJAVA_IMPLEMENTOR_FLAGS | GUC_SUPERUSER_ONLY,
+		NULL, /* check hook */
+		assign_allow_unenforced,
+		NULL); /* show hook */
+
 	BOOL_GUC(
 		"pljava.debug",
 		"Stop the backend to attach a debugger",
@@ -2018,10 +2044,21 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 		PG_TRY();
 		{
 			const char *value;
-			if ( 0 == strcmp(policyUrlsGUC, key) )
+			if ( 0 != strncmp(policyUrlsGUC, key, 7) )
+				goto fallback;
+			if ( 0 == strcmp(policyUrlsGUC+7, key+7) )
+			{
 				value = policy_urls;
-			else
-				value = PG_GETCONFIGOPTION(key);
+				goto finish;
+			}
+			if ( 0 == strcmp(unenforcedGUC+7, key+7) )
+			{
+				value = allow_unenforced;
+				goto finish;
+			}
+fallback:
+			value = PG_GETCONFIGOPTION(key);
+finish:
 			pfree(key);
 			if(value != 0)
 				result = String_createJavaStringFromNTS(value);
