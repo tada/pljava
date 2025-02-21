@@ -1850,7 +1850,32 @@ static Datum internalValidator(bool trusted, PG_FUNCTION_ARGS)
 	Invocation ctx;
 	Oid *oidSaveLocation = NULL;
 
-	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
+	bool ok = CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid);
+	/*
+	 * CheckFunctionValidatorAccess reserves a possible future behavior where
+	 * it returns false and this validator should immediately return. Here we
+	 * abuse that convention slightly by first checking an additional constraint
+	 * on function creation in withoutEnforcing mode. That, arguably, is a check
+	 * that should never be skipped, just like the permission checks made in
+	 * CheckFunctionValidatorAccess itself.
+	 */
+	if ( withoutEnforcement  &&  trusted  && ! superuser() )
+		ereport(ERROR, (
+			errmsg(
+				"trusted PL/Java language restricted to superuser when "
+				"\"java.security.manager\"=\"disallow\""),
+			errdetail(
+				"This PL/Java version enforces security policy using important "
+				"Java features that upstream Java has disabled as of Java 24, "
+				"as described in JEP 486. In Java 18 through 23, enforcement is "
+				"still available, but requires "
+				"\"-Djava.security.manager=allow\" in \"pljava.vmoptions\". "
+				"The alternative \"-Djava.security.manager=disallow\" permits "
+				"use on Java 24 and later, but with no enforcement and no "
+				"distinction between trusted and untrusted. In this mode, only "
+				"a superuser may use even a 'trusted' PL/Java language")
+		));
+	if ( ! ok )
 		PG_RETURN_VOID();
 
 	/*
