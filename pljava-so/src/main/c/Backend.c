@@ -117,6 +117,7 @@ static char* implementors;
 static char* policy_urls;
 static char* allow_unenforced;
 static int   statementCacheSize;
+static bool  allow_unenforced_udt;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static bool  pljavaEnabled;
@@ -286,6 +287,8 @@ static bool check_policy_urls(
 	char **newval, void **extra, GucSource source);
 static bool check_enabled(
 	bool *newval, void **extra, GucSource source);
+static bool check_allow_unenforced_udt(
+	bool *newval, void **extra, GucSource source);
 static bool check_java_thread_pg_entry(
 	int *newval, void **extra, GucSource source);
 
@@ -382,6 +385,22 @@ static bool check_enabled(
 		"too late to change \"pljava.enable\" setting");
 	GUC_check_errdetail(
 		"Start-up has progressed past the point where it is checked.");
+	GUC_check_errhint(
+		"For another chance, exit this session and start a new one.");
+	return false;
+}
+
+static bool check_allow_unenforced_udt(
+	bool *newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_PLJAVA_FOUND )
+		return true;
+	if ( *newval  ||  ! allow_unenforced_udt )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.allow_unenforced_udt\" setting");
+	GUC_check_errdetail(
+		"Once set, it cannot be reset in the same session.");
 	GUC_check_errhint(
 		"For another chance, exit this session and start a new one.");
 	return false;
@@ -999,6 +1018,11 @@ static void initPLJavaClasses(void)
 		"_isCreatingExtension",
 		"()Z",
 		Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension
+		},
+		{
+		"_allowingUnenforcedUDT",
+		"()Z",
+		Java_org_postgresql_pljava_internal_Backend__1allowingUnenforcedUDT
 		},
 		{
 		"_myLibraryPath",
@@ -1802,6 +1826,18 @@ static void registerGUCOptions(void)
 		assign_enabled,
 		NULL); /* show hook */
 
+	BOOL_GUC(
+		"pljava.allow_unenforced_udt",
+		"Whether PL/Java-based \"mapped UDT\" data conversion functions are "
+		"allowed to execute without security enforcement",
+		NULL, /* extended description */
+		&allow_unenforced_udt,
+		false, /* boot value */
+		PGC_SUSET,
+		GUC_SUPERUSER_ONLY,    /* flags */
+		check_allow_unenforced_udt, /* check hook */
+		NULL, NULL); /* assign hook, show hook */
+
 	STRING_GUC(
 		"pljava.implementors",
 		"Implementor names recognized in deployment descriptors",
@@ -2212,6 +2248,17 @@ Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, j
 	bool inExtension = false;
 	pljavaCheckExtension( &inExtension);
 	return inExtension ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _allowingUnenforcedUDT
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend__1allowingUnenforcedUDT(JNIEnv *env, jclass cls)
+{
+	return allow_unenforced_udt;
 }
 
 /*

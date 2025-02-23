@@ -296,6 +296,11 @@ public class Backend
 		return doInPG(Backend::_isCreatingExtension);
 	}
 
+	public static boolean allowingUnenforcedUDT()
+	{
+		return doInPG(Backend::_allowingUnenforcedUDT);
+	}
+
 	/**
 	 * Returns the path of PL/Java's shared library.
 	 * @throws SQLException if for some reason it can't be determined.
@@ -342,6 +347,7 @@ public class Backend
 	private static native boolean _isCreatingExtension();
 	private static native String _myLibraryPath();
 	private static native void _pokeJEP411(Class<?> caller, Object token);
+	private static native boolean _allowingUnenforcedUDT();
 
 	private static class EarlyNatives
 	{

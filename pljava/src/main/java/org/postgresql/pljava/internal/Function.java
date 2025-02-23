@@ -85,6 +85,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.getListConfigOption;
 import static org.postgresql.pljava.internal.Backend.WITHOUT_ENFORCEMENT;
+import static org.postgresql.pljava.internal.Backend.allowingUnenforcedUDT;
 import org.postgresql.pljava.internal.EntryPoints;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.EntryPoints.invocable;
@@ -774,7 +775,7 @@ public class Function
 		}
 
 		/**
-		 * Pop a stacked parameter frame; called only vi JNI, only when
+		 * Pop a stacked parameter frame; called only via JNI, only when
 		 * the current invocation is known to have pushed one.
 		 */
 		private static void pop()
@@ -1523,15 +1524,22 @@ public class Function
 		if ( null != language )
 			langIdent = Identifier.Simple.fromCatalog(language);
 
-		if ( WITHOUT_ENFORCEMENT  &&  null != langIdent
-			&&  clazz != Commands.class )
+		if ( WITHOUT_ENFORCEMENT  &&  clazz != Commands.class )
 		{
-			if ( Optional.ofNullable(
+			if ( null == langIdent )
+			{
+				if ( ! allowingUnenforcedUDT() )
+					throw new SQLNonTransientException(
+						"PL/Java UDT data conversions for " + clazz +
+						" cannot execute because pljava.allow_unenforced_udt" +
+						" is off", "46000");
+			}
+			else if ( Optional.ofNullable(
 					getListConfigOption("pljava.allow_unenforced")
 				).orElseGet(List::of).stream().noneMatch(langIdent::equals) )
 				throw new SQLNonTransientException(
-				"PL \"" + language + "\" not listed in " +
-				"pljava.allow_unenforced configuration setting", "46000");
+					"PL \"" + language + "\" not listed in " +
+					"pljava.allow_unenforced configuration setting", "46000");
 		}
 
 		Set<Principal> p =

@@ -147,8 +147,10 @@ Map<String,String> serverOptions = new HashMap<>(Map.of(
   "pljava.vmoptions", vmopts,
   "pljava.libjvm_location", libjvm.toString()
 ));
-if ( 24 <= jFeatureVersion )
+if ( 24 <= jFeatureVersion ) {
   serverOptions.put("pljava.allow_unenforced", "java,java_tzset");
+  serverOptions.put("pljava.allow_unenforced_udt", "on");
+}
 
 Node n1 = Node.get_new_node("TestNode1");
 
