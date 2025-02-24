@@ -1,5 +1,16 @@
 # Configuring permissions in PL/Java
 
+This page describes how PL/Java operates when enforcing security policy,
+available when using Java 23 or earlier.
+
+When using PL/Java with stock Java 24 or later, please see instead the
+[PL/Java without policy enforcement][unenforced] page.
+
+To operate with policy enforcement as described here, no special configuration
+is needed on Java 17 and earlier, while on Java 18 through 23, an entry
+`-Djava.security.manager=allow` in [`pljava.vmoptions`][confvar] must be present
+for PL/Java to start.
+
 ## `TRUSTED` (and untrusted) procedural languages
 
 PostgreSQL allows a procedural language to be installed with or without
@@ -8,12 +19,11 @@ can be created in that language by any user (PostgreSQL role) with `USAGE`
 permission on that language, as configured with the SQL commands
 `GRANT USAGE ON LANGUAGE ...` and `REVOKE USAGE ON LANGUAGE ...`. For a
 language that is _not_ designated `TRUSTED`, only a database superuser
-may create functions that use it, no matter who has been granted `USAGE`
-on it.
+may create functions that use it. No `USAGE` permission can be granted on it.
 
 In either case, once any function has been created, that function may
 be executed by any user/role granted `EXECUTE` permission on the function
-itself; a language's `USAGE` privilege (plus superuser status, if the language
+itself; a language's `USAGE` privilege (or superuser status, if the language
 is not `TRUSTED`) is only needed to create a function that uses the language.
 
 Because PL functions execute in the database server, a general-purpose
@@ -121,7 +131,7 @@ installed with PL/Java.
 The `pljava.policy` file, by default, is used _instead of_ any `.java.policy`
 file in the OS user's home directory that Java would normally load. There
 probably is no such file in the `postgres` user's home directory, and if
-for any reason there is one, it probably is not tailored to PL/Java.
+for any reason there is one, it probably was not put there with PL/Java in mind.
 
 The [configuration variable][confvar] `pljava.policy_urls` can be
 used to name different, or additional, policy files.
@@ -371,8 +381,8 @@ That should be regarded as an implementation detail; it may change in a future
 release, so relying on it is not recommended.
 
 The developers of Java have elected to phase out important language features
-used by PL/Java to enforce policy. The changes will come in releases after
-Java 17. For migration planning, this version of PL/Java can still enable
+used by PL/Java to enforce policy. The functionality has been removed in
+Java 24. For migration planning, this version of PL/Java can still enable
 policy enforcement in Java versions up to and including 23, and Java 17 and 21
 are positioned as long-term support releases. (There is a likelihood,
 increasing with later Java versions, even before policy stops being enforceable,
@@ -391,4 +401,5 @@ For details on how PL/Java will adapt, please bookmark
 [sqljajl]: ../pljava/apidocs/org.postgresql.pljava.internal/org/postgresql/pljava/management/Commands.html#alias_java_language
 [tssec]: https://docs.oracle.com/en/java/javase/14/security/troubleshooting-security.html
 [trial]: trial.html
+[unenforced]: unenforced.html
 [jep411]: https://github.com/tada/pljava/wiki/JEP-411

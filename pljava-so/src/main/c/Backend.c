@@ -2101,10 +2101,10 @@ void Backend_warnJEP411(bool isCommit)
 			"enforce policy in Java versions up to and including 23, "
 			"and Java 17 and 21 are positioned as long-term support releases. "
 			"Java 24 and later can be used, if wanted, WITH ABSOLUTELY NO "
-			"EXPECTATIONS OF SECURITY, by adding "
+			"EXPECTATIONS OF SECURITY POLICY ENFORCEMENT, by adding "
 			"\"-Djava.security.manager=disallow\" in \"pljava.vmoptions\". "
 			"This mode should be considered only if all Java code to be used "
-			"is considered completely vetted and trusted. "
+			"is considered well vetted and trusted. "
 			"For details on how PL/Java will adapt, please bookmark "
 			"https://github.com/tada/pljava/wiki/JEP-411")
 	));

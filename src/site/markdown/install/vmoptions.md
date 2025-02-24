@@ -7,6 +7,26 @@ options are likely to be worth setting.
 If using [the OpenJ9 JVM][hsj9], be sure to look also at the
 [VM options specific to OpenJ9][vmoptJ9].
 
+## Selecting operation with or without security policy enforcement
+
+PL/Java can operate [with security policy enforcement][policy], its former
+default and only mode, or [with no policy enforcement][unenforced], the only
+mode available on stock Java 24 and later.
+
+When `pljava.libjvm_location` points to a Java 17 or earlier JVM, there is
+no special VM option needed, and PL/Java will operate with policy enforcement
+by default. However, when `pljava.libjvm_location` points to a Java 18 or later
+JVM, `pljava.vmoptions` must contain either `-Djava.security.manager=allow` or
+`-Djava.security.manager=disallow`, to select operation with or without policy
+enforcement, respectively. No setting other than `allow` or `disallow` will
+work. Only `disallow` is available for stock Java 24 or later.
+
+Before operating with `disallow`, the implications detailed in
+[PL/Java with no policy enforcement][unenforced] should be carefully reviewed.
+
+[policy]: ../use/policy.html
+[unenforced]: ../use/unenforced.html
+
 ## Adding to the set of readable modules
 
 By default, a small set of Java modules (including `java.base`,
@@ -24,6 +44,12 @@ modules that make up the full Java SE API, so `--add-modules=java.se` will make
 that full API available to PL/Java code without further thought. The cost,
 however, may be that PL/Java uses more memory and starts more slowly than if
 only a few needed modules were named.
+
+For just that reason, there is also a `--limit-modules` option that can be used
+to trim the set of readable modules to the minimum genuinely needed. More on the
+use of that option [here][limitmods].
+
+[limitmods]: ../use/jpms.html#Limiting_the_module_graph
 
 Third-party modular code can be made available by adding the modular jars
 to `pljava.module_path` (see [configuration variables](../use/variables.html))

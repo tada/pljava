@@ -131,6 +131,8 @@ int jFeatureVersion = Runtime.version().major();
 
 String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
+vmopts += " --limit-modules=org.postgresql.pljava.internal";
+
 if ( 24 <= jFeatureVersion ) {
   vmopts += " -Djava.security.manager=disallow"; // JEP 486
 } else if ( 18 <= jFeatureVersion )
