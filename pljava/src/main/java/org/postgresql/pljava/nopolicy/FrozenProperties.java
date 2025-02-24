@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static java.util.stream.Collectors.toSet;
+
 /**
  * An unmodifiable subclass of {@link Properties}.
  *<p>
@@ -39,12 +41,43 @@ public final class FrozenProperties extends Properties
 	/**
 	 * Constructs a {@code FrozenProperties} instance from an existing
 	 * {@link Properties} instance.
+	 *<p>
+	 * The instance will have a defaults list (also frozen) if <var>p</var> has
+	 * defaults that have not been superseded by later settings. Defaults are
+	 * flattened into a single default properties instance, even if <var>p</var>
+	 * had a defaults instance chaining to another or a chain of others.
 	 * @param p the instance whose entries are to be copied
 	 */
 	public FrozenProperties(Properties p)
 	{
-		// super(p.size()); // has no @Since but first appears in Java 10
-		super.putAll(p);
+		super(defaults(p));
+		super.putAll(p); // putAll copies only non-default entries
+	}
+
+	/**
+	 * Constructor used internally to return a frozen instance with only
+	 * <var>p</var>'s defaults (entries with keys in <var>subset</var>).
+	 */
+	private FrozenProperties(Properties p, Set<String> subset)
+	{
+		// super(subset.size()); // has no @Since but first appears in Java 10
+		for ( String s : subset )
+			super.put(s, p.get(s));
+	}
+
+	/**
+	 * Returns a {@code FrozenProperties} instance representing defaults of
+	 * <var>p</var> not superseded by later settings.
+	 * @return FrozenProperties with the defaults, or null if none
+	 */
+	private static FrozenProperties defaults(Properties p)
+	{
+		Set<String> defaultedNames =
+			p.stringPropertyNames().stream().filter(n -> ! p.containsKey(n))
+			.collect(toSet());
+		if ( defaultedNames.isEmpty() )
+			return null;
+		return new FrozenProperties(p, defaultedNames);
 	}
 
 	@Override
