@@ -40,6 +40,7 @@ import static java.sql.Types.VARCHAR;
 
 import org.postgresql.pljava.jdbc.SQLUtils;
 import org.postgresql.pljava.management.SQLDeploymentDescriptor;
+import org.postgresql.pljava.nopolicy.FrozenProperties;
 import org.postgresql.pljava.policy.TrialPolicy;
 import static org.postgresql.pljava.annotation.processing.DDRWriter.eQuote;
 import static org.postgresql.pljava.elog.ELogHandler.LOG_WARNING;
@@ -128,33 +129,6 @@ public class InstallHelper
 		 */
 		setPropertyIfNull( "sqlj.defaultconnection", "jdbc:default:connection");
 
-		/*
-		 * Set the org.postgresql.pljava.udt.byteorder.{scalar,mirror}.{p2j,j2p}
-		 * properties. For shorthand, defaults can be given in shorter property
-		 * keys org.postgresql.pljava.udt.byteorder.{scalar,mirror} or even just
-		 * org.postgresql.pljava.udt.byteorder for an overall default. These
-		 * shorter keys are then removed from the system properties.
-		 */
-		String orderKey = "org.postgresql.pljava.udt.byteorder";
-		String orderAll = System.getProperty(orderKey);
-		String orderScalar = System.getProperty(orderKey + ".scalar");
-		String orderMirror = System.getProperty(orderKey + ".mirror");
-
-		if ( null == orderScalar )
-			orderScalar = null != orderAll ? orderAll : "big_endian";
-		if ( null == orderMirror )
-			orderMirror = null != orderAll ? orderAll : "native";
-
-		setPropertyIfNull(orderKey + ".scalar.p2j", orderScalar);
-		setPropertyIfNull(orderKey + ".scalar.j2p", orderScalar);
-
-		setPropertyIfNull(orderKey + ".mirror.p2j", orderMirror);
-		setPropertyIfNull(orderKey + ".mirror.j2p", orderMirror);
-
-		System.clearProperty(orderKey);
-		System.clearProperty(orderKey + ".scalar");
-		System.clearProperty(orderKey + ".mirror");
-
 		String encodingKey = "org.postgresql.server.encoding";
 		String encName = System.getProperty(encodingKey);
 		if ( null == encName )
@@ -179,6 +153,14 @@ public class InstallHelper
 
 			setPolicyURLs();
 		}
+
+		/*
+		 * PL/Java modifies no more system properties beyond this point.
+		 * Take a defensive copy here that can be exposed through the Session
+		 * API.
+		 */
+		org.postgresql.pljava.internal.Session.s_properties =
+			new FrozenProperties(System.getProperties());
 
 		/*
 		 * Construct the strings announcing the versions in use.

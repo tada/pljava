@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,6 +16,8 @@ import java.security.AccessControlContext; // linked from javadoc
 
 import java.sql.Connection;
 import java.sql.SQLException;
+
+import java.util.Properties;
 
 /**
  * A Session brings together some useful methods and data for the current
@@ -35,6 +37,21 @@ import java.sql.SQLException;
  */
 public interface Session
 {
+	/**
+	 * Returns an unmodifiable defensive copy of the Java
+	 * {@link System#getProperties() system properties} taken early in PL/Java
+	 * startup before user code has an opportunity to write them.
+	 *<p>
+	 * When PL/Java is running without security policy enforcement, as on stock
+	 * Java 24 and later, using the frozen properties can simplify defensive
+	 * coding against the possibility of arbitrary property modifications.
+	 *
+	 * @return a {@link Properties} object that departs from the API spec by
+	 * throwing {@link UnsupportedOperationException} from any method if the
+	 * properties would otherwise be modified.
+	 */
+	Properties frozenSystemProperties();
+
 	/**
 	 * Adds the specified {@code listener} to the list of listeners that will
 	 * receive savepoint events. An {@link AccessControlContext} saved by this

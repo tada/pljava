@@ -203,6 +203,28 @@ exceptions are the finest-grained controls remaining in stock Java.
 For news of possible directions for policy enforcement in future PL/Java
 versions, please bookmark [this wiki page][jep411].
 
+### Defensive coding
+
+#### Java system properties
+
+It can be laborious to audit a code base for assumptions that a given Java
+system property has a value that is reliable. In the case of no policy
+enforcement, when any system property can be changed by any code at any time,
+best practice is to rely on defensive copies taken early, before arbitrary
+user code can have run.
+
+For example, `PrintWriter.println` uses a copy of the `line.separator` property
+taken early in the JVM's own initialization, so code that relies on `println` to
+write a newline will be more dependable than code using `line.separator`
+directly.
+
+PL/Java itself takes a defensive copy of all system properties early in its own
+startup, immediately after adding the properties that PL/Java sets. The
+`frozenSystemProperties` method of the `org.postgresql.pljava.Session` object
+returns this defensive copy, as a subclass of `java.util.Properties` that is
+unmodifiable (throwing `UnsupportedOperationException` from methods where a
+modification would otherwise result).
+
 [policy]: policy.html
 [jpms]: jpms.html
 [vmoptions]: ../install/vmoptions.html

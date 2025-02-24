@@ -144,6 +144,7 @@ extern void Session_initialize(void);
 extern void PgSavepoint_initialize(void);
 extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
+extern void SQLChunkIOOrder_initialize(void);
 extern void SQLInputFromChunk_initialize(void);
 extern void SQLOutputToChunk_initialize(void);
 extern void SQLOutputToTuple_initialize(void);
@@ -798,7 +799,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		/*FALLTHROUGH*/
 
 	case IS_PLJAVA_FOUND:
-		greeting = InstallHelper_hello();
+		greeting = InstallHelper_hello(); /*adjusts, freezes system properties*/
 		ereport(NULL != pljavaLoadPath ? NOTICE : DEBUG1, (
 				errmsg("PL/Java loaded"),
 				errdetail("versions:\n%s", greeting)));
@@ -1094,6 +1095,7 @@ static void initPLJavaClasses(void)
 	PgSavepoint_initialize();
 	XactListener_initialize();
 	SubXactListener_initialize();
+	SQLChunkIOOrder_initialize(); /* safely caches relevant system properties */
 	SQLInputFromChunk_initialize();
 	SQLOutputToChunk_initialize();
 	SQLOutputToTuple_initialize();
