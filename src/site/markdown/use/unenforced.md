@@ -67,6 +67,9 @@ The string `-Djava.security.manager=disallow` must appear in the setting of
 [`pljava.vmoptions`][vmoptions] or PL/Java will be unable to start on Java 24
 or later.
 
+For details on what `java.security.manager` settings to use on other Java
+versions, see [Available policy-enforcement settings by Java version][smprop].
+
 ### in `pljava.allow_unenforced`
 
 Typically, a PL extension that provides only 'untrusted' execution will define
@@ -240,3 +243,4 @@ modification would otherwise result).
 [mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html
 [examples]: ../examples/examples.html
 [java_modules]: ../pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/Modules.html
+[smprop]: ../install/smproperty.html

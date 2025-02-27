@@ -9,7 +9,8 @@ When using PL/Java with stock Java 24 or later, please see instead the
 To operate with policy enforcement as described here, no special configuration
 is needed on Java 17 and earlier, while on Java 18 through 23, an entry
 `-Djava.security.manager=allow` in [`pljava.vmoptions`][confvar] must be present
-for PL/Java to start.
+for PL/Java to start. For just how to configure specific Java versions, see
+[Available policy-enforcement settings by Java version][smprop].
 
 ## `TRUSTED` (and untrusted) procedural languages
 
@@ -403,3 +404,4 @@ For details on how PL/Java will adapt, please bookmark
 [trial]: trial.html
 [unenforced]: unenforced.html
 [jep411]: https://github.com/tada/pljava/wiki/JEP-411
+[smprop]: ../install/smproperty.html

@@ -21,11 +21,15 @@ JVM, `pljava.vmoptions` must contain either `-Djava.security.manager=allow` or
 enforcement, respectively. No setting other than `allow` or `disallow` will
 work. Only `disallow` is available for stock Java 24 or later.
 
+For just how to configure specific Java versions, see
+[Available policy-enforcement settings by Java version][smprop].
+
 Before operating with `disallow`, the implications detailed in
 [PL/Java with no policy enforcement][unenforced] should be carefully reviewed.
 
 [policy]: ../use/policy.html
 [unenforced]: ../use/unenforced.html
+[smprop]: smproperty.html
 
 ## Adding to the set of readable modules
 

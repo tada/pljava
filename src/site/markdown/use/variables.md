@@ -200,7 +200,8 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     setting, determining whether PL/Java will run
     [with security policy enforcement][policy] or
     [with no policy enforcement][unenforced], and those pages should be reviewed
-    for the implications of the choice.
+    for the implications of the choice. Details vary by Java version; see
+    [Available policy-enforcement settings by Java version][smprop].
 
 [pre92]: ../install/prepg92.html
 [depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
@@ -215,3 +216,4 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [policy]: policy.html
 [unenforced]: unenforced.html
 [mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html
+[smprop]: ../install/smproperty.html
