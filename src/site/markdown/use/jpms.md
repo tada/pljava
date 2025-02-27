@@ -113,6 +113,10 @@ no security policy enforcement, as required on stock Java 24 and later. The page
 [PL/Java with no policy enforcement][unenforced] should be carefully reviewed
 for other implications of running PL/Java that way.
 
+The supplied [examples jar][examples] provides a function, [java_modules][],
+that can be used to see what modules have been resolved into Java's boot module
+layer.
+
 ## Configuring the launch-time module path
 
 The configuration variable `pljava.module_path` controls the
@@ -147,3 +151,5 @@ character.
 [addm]: ../install/vmoptions.html#Adding_to_the_set_of_readable_modules
 [limitmods]: https://openjdk.org/jeps/261#Limiting-the-observable-modules
 [unenforced]: unenforced.html
+[examples]: ../examples/examples.html
+[java_modules]: ../pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/Modules.html

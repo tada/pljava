@@ -171,6 +171,10 @@ limiting what Java code may be able to do. Keeping unneeded modules out of the
 module graph, advantageous already for startup speed and memory footprint,
 also means whatever those modules do won't be available to Java code.
 
+The supplied [examples jar][examples] provides a function, [java_modules][],
+that can be used to see what modules have been resolved into Java's boot module
+layer.
+
 The `--limit-modules` VM option can be effectively used to resolve fewer modules
 when PL/Java loads. As of this writing, in early 2025, starting PL/Java with no
 `--add-modules` or `--limit-modules` options results in 48 modules in the graph,
@@ -234,3 +238,5 @@ modification would otherwise result).
 [sepgsql]: https://www.postgresql.org/docs/17/sepgsql.html
 [limiting]: jpms.html#Limiting_the_module_graph
 [mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html
+[examples]: ../examples/examples.html
+[java_modules]: ../pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/Modules.html
