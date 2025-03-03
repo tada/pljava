@@ -117,6 +117,14 @@ The supplied [examples jar][examples] provides a function, [java_modules][],
 that can be used to see what modules have been resolved into Java's boot module
 layer.
 
+For more detail on why the boot layer includes the modules it does,
+`-Djdk.module.showModuleResolution=true` can be added temporarily in
+`pljava.vmoptions`, and a log of module requirements and bindings will be sent
+to the standard output of the backend process when PL/Java starts. PostgreSQL,
+however, may normally start backend processes with standard output going
+nowhere, so the logged information may be invisible unless running PostgreSQL
+in [a test harness][node].
+
 ## Configuring the launch-time module path
 
 The configuration variable `pljava.module_path` controls the
@@ -153,3 +161,4 @@ character.
 [unenforced]: unenforced.html
 [examples]: ../examples/examples.html
 [java_modules]: ../pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/Modules.html
+[node]: ../develop/node.html
