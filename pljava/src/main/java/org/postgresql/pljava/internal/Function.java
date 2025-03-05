@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2016-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -68,6 +68,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,6 +83,9 @@ import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import static org.postgresql.pljava.internal.Backend.getListConfigOption;
+import static org.postgresql.pljava.internal.Backend.WITHOUT_ENFORCEMENT;
+import static org.postgresql.pljava.internal.Backend.allowingUnenforcedUDT;
 import org.postgresql.pljava.internal.EntryPoints;
 import org.postgresql.pljava.internal.EntryPoints.Invocable;
 import static org.postgresql.pljava.internal.EntryPoints.invocable;
@@ -771,7 +775,7 @@ public class Function
 		}
 
 		/**
-		 * Pop a stacked parameter frame; called only vi JNI, only when
+		 * Pop a stacked parameter frame; called only via JNI, only when
 		 * the current invocation is known to have pushed one.
 		 */
 		private static void pop()
@@ -1507,17 +1511,44 @@ public class Function
 	 * conditions. No exception is made here for the few functions supplied by
 	 * PL/Java's own {@code Commands} class; they get a lid. It is reasonable to
 	 * ask them to use {@code doPrivileged} when appropriate.
+	 *<p>
+	 * When {@code WITHOUT_ENFORCEMENT} is true, any nonnull <var>language</var>
+	 * must be named in {@code pljava.allow_unenforced}. PL/Java's own functions
+	 * in the {@code Commands} class are exempt from that check.
 	 */
 	private static AccessControlContext accessControlContextFor(
 		Class<?> clazz, String language, boolean trusted)
+	throws SQLException
 	{
+		Identifier.Simple langIdent = null;
+		if ( null != language )
+			langIdent = Identifier.Simple.fromCatalog(language);
+
+		if ( WITHOUT_ENFORCEMENT  &&  clazz != Commands.class )
+		{
+			if ( null == langIdent )
+			{
+				if ( ! allowingUnenforcedUDT() )
+					throw new SQLNonTransientException(
+						"PL/Java UDT data conversions for " + clazz +
+						" cannot execute because pljava.allow_unenforced_udt" +
+						" is off", "46000");
+			}
+			else if ( Optional.ofNullable(
+					getListConfigOption("pljava.allow_unenforced")
+				).orElseGet(List::of).stream().noneMatch(langIdent::equals) )
+				throw new SQLNonTransientException(
+					"PL \"" + language + "\" not listed in " +
+					"pljava.allow_unenforced configuration setting", "46000");
+		}
+
 		Set<Principal> p =
-			(null == language)
+			(null == langIdent)
 			? Set.of()
 			: Set.of(
 				trusted
-				? new PLPrincipal.Sandboxed(language)
-				: new PLPrincipal.Unsandboxed(language)
+				? new PLPrincipal.Sandboxed(langIdent)
+				: new PLPrincipal.Unsandboxed(langIdent)
 			);
 
 		AccessControlContext acc = clazz.getClassLoader() instanceof Loader

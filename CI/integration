@@ -131,14 +131,28 @@ int jFeatureVersion = Runtime.version().major();
 
 String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
 
-if ( 17 < jFeatureVersion )
-  vmopts += " -Djava.security.manager=allow";
+vmopts += " --limit-modules=org.postgresql.pljava.internal";
+
+if ( 24 <= jFeatureVersion ) {
+  vmopts += " -Djava.security.manager=disallow"; // JEP 486
+} else if ( 18 <= jFeatureVersion )
+  vmopts += " -Djava.security.manager=allow"; // JEP 411
 
 if ( 23 <= jFeatureVersion )
   vmopts += " --sun-misc-unsafe-memory-access=deny"; // JEP 471
 
 if ( 24 <= jFeatureVersion )
   vmopts += " --illegal-native-access=deny"; // JEP 472
+
+Map<String,String> serverOptions = new HashMap<>(Map.of(
+  "client_min_messages", "info",
+  "pljava.vmoptions", vmopts,
+  "pljava.libjvm_location", libjvm.toString()
+));
+if ( 24 <= jFeatureVersion ) {
+  serverOptions.put("pljava.allow_unenforced", "java,java_tzset");
+  serverOptions.put("pljava.allow_unenforced_udt", "on");
+}
 
 Node n1 = Node.get_new_node("TestNode1");
 
@@ -208,11 +222,7 @@ throws Exception
 
 try (
   AutoCloseable t1 = n1.initialized_cluster(tweaks);
-  AutoCloseable t2 = n1.started_server(Map.of(
-    "client_min_messages", "info",
-    "pljava.vmoptions", vmopts,
-    "pljava.libjvm_location", libjvm.toString()
-  ), tweaks);
+  AutoCloseable t2 = n1.started_server(serverOptions, tweaks);
 )
 {
   int pgMajorVersion;

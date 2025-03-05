@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 TADA AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 TADA AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,7 +20,6 @@ import java.math.BigDecimal;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.charset.CharsetDecoder;
 import java.sql.Array;
@@ -41,6 +40,9 @@ import java.sql.Timestamp;
 
 import org.postgresql.pljava.internal.Backend;
 
+import static org.postgresql.pljava.jdbc.SQLChunkIOOrder.MIRROR_P2J;
+import static org.postgresql.pljava.jdbc.SQLChunkIOOrder.SCALAR_P2J;
+
 /**
  * The SQLInputToChunk uses JNI to read from memory that has been allocated by
  * the PostgreSQL backend. A user should never make an attempt to create an
@@ -56,44 +58,10 @@ public class SQLInputFromChunk implements SQLInput
 {
 	private ByteBuffer m_bb;
 
-	private static ByteOrder scalarOrder;
-	private static ByteOrder mirrorOrder;
-
 	public SQLInputFromChunk(ByteBuffer bb, boolean isJavaBasedScalar)
 		throws SQLException
 	{
-		m_bb = bb;
-		if ( isJavaBasedScalar )
-		{
-			if ( null == scalarOrder )
-				scalarOrder = getOrder(true);
-			m_bb.order(scalarOrder);
-		}
-		else
-		{
-			if ( null == mirrorOrder )
-				mirrorOrder = getOrder(false);
-			m_bb.order(mirrorOrder);
-		}
-	}
-
-	private ByteOrder getOrder(boolean isJavaBasedScalar) throws SQLException
-	{
-		ByteOrder result;
-		String key = "org.postgresql.pljava.udt.byteorder."
-			+ ( isJavaBasedScalar ? "scalar" : "mirror" ) + ".p2j";
-		String val = System.getProperty(key);
-		if ( "big_endian".equals(val) )
-			result = ByteOrder.BIG_ENDIAN;
-		else if ( "little_endian".equals(val) )
-			result = ByteOrder.LITTLE_ENDIAN;
-		else if ( "native".equals(val) )
-			result = ByteOrder.nativeOrder();
-		else
-			throw new SQLNonTransientException(
-				"System property " + key +
-				" must be big_endian, little_endian, or native", "F0000");
-		return result;
+		m_bb = bb.order(isJavaBasedScalar ? SCALAR_P2J : MIRROR_P2J);
 	}
 
 	@Override

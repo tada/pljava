@@ -46,9 +46,14 @@ By default, PL/Java code can see a small set of Java modules, including
 
 ### Configuring permissions
 
-The permissions in effect for PL/Java functions can be tailored, independently
-for functions declared to the `TRUSTED` or untrusted language, as described
-[here](policy.html).
+When PL/Java is used with Java 23 or earlier, the permissions in effect
+for PL/Java functions can be tailored, independently for functions declared to
+the `TRUSTED` or untrusted language, as described [here](policy.html).
+
+When PL/Java is used with stock Java 24 or later, no such tailoring of
+permissions is possible, and the
+[PL/Java with no policy enforcement](unenforced.html) page should be carefully
+reviewed.
 
 #### Tailoring permissions for code migrated from PL/Java pre-1.6
 
