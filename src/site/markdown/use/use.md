@@ -119,7 +119,7 @@ PL/Java will work most seamlessly when the server encoding in PostgreSQL is
 `UTF8`. For other cases, please see the [character encoding notes][charsets].
 
 [hello]: hello.html
-[pljapi]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description
+[pljapi]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/package-summary.html#package-description
 [uwik]: https://github.com/tada/pljava/wiki/User-guide
 [examples]: ../examples/examples.html
 [charsets]: charsets.html

@@ -247,8 +247,8 @@ $h3 Bugs fixed
 
 * [`NEWLINE` pattern can fail to match](${ghbug}455)
 
-[adjlax]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.Parsing.html#method.summary
-[adjsfs]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.html#method.detail
+[adjlax]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.Parsing.html#method-summary
+[adjsfs]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Adjusting.XML.html#method-detail
 [egsfs]: https://github.com/tada/pljava/blob/V1_6_6/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/PassXML.java#L528
 
 $h2 PL/Java 1.6.5
@@ -405,7 +405,7 @@ $h3 Bugs fixed
 * [Set-returning function has context classloader set too many times](${ghbug}389)
 * [`java.time.LocalDate` mismapping within 30 years of +/-infinity](${ghbug}390)
 
-[exoneout]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method.summary
+[exoneout]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method-summary
 
 $h2 PL/Java 1.6.3 (10 October 2021)
 
@@ -575,7 +575,7 @@ $h3 Credits
 
 Thanks to Francisco Biete for the report of [#331](${ghbug}331).
 
-[PassXML]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/PassXML.html#method.summary
+[PassXML]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/PassXML.html#method-summary
 
 $h2 PL/Java 1.6.1 (16 November 2020)
 
@@ -635,8 +635,8 @@ $h3 Bugs fixed
 * [1.6.0: opening a ResourceBundle (or a resource) fails](${ghbug}322)
 * [Better workaround needed for javac 10 and 11 --release bug](${ghbug}328)
 
-[outprm]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Function.html#annotation.type.element.detail
-[outprmeg]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method.detail
+[outprm]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Function.html#annotation-interface-element-detail
+[outprmeg]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/ReturnComposite.html#method-detail
 [agganno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Aggregate.html
 [castanno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Cast.html
 [opranno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/Operator.html
@@ -837,7 +837,7 @@ continuous integration was supported by Google Summer of Code.
 [linkage]: examples/examples.html#Exception_resolving_class_or_method_.28message_when_installing_examples.29
 [udtd32f84e]: https://github.com/jcflack/pljava-udt-type-extension/commit/d32f84e
 [udt0066a1e]: https://github.com/jcflack/pljava-udt-type-extension/commit/0066a1e
-[variadic]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Variadic.html#method.detail
+[variadic]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Variadic.html#method-detail
 [charsets]: use/charsets.html
 [jpms]: use/jpms.html
 

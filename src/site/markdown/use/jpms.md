@@ -160,5 +160,5 @@ character.
 [limitmods]: https://openjdk.org/jeps/261#Limiting-the-observable-modules
 [unenforced]: unenforced.html
 [examples]: ../examples/examples.html
-[java_modules]: ../pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/Modules.html
+[java_modules]: ../pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Modules.html#method-detail
 [node]: ../develop/node.html

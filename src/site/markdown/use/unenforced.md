@@ -242,5 +242,5 @@ modification would otherwise result).
 [limiting]: jpms.html#Limiting_the_module_graph
 [mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html
 [examples]: ../examples/examples.html
-[java_modules]: ../pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/Modules.html
+[java_modules]: ../pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Modules.html#method-detail
 [smprop]: ../install/smproperty.html
