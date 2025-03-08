@@ -49,7 +49,7 @@ use.
 [JDBC]: https://docs.oracle.com/javase/tutorial/jdbc/
 [pljapi]: pljava-api/apidocs/org.postgresql.pljava/module-summary.html
 [annotations]: https://docs.oracle.com/javase/tutorial/java/annotations/
-[oppa]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/package-summary.html#package_description
+[oppa]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/package-summary.html#package-description
 [trgann]: https://github.com/tada/pljava/blob/master/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation/Triggers.java
 [depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
 [jar]: https://docs.oracle.com/javase/tutorial/deployment/jar/index.html
