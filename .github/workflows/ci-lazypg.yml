@@ -24,19 +24,19 @@ jobs:
     strategy:
       matrix:
         oscc:
-          - os: ubuntu-latest
-            cc: gcc
-          - os: macos-13
-            cc: clang
-            pg: 17
-          - os: macos-14
-            cc: clang
-            pg: 17
-#         - os: windows-latest
-#           cc: msvc
+#         - os: ubuntu-latest
+#           cc: gcc
+#         - os: macos-13
+#           cc: clang
+#           pg: 17
+#         - os: macos-14
+#           cc: clang
+#           pg: 17
+          - os: windows-latest
+            cc: msvc
 #         - os: windows-latest
 #           cc: mingw
-        java: [11, 17, 21, 23]
+        java: [21]
 
     steps:
 
@@ -169,6 +169,22 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         path: pljava
+
+    - name: Set plethora of MSVC environment variables (Windows MSVC)
+      if: ${{ 'Windows' == runner.os && 'msvc' == matrix.oscc.cc }}
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+
+    - name: Build PL/Java (Windows MSVC)
+      if: ${{ 'Windows' == runner.os && 'msvc' == matrix.oscc.cc }}
+      working-directory: pljava
+      # shell: cmd because of the issue described for ilammy/msvc-dev-cmd
+      # with Actions bash prepending stuff to the just-carefully-created PATH
+      shell: cmd
+      run: |
+        mvn clean install --batch-mode ^
+          -Dpgsql.pgconfig="%PGCONFIG%" ^
+          -Psaxon-examples -Ppgjdbc ^
+          -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
     - name: Build PL/Java (Linux, macOS)
       if: ${{ 'Windows' != runner.os }}
