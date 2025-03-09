@@ -123,7 +123,7 @@ Path libjvm = (
   ? Stream.of("libjli.dylib", "jli/libjli.dylib")
     .map(s -> javaLibDir.resolve(s))
     .filter(Files::exists).findFirst().get()
-  : javaLibDir.resolve(s_isWindows ? "jvm.dll" : "server/libjvm.so")
+  : javaLibDir.resolve(s_isWindows ? "server\\jvm.dll" : "server/libjvm.so")
 );
 
 // Use deprecated major() here because feature() first appears in Java 10
