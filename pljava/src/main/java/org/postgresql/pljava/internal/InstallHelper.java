@@ -346,7 +346,7 @@ public class InstallHelper
 		}
 		catch ( UnsupportedOperationException e )
 		{
-			if ( 24 >= major )
+			if ( 18 >= major )
 				throw new SQLException(
 					"Unexpected failure enabling permission enforcement", e);
 			throw new SQLNonTransientException(
