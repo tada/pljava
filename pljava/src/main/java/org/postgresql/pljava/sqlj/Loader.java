@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -130,7 +130,7 @@ public class Loader extends ClassLoader
 			return entryURL(m_entryIds[m_top++]);
 		}
 	}
-	private static final Identifier.Simple PUBLIC_SCHEMA =
+	public static final Identifier.Simple PUBLIC_SCHEMA =
 		Identifier.Simple.fromCatalog("public");
 
 	private static final Map<Identifier.Simple, ClassLoader>
