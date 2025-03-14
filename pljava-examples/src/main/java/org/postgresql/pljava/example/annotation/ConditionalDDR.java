@@ -11,6 +11,7 @@
  */
 package org.postgresql.pljava.example.annotation;
 
+import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
 
 /**
@@ -106,4 +107,28 @@ import org.postgresql.pljava.annotation.SQLAction;
 	" current_setting('pljava.implementors'), true) " +
 	"END"
 )
-public class ConditionalDDR { }
+public class ConditionalDDR
+{
+	private ConditionalDDR() { } // do not instantiate
+
+	/**
+	 * Tests class names in the supplied order, returning false as soon as any
+	 * cannot be found by the class loader(s) available to the examples jar, or
+	 * true if all can be found.
+	 */
+	@Function(variadic = true, provides = "presentOnClassPath")
+	public static boolean presentOnClassPath(String[] className)
+	{
+		try
+		{
+			ClassLoader myLoader = ConditionalDDR.class.getClassLoader();
+			for ( String cn : className )
+				Class.forName(cn, false, myLoader);
+			return true;
+		}
+		catch ( ClassNotFoundException e )
+		{
+			return false;
+		}
+	}
+}
