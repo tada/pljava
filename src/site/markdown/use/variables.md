@@ -65,7 +65,8 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     only on a system recognizing that name. By default, this list contains only
     the entry `postgresql`. A deployment descriptor that contains commands with
     other implementor names can achieve a rudimentary kind of conditional
-    execution if earlier commands adjust this list of names. _Commas separate
+    execution if earlier commands adjust this list of names, as described
+    [here][condex]. _Commas separate
     elements of this list. Elements that are not regular identifiers need to be
     surrounded by double-quotes; prior to PostgreSQL 11, that syntax can be used
     directly in a `SET` command, while in 11 and after, such a value needs to be
@@ -213,6 +214,7 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [vmop]: ../install/vmoptions.html
 [sqlascii]: charsets.html#Using_PLJava_with_server_encoding_SQL_ASCII
 [addm]: ../install/vmoptions.html#Adding_to_the_set_of_readable_modules
+[condex]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/package-summary.html#conditional-execution-in-the-deployment-descriptor-heading
 [policy]: policy.html
 [unenforced]: unenforced.html
 [mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -6074,7 +6074,7 @@ interface Snippet
 	 */
 	default DependTag implementorTag()
 	{
-		return new DependTag.Explicit(implementorName().pgFolded());
+		return new DependTag.Explicit(implementorName().nonFolded());
 	}
 	/**
 	 * Return an array of SQL commands (one complete command to a string) to
