@@ -285,7 +285,9 @@ public class SQLInputFromChunk implements SQLInput
 	{
 		try
 		{
-			return new URL(this.readString());
+			@SuppressWarnings("deprecation") //'til PL/Java major rev or forever
+			URL u = new URL(this.readString());
+			return u;
 		}
 		catch( Exception e )
 		{

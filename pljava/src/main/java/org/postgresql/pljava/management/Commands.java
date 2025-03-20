@@ -450,6 +450,7 @@ public class Commands
 	{
 		try
 		{
+			@SuppressWarnings("deprecation") // until next PL/Java major rev
 			URL url = new URL(urlString);
 			URLConnection uc = url.openConnection();
 			uc.setRequestProperty("Accept",

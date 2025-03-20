@@ -14,7 +14,8 @@ package org.postgresql.pljava.internal;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.MalformedURLException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -182,9 +183,10 @@ public class InstallHelper
 		{
 			try
 			{
-				new URL("sqlj:x"); // sqlj scheme must exist when reading policy
+				// sqlj scheme must exist when reading policy
+				new URI("sqlj", "x", null).toURL();
 			}
-			catch ( MalformedURLException e )
+			catch ( MalformedURLException | URISyntaxException e )
 			{
 				throw new SecurityException(
 				"failed to create sqlj: URL scheme needed for security policy",
@@ -269,6 +271,7 @@ public class InstallHelper
 				prevURL = Security.getProperty( "policy.url." + prevIndex);
 				if ( null == prevURL )
 				{
+					@SuppressWarnings("deprecation") // Java >= 10: feature()
 					boolean hint =
 						(2 == urlIndex) && 24 <= Runtime.version().major();
 
@@ -332,6 +335,7 @@ public class InstallHelper
 			}
 		}
 
+		@SuppressWarnings("deprecation") // Java >= 10: feature()
 		int major = Runtime.version().major();
 
 		if ( 17 <= major )

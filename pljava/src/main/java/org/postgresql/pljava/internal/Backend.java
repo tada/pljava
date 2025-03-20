@@ -50,6 +50,7 @@ public class Backend
 	public static final boolean WITHOUT_ENFORCEMENT =
 		"disallow".equals(System.getProperty("java.security.manager"));
 
+	@SuppressWarnings("deprecation") // Java >= 10: .feature()
 	static final int JAVA_MAJOR = Runtime.version().major();
 
 	static
