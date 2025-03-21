@@ -229,6 +229,7 @@ public class Loader extends ClassLoader
 			{
 				while(rs.next())
 				{
+					@SuppressWarnings("deprecation") // until PL/Java major rev
 					URL jarUrl = new URL("sqlj:" + rs.getString(2));
 					CodeSource cs = new CodeSource(jarUrl, (CodeSigner[])null);
 
@@ -353,12 +354,14 @@ public class Loader extends ClassLoader
 	{
 		try
 		{
-			return doPrivileged(() -> new URL(
+			@SuppressWarnings("deprecation") // Java >= 20: URL.of(uri,handler)
+			URL u = doPrivileged(() -> new URL(
 					"dbf",
 					"localhost",
 					-1,
 					"/" + entryId,
 					EntryStreamHandler.getInstance()));
+			return u;
 		}
 		catch(MalformedURLException e)
 		{

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2016-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.MalformedURLException;
 
@@ -100,9 +102,11 @@ public class UDTScalarIOTest implements SQLData
 			s_utfgedicht = new byte[bb.limit()];
 			bb.get(s_utfgedicht);
 
-			s_url = new URL("http://tada.github.io/pljava/");
+			s_url = new URI("http://tada.github.io/pljava/").toURL();
 		}
-		catch ( CharacterCodingException | MalformedURLException e )
+		catch (
+			CharacterCodingException |
+			URISyntaxException | MalformedURLException e )
 		{
 			throw new RuntimeException(e);
 		}
