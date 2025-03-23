@@ -64,6 +64,62 @@ to run with a 'trial' policy initially, allowing code to run but logging
 permissions that may need to be added in `pljava.policy`. How to do that is
 described [here](trial.html).
 
+### Debugging PL/Java functions
+
+#### Java exception stack traces
+
+PL/Java catches any Java exceptions uncaught by your Java code, and passes them
+on as familiar PostgreSQL errors that will be reported to the client, or can be
+caught, as with PL/pgSQL's `EXCEPTION` clause. However, the created PostgreSQL
+error does not include the stack trace of the original Java exception.
+
+If either of the PostgreSQL settings `client_min_messages` or `log_min_messages`
+is `DEBUG1` or finer, the Java exception stack trace will be printed to
+the standard error channel of the backend process, where it will be collected
+and saved in the server log if the PostgreSQL setting `logging_collector` is on.
+Otherwise, it will go wherever the error channel of the backend process is
+directed, possibly nowhere.
+
+#### Connecting a debugger
+
+To allow connecting a Java debugger, the PostgreSQL setting `pljava.vmoptions`
+can be changed, in a particular session, to contain a string like:
+
+```
+-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=localhost:0
+```
+
+On the first action in that session that uses PL/Java, the debugger transport
+will be set up as specified. For the example above, PL/Java will listen for
+a connection from a Java debugger at a randomly-chosen port, which will be
+identified with this message (where _nnnnn_ is the port number):
+
+```
+Listening for transport dt_socket at address: nnnnn
+```
+
+A Java debugger can then be started and attached to the listening address and
+port.
+
+The "Listening" message, however, is written to the standard output channel
+of the PostgreSQL backend process. It may be immediately visible if you are
+running PostgreSQL in a [test harness](../develop/node.html), but in a
+production setting it may go nowhere. In such a setting, you may prefer to set
+a specific port number, rather than 0, in the `pljava.vmoptions` setting, to
+be sure of the port the debugger should attach to. Choosing a port that is not
+already in use is then up to you.
+
+As an alternative, `server=y` can be changed to `server=n`, and PL/Java will
+then attempt to attach to an already-listening debugger process. The
+address:port should be adjusted to reflect where the debugger process is
+listening.
+
+With `suspend=n`, PL/Java proceeds normally without waiting for the debugger
+connection, but the debugger will be able to set break or watch points, and will
+have control when Java exceptions are thrown. With `suspend=y`, PL/Java only
+proceeds once the debugger is connected and in control. This setting is more
+commonly used for debugging PL/Java itself.
+
 ### The thread context class loader
 
 Starting with PL/Java 1.6.3, within an SQL-declared PL/Java function, the
