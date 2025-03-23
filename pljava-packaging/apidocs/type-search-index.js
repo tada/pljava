@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes","url":"allclasses-index.html"},{"p":"org.gjt.cuspy","l":"JarX.Build"},{"p":"org.gjt.cuspy","l":"JarX"},{"p":"org.postgresql.pljava.packaging","l":"Node"}]
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"org.gjt.cuspy","l":"JarX.Build"},{"p":"org.gjt.cuspy","l":"JarX"},{"p":"org.postgresql.pljava.packaging","l":"Node"}];updateSearchResults();

@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"m":"org.postgresql.pljava","l":"org.postgresql.pljava"},{"m":"org.postgresql.pljava","l":"org.postgresql.pljava.annotation"},{"m":"org.postgresql.pljava","l":"org.postgresql.pljava.sqlgen"}]
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"org.postgresql.pljava","l":"org.postgresql.pljava"},{"m":"org.postgresql.pljava","l":"org.postgresql.pljava.annotation"},{"m":"org.postgresql.pljava","l":"org.postgresql.pljava.sqlgen"}];updateSearchResults();
