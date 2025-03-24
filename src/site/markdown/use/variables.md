@@ -30,6 +30,21 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     define what any values outside ASCII represent; it is usable, but
     [subject to limitations][sqlascii].
 
+`pljava.allow_unenforced`
+: Only used when PL/Java is run with no policy enforcement, this setting is
+    a list of language names (such as `javau` and `java`) in which functions
+    will be allowed to execute. This setting has an empty default, and should
+    only be changed after careful review of the
+    [PL/Java with no policy enforcement][unenforced] page.
+
+`pljava.allow_unenforced_udt`
+: Only used when PL/Java is run with no policy enforcement, this on/off
+    setting controls whether data conversion functions associated with
+    PL/Java [mapped user-defined types][mappedudt]
+    will be allowed to execute. This setting defaults to off, and should
+    only be changed after careful review of the
+    [PL/Java with no policy enforcement][unenforced] page.
+
 `pljava.debug`
 : A boolean variable that, if set `on`, stops the process on first entry to
     PL/Java before the Java virtual machine is started. The process cannot
@@ -50,7 +65,8 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     only on a system recognizing that name. By default, this list contains only
     the entry `postgresql`. A deployment descriptor that contains commands with
     other implementor names can achieve a rudimentary kind of conditional
-    execution if earlier commands adjust this list of names. _Commas separate
+    execution if earlier commands adjust this list of names, as described
+    [here][condex]. _Commas separate
     elements of this list. Elements that are not regular identifiers need to be
     surrounded by double-quotes; prior to PostgreSQL 11, that syntax can be used
     directly in a `SET` command, while in 11 and after, such a value needs to be
@@ -92,6 +108,10 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     object (filename typically ending with `.so`, `.dll`, or `.dylib`).
     To determine the proper setting, see [finding the `libjvm` library][fljvm].
 
+    The version of the Java library pointed to by this variable will determine
+    whether PL/Java can run [with security policy enforcement][policy] or
+    [with no policy enforcement][unenforced].
+
 `pljava.module_path`
 : The module path to be passed to the Java application class loader. The default
     is computed from the PostgreSQL configuration and is usually correct, unless
@@ -109,9 +129,11 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     [PL/Java and the Java Platform Module System](jpms.html).
 
 `pljava.policy_urls`
-: A list of URLs to Java security [policy files](policy.html) determining
-    the permissions available to PL/Java functions. Each URL should be
-    enclosed in double quotes; any double quote that is literally part of
+: Only used when PL/Java is running [with security policy enforcement][policy].
+    When running [with no policy enforcement][unenforced], this variable is
+    ignored. It is a list of URLs to Java security [policy files][policy]
+    determining the permissions available to PL/Java functions. Each URL should
+    be enclosed in double quotes; any double quote that is literally part of
     the URL may be represented as two double quotes (in SQL style) or as
     `%22` in the URL convention. Between double-quoted URLs, a comma is the
     list delimiter.
@@ -174,7 +196,13 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
     may be adjusted in a future PL/Java version.
 
     Some important settings can be made here, and are described on the
-    [VM options page][vmop].
+    [VM options page][vmop]. For Java 18 and later, this variable must include
+    a `-Djava.security.manager=allow` or `-Djava.security.manager=disallow]`
+    setting, determining whether PL/Java will run
+    [with security policy enforcement][policy] or
+    [with no policy enforcement][unenforced], and those pages should be reviewed
+    for the implications of the choice. Details vary by Java version; see
+    [Available policy-enforcement settings by Java version][smprop].
 
 [pre92]: ../install/prepg92.html
 [depdesc]: https://github.com/tada/pljava/wiki/Sql-deployment-descriptor
@@ -186,3 +214,8 @@ These PostgreSQL configuration variables can influence PL/Java's operation:
 [vmop]: ../install/vmoptions.html
 [sqlascii]: charsets.html#Using_PLJava_with_server_encoding_SQL_ASCII
 [addm]: ../install/vmoptions.html#Adding_to_the_set_of_readable_modules
+[condex]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/package-summary.html#conditional-execution-in-the-deployment-descriptor-heading
+[policy]: policy.html
+[unenforced]: unenforced.html
+[mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html
+[smprop]: ../install/smproperty.html

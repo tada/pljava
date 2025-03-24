@@ -63,7 +63,8 @@ where `${pgversion}` resembles `pg16`. The jar contains these things:
 `pljava/sysconfdir/pljava.policy`
 : Policy file defining the Java permissions granted to the languages `java`
     and `javaU`, to any custom language aliases, or to specific jars, as
-    described [here][policy].
+    described [here][policy]. Unused if PL/Java is run
+    [without policy enforcement][nopolicy].
 
 It could happen that future versions add more files in the jar before
 updating this page. Also, every jar file has a `MANIFEST.MF`, and this
@@ -78,6 +79,7 @@ as described [here][node].
 [examples]: ../examples/examples.html
 [node]: ../develop/node.html
 [policy]: ../use/policy.html
+[nopolicy]: ../use/unenforced.html
 
 Extract the needed files from this archive and place them in appropriate
 locations, then complete the [installation][inst].

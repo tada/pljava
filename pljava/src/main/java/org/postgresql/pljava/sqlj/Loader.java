@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,8 @@ import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import java.security.CodeSigner;
@@ -130,7 +132,7 @@ public class Loader extends ClassLoader
 			return entryURL(m_entryIds[m_top++]);
 		}
 	}
-	private static final Identifier.Simple PUBLIC_SCHEMA =
+	public static final Identifier.Simple PUBLIC_SCHEMA =
 		Identifier.Simple.fromCatalog("public");
 
 	private static final Map<Identifier.Simple, ClassLoader>
@@ -229,7 +231,7 @@ public class Loader extends ClassLoader
 			{
 				while(rs.next())
 				{
-					URL jarUrl = new URL("sqlj:" + rs.getString(2));
+					URL jarUrl = new URI("sqlj", rs.getString(2), null).toURL();
 					CodeSource cs = new CodeSource(jarUrl, (CodeSigner[])null);
 
 					inner.setInt(1, rs.getInt(1));
@@ -255,7 +257,7 @@ public class Loader extends ClassLoader
 					}
 				}
 			}
-			catch ( MalformedURLException e )
+			catch ( URISyntaxException | MalformedURLException e )
 			{
 				throw unchecked(e);
 			}
@@ -353,12 +355,14 @@ public class Loader extends ClassLoader
 	{
 		try
 		{
-			return doPrivileged(() -> new URL(
+			@SuppressWarnings("deprecation") // Java >= 20: URL.of(uri,handler)
+			URL u = doPrivileged(() -> new URL(
 					"dbf",
 					"localhost",
 					-1,
 					"/" + entryId,
 					EntryStreamHandler.getInstance()));
+			return u;
 		}
 		catch(MalformedURLException e)
 		{

@@ -453,4 +453,4 @@ a complaint from the `netty` library about Java (correctly!) denying it access
 to private internals.
 
 [jshell]: https://docs.oracle.com/en/java/javase/15/jshell/introduction-jshell.html
-[nodeapi]: ../pljava-packaging/apidocs/org/postgresql/pljava/packaging/Node.html#method.summary
+[nodeapi]: ../pljava-packaging/apidocs/org/postgresql/pljava/packaging/Node.html#method-summary

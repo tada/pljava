@@ -1,0 +1,614 @@
+/*
+ * Copyright (c) 2020-2025 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Chapman Flack
+ *   Kartik Ohri
+ *
+ * This jshell script performs basic integration tests for PL/Java's CI.
+ *
+ * It must be executed with the built PL/Java packaged jar (produced by the
+ * pljava-packaging subproject) on the classpath, as well as a PGJDBC or
+ * pgjdbc-ng full jar. The PL/Java packaged jar includes a Node.class
+ * exporting functions not unlike the Perl module once called PostgresNode
+ * (and now called PostgreSQL::Test::Cluster) in the PostgreSQL distribution.
+ * The javadocs for Node.class explain the available functions.
+ *
+ * When jshell runs this script with -execution local, it needs both a
+ * --class-path and a -J--class-path argument. The former need only contain
+ * the PL/Java jar itself, so the contents are visible to jshell. The -J version
+ * passed to the underlying JVM needs both that jar and the PGJDBC or pgjdbc-ng
+ * driver jar. The driver classes need not be visible to jshell, but the JVM
+ * must be able to find them.
+ *
+ * Tests included in this script require
+ *   -J--add-modules=java.sql.rowset,jdk.httpserver
+ * on the jshell command line.
+ *
+ * These Java properties must be set (as with -J-Dpgconfig=...) on the jshell
+ * command line:
+ *
+ * pgconfig
+ *   the path to the pg_config executable that will be used to locate
+ *   the PostgreSQL installation to be used in the tests
+ * mavenRepo
+ *   the topmost directory of the local Maven repository. The Saxon jar
+ *   downloaded as a dependency (when -Psaxon-examples was used on the mvn
+ *   command line for building) will be found in this repository
+ * saxonVer
+ *   the version of the Saxon library to use (appears in the library jar
+ *   file name and as the name of its containing directory in the repository)
+ *
+ * These properties are optional (their absence is equivalent to a setting
+ * of false):
+ *
+ * redirectError
+ *   if true, the standard error stream from the tests will be merged into
+ *   the standard output stream. This can be desirable if this script is
+ *   invoked from Windows PowerShell, which believes a standard error stream
+ *   should only carry Error Records and makes an awful mess of anything else.
+ * extractFiles
+ *   if true, begin by extracting and installing the PL/Java files from the jar
+ *   into the proper locations indicated by the pg_config executable. If false,
+ *   extraction will be skipped, assumed to have been done in a separate step
+ *   simply running java -jar on the PL/Java packaged jar. Doing the extraction
+ *   here can be useful, if this script is run with the needed permissions to
+ *   write in the PostgreSQL install locations, when combined with redirectError
+ *   if running under PowerShell, which would otherwise mess up the output.
+ *
+ * The script does not (yet) produce output in any standardized format such as
+ * TAP. The output will include numerous <success>, <info>, <warning>, or
+ * <error> elements. If it runs to completion there will be a line with counts
+ * for info, warning, error, and ng. The count of ng results includes errors
+ * and certain warnings. The tests that are run from the deployment descriptor
+ * of the pljava-examples jar report test failures as warnings (to avoid cutting
+ * short the test as an error would), so those warnings are counted in ng.
+ *
+ * jshell will exit with a nonzero status if ng > 0 or anything else was seen
+ * to go wrong or the script did not run to completion.
+ */
+boolean succeeding = false; // begin pessimistic
+
+boolean redirectError = Boolean.getBoolean("redirectError");
+
+if ( redirectError )
+  System.setErr(System.out); // PowerShell makes a mess of stderr output
+
+UnaryOperator<ProcessBuilder> tweaks =
+  redirectError ? p -> p.redirectErrorStream(true) : UnaryOperator.identity();
+
+import static java.nio.file.Files.createTempFile;
+import static java.nio.file.Files.write;
+import java.nio.file.Path;
+import static java.nio.file.Paths.get;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import org.postgresql.pljava.packaging.Node;
+import static org.postgresql.pljava.packaging.Node.q;
+import static org.postgresql.pljava.packaging.Node.stateMachine;
+import static org.postgresql.pljava.packaging.Node.isVoidResultSet;
+import static org.postgresql.pljava.packaging.Node.s_isWindows;
+import static
+  org.postgresql.pljava.packaging.Node.NOTHING_OR_PGJDBC_ZERO_COUNT;
+/*
+ * Imports that will be needed to serve a jar file over http
+ * when the time comes for testing that.
+ */
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
+import com.sun.net.httpserver.BasicAuthenticator;
+import com.sun.net.httpserver.HttpContext;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+
+if ( Boolean.getBoolean("extractFiles") )
+  Node.main(new String[0]); // extract the files
+
+String javaHome = System.getProperty("java.home");
+
+Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib");
+
+Path libjvm = (
+  "Mac OS X".equals(System.getProperty("os.name"))
+  ? Stream.of("libjli.dylib", "jli/libjli.dylib")
+    .map(s -> javaLibDir.resolve(s))
+    .filter(Files::exists).findFirst().get()
+  : javaLibDir.resolve(s_isWindows ? "server\\jvm.dll" : "server/libjvm.so")
+);
+
+// Use deprecated major() here because feature() first appears in Java 10
+int jFeatureVersion = Runtime.version().major();
+
+String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
+
+vmopts += " --limit-modules=org.postgresql.pljava.internal";
+
+if ( 24 <= jFeatureVersion ) {
+  vmopts += " -Djava.security.manager=disallow"; // JEP 486
+} else if ( 18 <= jFeatureVersion )
+  vmopts += " -Djava.security.manager=allow"; // JEP 411
+
+if ( 23 <= jFeatureVersion )
+  vmopts += " --sun-misc-unsafe-memory-access=deny"; // JEP 471
+
+if ( 24 <= jFeatureVersion )
+  vmopts += " --illegal-native-access=deny"; // JEP 472
+
+Map<String,String> serverOptions = new HashMap<>(Map.of(
+  "client_min_messages", "info",
+  "pljava.vmoptions", vmopts,
+  "pljava.libjvm_location", libjvm.toString()
+));
+if ( 24 <= jFeatureVersion ) {
+  serverOptions.put("pljava.allow_unenforced", "java,java_tzset");
+  serverOptions.put("pljava.allow_unenforced_udt", "on");
+}
+
+Node n1 = Node.get_new_node("TestNode1");
+
+if ( s_isWindows )
+  n1.use_pg_ctl(true);
+
+/*
+ * Keep a tally of the three types of diagnostic notices that may be
+ * received, and, independently, how many represent no-good test results
+ * (error always, but also warning if seen from the tests in the
+ * examples.jar deployment descriptor).
+ */
+Map<String,Integer> results =
+  Stream.of("info", "warning", "error", "ng").collect(
+    LinkedHashMap<String,Integer>::new,
+    (m,k) -> m.put(k, 0), (r,s) -> {});
+
+boolean isDiagnostic(Object o, Set<String> whatIsNG)
+{
+  if ( ! ( o instanceof Throwable ) )
+    return false;
+  String[] parts = Node.classify((Throwable)o);
+  String type = parts[0];
+  String message = parts[2];
+  results.compute(type, (k,v) -> 1 + v);
+  if ( whatIsNG.contains(type) )
+    if ( ! "warning".equals(type)  ||  ! message.startsWith("[JEP 411]") )
+      results.compute("ng", (k,v) -> 1 + v);
+  return true;
+}
+
+/*
+ * Write a trial policy into a temporary file in n's data_dir,
+ * and set pljava.vmoptions accordingly over connection c.
+ * Returns the 'succeeding' flag from the state machine looking
+ * at the command results.
+ */
+boolean useTrialPolicy(Node n, Connection c, List<String> contents)
+throws Exception
+{
+  Path trialPolicy =
+    createTempFile(n.data_dir().getParent(), "trial", "policy");
+
+  write(trialPolicy, contents);
+
+  PreparedStatement setVmOpts = c.prepareStatement(
+    "SELECT null::pg_catalog.void" +
+    " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
+  );
+
+  setVmOpts.setString(1, vmopts +
+    " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
+
+  return stateMachine(
+    "change pljava.vmoptions",
+    null,
+
+    q(setVmOpts, setVmOpts::execute)
+    .flatMap(Node::semiFlattenDiagnostics)
+    .peek(Node::peek),
+
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+    (o,p,q) -> null == o
+  );
+}
+
+try (
+  AutoCloseable t1 = n1.initialized_cluster(tweaks);
+  AutoCloseable t2 = n1.started_server(serverOptions, tweaks);
+)
+{
+  int pgMajorVersion;
+
+  try ( Connection c = n1.connect() )
+  {
+    pgMajorVersion = c.getMetaData().getDatabaseMajorVersion();
+
+    succeeding = true; // become optimistic, will be using &= below
+
+    succeeding &= stateMachine(
+      "create extension no result",
+      null,
+
+      q(c, "CREATE EXTENSION pljava")
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      // state 1: consume any diagnostics, or to state 2 with same item
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+
+      NOTHING_OR_PGJDBC_ZERO_COUNT, // state 2
+
+      // state 3: must be end of input
+      (o,p,q) -> null == o
+    );
+  }
+
+  /*
+   * Get a new connection; 'create extension' always sets a near-silent
+   * logging level, and PL/Java only checks once at VM start time, so in
+   * the same session where 'create extension' was done, logging is
+   * somewhat suppressed.
+   */
+  try ( Connection c = n1.connect() )
+  {
+    succeeding &= stateMachine(
+      "saxon path examples path",
+      null,
+
+      Node.installSaxonAndExamplesAndPath(c,
+        System.getProperty("mavenRepo"),
+        System.getProperty("saxonVer"),
+        true)
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      // states 1,2: diagnostics* then a void result set (saxon install)
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+      (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+
+      // states 3,4: diagnostics* then a void result set (set classpath)
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 3 : -4,
+      (o,p,q) -> isVoidResultSet(o, 1, 1) ? 5 : false,
+
+      // states 5,6: diagnostics* then void result set (example install)
+      (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 5 : -6,
+      (o,p,q) -> isVoidResultSet(o, 1, 1) ? 7 : false,
+
+      // states 7,8: diagnostics* then a void result set (set classpath)
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 7 : -8,
+      (o,p,q) -> isVoidResultSet(o, 1, 1) ? 9 : false,
+
+      // state 9: must be end of input
+      (o,p,q) -> null == o
+    );
+
+    /*
+     * Exercise TrialPolicy some. Need another connection to change
+     * vmoptions. Uses some example functions, so insert here before the
+     * test of undeploying the examples.
+     */
+    try ( Connection c2 = n1.connect() )
+    {
+      succeeding &= useTrialPolicy(n1, c2, List.of(
+        "grant {",
+        "  permission",
+        "    org.postgresql.pljava.policy.TrialPolicy$Permission;",
+        "};"
+      ));
+
+      PreparedStatement tryForbiddenRead = c2.prepareStatement(
+        "SELECT" +
+        "  CASE WHEN javatest.java_getsystemproperty('java.home')" +
+        "    OPERATOR(pg_catalog.=) ?" +
+        "  THEN javatest.logmessage('INFO', 'trial policy test ok')" +
+        "  ELSE javatest.logmessage('WARNING', 'trial policy test ng')" +
+        "  END"
+      );
+
+      tryForbiddenRead.setString(1, javaHome);
+
+      succeeding &= stateMachine(
+        "try to read a forbidden property",
+        null,
+
+        q(tryForbiddenRead, tryForbiddenRead::execute)
+        .flatMap(Node::semiFlattenDiagnostics)
+        .peek(Node::peek),
+
+        (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 1 : -2,
+        (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+        (o,p,q) -> null == o
+      );
+      // done with connection c2
+    }
+
+    /*
+     * Spin up an http server with a little jar file to serve, and test
+     * that install_jar works with an http: url.
+     *
+     * First make a little jar empty but for a deployment descriptor.
+     */
+    String ddrName = "foo.ddr";
+    Attributes a = new Attributes();
+    a.putValue("SQLJDeploymentDescriptor", "TRUE");
+    Manifest m = new Manifest();
+    m.getEntries().put(ddrName, a);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    JarOutputStream jos = new JarOutputStream(baos, m);
+    jos.putNextEntry(new ZipEntry(ddrName));
+    jos.write(
+      (
+        "SQLActions[]={\n\"BEGIN INSTALL\n" +
+        "SELECT javatest.logmessage('INFO'," +
+        " 'jar installed from http');\n" +
+        "END INSTALL\",\n\"BEGIN REMOVE\n" +
+        "BEGIN dummy\n" +
+        "END dummy;\n" +
+        "END REMOVE\"\n}\n"
+      ).getBytes(UTF_8)
+    );
+    jos.closeEntry();
+    jos.close();
+    byte[] jar = baos.toByteArray();
+
+    /*
+     * Now an http server.
+     */
+    HttpServer hs =
+      HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+
+    try (
+      Connection c2 = n1.connect();
+      AutoCloseable t = ((Supplier<AutoCloseable>)() ->
+        {
+          hs.start();
+          return () -> hs.stop(0);
+        }
+      ).get()
+    )
+    {
+      InetSocketAddress addr = hs.getAddress();
+
+      String id = "bar", pw = "baz";
+
+      URL u = new URI(
+        "http", id+':'+pw, addr.getHostString(), addr.getPort(),
+        "/foo.jar", null, null
+      ).toURL();
+
+      HttpContext hc = hs.createContext(
+        u.getPath(),
+        new HttpHandler()
+        {
+          @Override
+          public void handle(HttpExchange t) throws IOException
+          {
+            try ( InputStream is = t.getRequestBody() ) {
+              is.readAllBytes();
+            }
+            t.getResponseHeaders().add(
+              "Content-Type", "application/java-archive");
+            t.sendResponseHeaders(200, jar.length);
+            try ( OutputStream os = t.getResponseBody() ) {
+              os.write(jar);
+            }
+          }
+        }
+      );
+
+      hc.setAuthenticator(
+        new BasicAuthenticator("CI realm")
+        // ("CI realm", UTF_8) only available in Java 14 or later
+        {
+          @Override
+          public boolean checkCredentials(String c_id, String c_pw)
+          {
+              return id.equals(c_id) && pw.equals(c_pw);
+          }
+        }
+      );
+
+      succeeding &= useTrialPolicy(n1, c2, List.of(
+        "grant codebase \"${org.postgresql.pljava.codesource}\" {",
+        "  permission",
+        "    java.net.URLPermission \"http:*\", \"GET:Accept\";",
+        "};"
+      ));
+
+      succeeding &= stateMachine(
+        "install a jar over http",
+        null,
+
+        Node.installJar(c2, u.toString(), "foo", true)
+        .flatMap(Node::semiFlattenDiagnostics)
+        .peek(Node::peek),
+
+        (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 1 : -2,
+        (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+        (o,p,q) -> null == o
+      );
+
+      // done with connection c2 again, and the http server
+    }
+
+    /*
+     * Also confirm that the generated undeploy actions work.
+     */
+    succeeding &= stateMachine(
+      "remove jar void result",
+      null,
+
+      q(c, "SELECT sqlj.remove_jar('examples', true)")
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+      (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+      (o,p,q) -> null == o
+    );
+
+    /*
+     * Get another new connection and make sure the extension can be
+     * loaded in a non-superuser session.
+     */
+    try ( Connection c2 = n1.connect() )
+    {
+      succeeding &= stateMachine(
+        "become non-superuser",
+        null,
+
+        q(c2,
+          "CREATE ROLE alice;" +
+          "GRANT USAGE ON SCHEMA sqlj TO alice;" +
+          "SET SESSION AUTHORIZATION alice")
+        .flatMap(Node::semiFlattenDiagnostics)
+        .peek(Node::peek),
+
+        (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+        NOTHING_OR_PGJDBC_ZERO_COUNT,
+        NOTHING_OR_PGJDBC_ZERO_COUNT,
+        NOTHING_OR_PGJDBC_ZERO_COUNT,
+        (o,p,q) -> null == o
+      );
+
+      succeeding &= stateMachine(
+        "load as non-superuser",
+        null,
+
+        q(c2, "SELECT null::pg_catalog.void" +
+              " FROM sqlj.get_classpath('public')")
+        .flatMap(Node::semiFlattenDiagnostics)
+        .peek(Node::peek),
+
+        (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+        (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+        (o,p,q) -> null == o
+      );
+      // done with connection c2 again
+    }
+
+    /*
+     * Make sure the extension drops cleanly and nothing
+     * is left in sqlj.
+     */
+    succeeding &= stateMachine(
+      "drop extension and schema no result",
+      null,
+
+      q(c, "DROP EXTENSION pljava;DROP SCHEMA sqlj")
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+      NOTHING_OR_PGJDBC_ZERO_COUNT,
+      NOTHING_OR_PGJDBC_ZERO_COUNT,
+      (o,p,q) -> null == o
+    );
+  }
+
+  /*
+   * Get another new connection and confirm that the old, pre-extension,
+   * LOAD method of installing PL/Java works. It is largely obsolete in
+   * the era of extensions, but still covers the use case of installing
+   * PL/Java without admin access on the server filesystem to where
+   * CREATE EXTENSION requires the files to be; they can still be
+   * installed in some other writable location the server can read, and
+   * pljava.module_path set to the right locations of the jars, and the
+   * correct shared-object path given to LOAD.
+   *
+   * Also test the after-the-fact packaging up with CREATE EXTENSION
+   * FROM unpackaged. That officially goes away in PG 13, where the
+   * equivalent sequence
+   *  CREATE EXTENSION pljava VERSION unpackaged
+   *  \c
+   *  ALTER EXTENSION pljava UPDATE
+   * should be tested instead.
+   */
+  try ( Connection c = n1.connect() )
+  {
+    succeeding &= stateMachine(
+      "load as non-extension",
+      null,
+
+      Node.loadPLJava(c)
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+      NOTHING_OR_PGJDBC_ZERO_COUNT,
+      (o,p,q) -> null == o
+    );
+
+    if ( 13 <= pgMajorVersion )
+    {
+      succeeding &= stateMachine(
+        "create unpackaged (PG >= 13)",
+        null,
+
+        q(c, "CREATE EXTENSION pljava VERSION unpackaged")
+        .flatMap(Node::semiFlattenDiagnostics)
+        .peek(Node::peek),
+
+        (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+        NOTHING_OR_PGJDBC_ZERO_COUNT,
+        (o,p,q) -> null == o
+      );
+    }
+  }
+
+  /*
+   * CREATE EXTENSION FROM unpackaged (or the second half of the
+   * PG >= 13 CREATE EXTENSION VERSION unpackaged;ALTER EXTENSION UPDATE
+   * sequence) has to happen over a new connection.
+   */
+  try ( Connection c = n1.connect() )
+  {
+    succeeding &= stateMachine(
+      "package after loading",
+      null,
+
+      q(c, 13 > pgMajorVersion
+        ? "CREATE EXTENSION pljava FROM unpackaged"
+        :  "ALTER EXTENSION pljava UPDATE")
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+      NOTHING_OR_PGJDBC_ZERO_COUNT,
+      (o,p,q) -> null == o
+    );
+
+    /*
+     * Again make sure extension drops cleanly with nothing left behind.
+     */
+    succeeding &= stateMachine(
+      "drop extension and schema no result",
+      null,
+
+      q(c, "DROP EXTENSION pljava;DROP SCHEMA sqlj")
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+      NOTHING_OR_PGJDBC_ZERO_COUNT,
+      NOTHING_OR_PGJDBC_ZERO_COUNT,
+      (o,p,q) -> null == o
+    );
+  }
+} catch ( Throwable t )
+{
+  succeeding = false;
+  throw t;
+}
+
+System.out.println(results);
+succeeding &= (0 == results.get("ng"));
+System.exit(succeeding ? 0 : 1);

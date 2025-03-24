@@ -463,6 +463,6 @@ From here, consider:
 * The user guide pages [on the wiki][uwik]
 * The many pre-built [examples][]
 
-[pljapi]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description
+[pljapi]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/package-summary.html#package-description
 [uwik]: https://github.com/tada/pljava/wiki/User-guide
 [examples]: ../examples/examples.html

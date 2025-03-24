@@ -1,13 +1,22 @@
 # Versions of external packages needed to build and use PL/Java
 
-As of fall 2024, the following version constraints are known.
+As of spring 2025, the following version constraints are known.
 
 ## Java
 
 No version of Java before 9 is supported. The PL/Java code
 makes use of Java features first appearing in Java 9.
 
-As for later versions of Java, backward compatibility in the language is
+PL/Java's [security policy enforcement][policy] is available only when the Java
+version at run time is 9 through 23. On Java 24 or later runtime, PL/Java 1.6.x
+can only run [with no policy enforcement][nopolicy]. This is independed of
+the Java version used at build time, and so the availability of enforcement
+can be changed at any time after building, by changing the
+`pljava.libjvm_location` [configuration variable][jvml] to point to a Java
+shared object of a different version.
+
+Other than the loss of policy enforcement in Java 24, backward compatibility
+in the language is
 generally good. Before Java 8, most likely problem areas with a new Java
 version tended to be additions to the JDBC API that PL/Java had not yet
 implemented. Since Java 8, even JDBC additions have not caused problems for
@@ -67,6 +76,6 @@ The PL/Java 1.6 series does not support PostgreSQL earlier than 9.5.
 More current PostgreSQL versions, naturally, are the focus of development
 and receive more attention in testing.
 
-PL/Java 1.6.8 has been successfully built and run on at least one platform
+PL/Java 1.6.9 has been successfully built and run on at least one platform
 with PostgreSQL versions from 17 to 9.5, the latest maintenance
 release for each.
