@@ -19,6 +19,8 @@ import java.lang.annotation.Native;
 
 import java.nio.ByteBuffer;
 
+import java.security.Permission;
+
 import java.sql.SQLException;
 import java.sql.SQLDataException;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import org.postgresql.pljava.elog.ELogHandler; // for javadoc
 
@@ -55,6 +58,8 @@ public class Backend
 
 	public static final boolean WITHOUT_ENFORCEMENT =
 		"disallow".equals(System.getProperty("java.security.manager"));
+
+	public static final Consumer<Permission> CHECKER;
 
 	@SuppressWarnings("deprecation") // Java >= 10: .feature()
 	static final int JAVA_MAJOR = Runtime.version().major();
@@ -93,6 +98,9 @@ public class Backend
 		ByteBuffer[] bs = EarlyNatives._window(ByteBuffer.class);
 		ByteBuffer cfb = bs[check_function_bodies];
 		validateBodies = () -> 0 != doInPG(() -> cfb.get(0));
+
+		CHECKER =
+			WITHOUT_ENFORCEMENT ? p -> {} : EntryPoints.permissionChecker();
    }
 
 	private static final Pattern s_gucList = Pattern.compile(String.format(

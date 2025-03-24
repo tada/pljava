@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -26,7 +26,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 
-import java.security.AccessController;
 import java.security.Permission;
 import java.security.PermissionCollection;
 
@@ -43,6 +42,7 @@ import static java.util.Objects.requireNonNull;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import org.postgresql.pljava.adt.spi.AbstractType;
@@ -500,7 +500,7 @@ public abstract class Adapter<T,U> implements Visible
 	@SuppressWarnings("removal") // JEP 411
 	private static void checkAllowed()
 	{
-		AccessController.checkPermission(Permission.INSTANCE);
+		Service.CHECKER.accept(Permission.INSTANCE);
 	}
 
 	/**
@@ -1748,6 +1748,7 @@ public abstract class Adapter<T,U> implements Visible
 	public static abstract class Service
 	{
 		static final Service INSTANCE;
+		static final Consumer<java.security.Permission> CHECKER;
 
 		static
 		{
@@ -1755,6 +1756,7 @@ public abstract class Adapter<T,U> implements Visible
 				Service.class.getModule().getLayer(), Service.class)
 				.findFirst().orElseThrow(() -> new ServiceConfigurationError(
 					"could not load PL/Java Adapter.Service"));
+			CHECKER = INSTANCE.permissionChecker();
 		}
 
 		static <TA,TI>
@@ -1776,6 +1778,13 @@ public abstract class Adapter<T,U> implements Visible
 		protected abstract <TA,TI>
 			Array<TA> buildArrayAdapterImpl(
 				ArrayBuilder<TA,TI> builder, TypeWrapper w);
+
+		/**
+		 * Returns a permission checker appropriate to whether PL/Java is
+		 * running with enforcement or not.
+		 */
+		protected abstract
+			Consumer<java.security.Permission> permissionChecker();
 
 		/**
 		 * An upcall from the implementation layer to obtain the

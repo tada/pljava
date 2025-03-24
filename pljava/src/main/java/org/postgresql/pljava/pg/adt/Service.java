@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,11 +13,15 @@ package org.postgresql.pljava.pg.adt;
 
 import java.lang.reflect.Type;
 
+import java.security.Permission;
+
 import java.sql.SQLException;
 import java.sql.SQLDataException;
 
 import static java.util.Arrays.copyOf;
 import static java.util.Objects.requireNonNull;
+
+import java.util.function.Consumer;
 
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.Adapter.Array;
@@ -36,6 +40,8 @@ import org.postgresql.pljava.Adapter.TypeWrapper;
 import org.postgresql.pljava.adt.spi.AbstractType.MultiArray;
 import org.postgresql.pljava.adt.spi.AbstractType.MultiArray.Sized.Allocated;
 
+import org.postgresql.pljava.internal.Backend;
+
 import org.postgresql.pljava.model.TupleTableSlot.Indexed;
 
 /**
@@ -52,6 +58,12 @@ public final class Service extends Adapter.Service
 	{
 		return staticBuildArrayAdapter(
 			builder, adapter(builder), multiArray(builder), requireNonNull(w));
+	}
+
+	@Override
+	protected Consumer<Permission> permissionChecker()
+	{
+		return Backend.CHECKER;
 	}
 
 	/**
