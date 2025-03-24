@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -644,8 +644,7 @@ public class PassXML implements SQLData
 			 * for setting the Transformer to use the server encoding.
 			 */
 			if ( rlt instanceof StreamResult )
-				t.setOutputProperty(ENCODING,
-					System.getProperty("org.postgresql.server.encoding"));
+				t.setOutputProperty(ENCODING, SERVER_ENCODING.charset().name());
 			else if ( Boolean.TRUE.equals(indent) )
 				logMessage("WARNING",
 					"indent requested, but howout specifies a non-stream " +

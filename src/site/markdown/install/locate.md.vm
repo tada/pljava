@@ -31,11 +31,9 @@ work with a `.jar` file no matter what.
 
 Relative to the root of the build tree, the jar file is found at
 
-`pljava-packaging/target/pljava-${pgversion}-${naraol}.jar`
+`pljava-packaging/target/pljava-${pgversion}.jar`
 
-where `${pgversion}` resembles `pg9.4` and `${naraol}` is an
-*architecture-os-linker* triple, for example `amd64-Linux-gpp`
-or `amd64-Windows-msvc`. It contains these things:
+where `${pgversion}` resembles `pg16`. The jar contains these things:
 
 `pljava/pkglibdir/libpljava-\${project.version}.so` (or `.dll`, etc.)
 : The architecture-dependent, native library portion of the PL/Java
@@ -62,13 +60,26 @@ or `amd64-Windows-msvc`. It contains these things:
 : Various files scripting what `CREATE EXTENSION` or
     `ALTER EXTENSION ... UPDATE` really do.
 
+`pljava/sysconfdir/pljava.policy`
+: Policy file defining the Java permissions granted to the languages `java`
+    and `javaU`, to any custom language aliases, or to specific jars, as
+    described [here][policy]. Unused if PL/Java is run
+    [without policy enforcement][nopolicy].
+
 It could happen that future versions add more files in the jar before
 updating this page. Also, every jar file has a `MANIFEST.MF`, and this
 file also contains a `JarX.class` to make it self-extracting; these are
 not otherwise important to PL/Java. See the [installation page][inst]
 for how to control the self-extraction.
 
+Another file, `Node.class`, present in this jar is also unimportant for
+normal installation, but provides some facilities for automated testing,
+as described [here][node].
+
 [examples]: ../examples/examples.html
+[node]: ../develop/node.html
+[policy]: ../use/policy.html
+[nopolicy]: ../use/unenforced.html
 
 Extract the needed files from this archive and place them in appropriate
 locations, then complete the [installation][inst].
@@ -112,11 +123,8 @@ $h3 The architecture-dependent PL/Java native library
 This is built by the `pljava-so` subproject. Its filename extension can depend
 on the operating system: `.so` on many systems, `.dll` on Windows, `.bundle` on
 Mac OS X / Darwin. Relative to the source root where the build was performed, it
-is at the end of a long and redundant path that contains the project version
-(twice), an "architecture-OS-linker" string (twice), and a build type
-("plugin"), also twice.
+is found in the `pljava-so/pljava-pgxs` directory.
 
-An example, for version `${project.version}` and arch-os-linker of
-`amd64-Linux-gpp` is (very deep breath):
+An example for version `${project.version}` is:
 
-`pljava-so/target/nar/pljava-so-${project.version}-amd64-Linux-gpp-plugin/lib/amd64-Linux-gpp/plugin/libpljava-so-${project.version}.so`
+`pljava-so/pljava-pgxs/libpljava-so-${project.version}.so`

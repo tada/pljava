@@ -119,7 +119,7 @@ individual projects with shorter `pom.xml` files naming this as the parent.
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.8.1</version>
+        <version>3.10.1</version>
         <configuration>
           <release>9</release>
         </configuration>
@@ -127,7 +127,7 @@ individual projects with shorter `pom.xml` files naming this as the parent.
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>2.6</version>
+        <version>3.3.0</version>
         <configuration>
           <archive>
             <manifest>
@@ -463,6 +463,6 @@ From here, consider:
 * The user guide pages [on the wiki][uwik]
 * The many pre-built [examples][]
 
-[pljapi]: ../pljava-api/apidocs/index.html?org/postgresql/pljava/package-summary.html#package_description
+[pljapi]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/package-summary.html#package-description
 [uwik]: https://github.com/tada/pljava/wiki/User-guide
 [examples]: ../examples/examples.html

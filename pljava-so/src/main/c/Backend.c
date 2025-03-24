@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -117,7 +117,9 @@ static char* vmoptions;
 static char* modulepath;
 static char* implementors;
 static char* policy_urls;
+static char* allow_unenforced;
 static int   statementCacheSize;
+static bool  allow_unenforced_udt;
 static bool  pljavaDebug;
 static bool  pljavaReleaseLingeringSavepoints;
 static bool  pljavaEnabled;
@@ -144,11 +146,29 @@ extern void Session_initialize(void);
 extern void PgSavepoint_initialize(void);
 extern void XactListener_initialize(void);
 extern void SubXactListener_initialize(void);
+extern void SQLChunkIOOrder_initialize(void);
 extern void SQLInputFromChunk_initialize(void);
 extern void SQLOutputToChunk_initialize(void);
 extern void SQLOutputToTuple_initialize(void);
 
 
+/*
+ * These typedefs are not exposed in Java's jni.h. Apparently you are supposed
+ * to be really determined if you want to use them. These are copy/pasted from
+ * src/hotspot/share/runtime/arguments.hpp. One silver lining is that they can
+ * be spelled here without the * used in the original, enabling them to be used
+ * succinctly to declare matching prototypes.
+ */
+typedef void JNICALL abort_hook_t(void);
+typedef void JNICALL exit_hook_t(jint code);
+typedef jint JNICALL vfprintf_hook_t(FILE *fp, const char *fmt, va_list args)
+	pg_attribute_printf(2, 0);
+
+/*
+ * This private type is used here as a dynamically-sized list of JavaVMOption,
+ * which will later be copied to a struct of type JavaVMInitArgs (a type that
+ * jni.h does expose).
+ */
 typedef struct {
 	JavaVMOption* options;
 	unsigned int  size;
@@ -164,8 +184,9 @@ static void JVMOptList_addVisualVMName(JVMOptList*);
 static void JVMOptList_addModuleMain(JVMOptList*);
 static void addUserJVMOptions(JVMOptList*);
 static char* getModulePath(const char*);
-static jint JNICALL my_vfprintf(FILE*, const char*, va_list)
-	pg_attribute_printf(2, 0);
+static abort_hook_t my_abort;
+static exit_hook_t my_exit;
+static vfprintf_hook_t my_vfprintf;
 static void _destroyJavaVM(int, Datum);
 static void initPLJavaClasses(void);
 static void initJavaSession(void);
@@ -209,6 +230,7 @@ static bool seenModuleMain;
 static char const visualVMprefix[] = "-Dvisualvm.display.name=";
 static char const moduleMainPrefix[] = "-Djdk.module.main=";
 static char const policyUrlsGUC[] = "pljava.policy_urls";
+static char const unenforcedGUC[] = "pljava.allow_unenforced";
 
 /*
  * In a background worker, _PG_init may be called very early, before much of
@@ -235,6 +257,15 @@ static bool deferInit = false;
 static bool warnJEP411 = true;
 
 /*
+ * Becomes true upon initialization of the Backend class if the Java property
+ * setting java.security.manager=disallow was explicitly in pljava.vmoptions.
+ * That is how to request the fallback nothing-is-enforced mode of operation
+ * that is the only mode available on Java >= 24. Only when all Java code is
+ * 100% trusted should PL/Java be run in this mode.
+ */
+static bool withoutEnforcement = false;
+
+/*
  * Don't bother with the warning unless the JVM in use is later than Java 11.
  * 11 is the LTS release prior to the one where JEP 411 gets interesting (17).
  * If a site is sticking to LTS releases, there will be plenty of time to warn
@@ -258,6 +289,8 @@ static bool check_modulepath(
 static bool check_policy_urls(
 	char **newval, void **extra, GucSource source);
 static bool check_enabled(
+	bool *newval, void **extra, GucSource source);
+static bool check_allow_unenforced_udt(
 	bool *newval, void **extra, GucSource source);
 static bool check_java_thread_pg_entry(
 	int *newval, void **extra, GucSource source);
@@ -360,6 +393,22 @@ static bool check_enabled(
 	return false;
 }
 
+static bool check_allow_unenforced_udt(
+	bool *newval, void **extra, GucSource source)
+{
+	if ( initstage < IS_PLJAVA_FOUND )
+		return true;
+	if ( *newval  ||  ! allow_unenforced_udt )
+		return true;
+	GUC_check_errmsg(
+		"too late to change \"pljava.allow_unenforced_udt\" setting");
+	GUC_check_errdetail(
+		"Once set, it cannot be reset in the same session.");
+	GUC_check_errhint(
+		"For another chance, exit this session and start a new one.");
+	return false;
+}
+
 static bool check_java_thread_pg_entry(
 	int *newval, void **extra, GucSource source)
 {
@@ -450,6 +499,15 @@ ASSIGNSTRINGHOOK(policy_urls)
 		ASSIGNRETURNIFNXACT(newval);
 		initsequencer( initstage, true);
 	}
+	ASSIGNRETURN(newval);
+}
+
+ASSIGNSTRINGHOOK(allow_unenforced)
+{
+	ASSIGNRETURNIFCHECK(newval);
+	allow_unenforced = (char *)newval;
+	if ( IS_PLJAVA_FOUND < initstage )
+		Function_clearFunctionCache();
 	ASSIGNRETURN(newval);
 }
 
@@ -637,6 +695,8 @@ static void initsequencer(enum initstage is, bool tolerant)
 			JVMOptList_addVisualVMName(&optList);
 		if ( ! seenModuleMain )
 			JVMOptList_addModuleMain(&optList);
+		JVMOptList_add(&optList, "abort", (void*)my_abort, true);
+		JVMOptList_add(&optList, "exit", (void*)my_exit, true);
 		JVMOptList_add(&optList, "vfprintf", (void*)my_vfprintf, true);
 #ifndef GCJ
 		JVMOptList_add(&optList, "-Xrs", 0, true);
@@ -741,7 +801,7 @@ static void initsequencer(enum initstage is, bool tolerant)
 		/*FALLTHROUGH*/
 
 	case IS_PLJAVA_FOUND:
-		greeting = InstallHelper_hello();
+		greeting = InstallHelper_hello(); /*adjusts, freezes system properties*/
 		ereport(NULL != pljavaLoadPath ? NOTICE : DEBUG1, (
 				errmsg("PL/Java loaded"),
 				errdetail("versions:\n%s", greeting)));
@@ -963,6 +1023,11 @@ static void initPLJavaClasses(void)
 		Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension
 		},
 		{
+		"_allowingUnenforcedUDT",
+		"()Z",
+		Java_org_postgresql_pljava_internal_Backend__1allowingUnenforcedUDT
+		},
+		{
 		"_myLibraryPath",
 		"()Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Backend__1myLibraryPath
@@ -1019,6 +1084,10 @@ static void initPLJavaClasses(void)
 	javaGT11 = 11 <  javaMajor;
 	javaGE17 = 17 <= javaMajor;
 
+	fID = PgObject_getStaticJavaField(s_Backend_class,\
+		"WITHOUT_ENFORCEMENT", "Z");
+	withoutEnforcement = JNI_getStaticBooleanField(s_Backend_class, fID);
+
 	fID = PgObject_getStaticJavaField(s_Backend_class,
 		"THREADLOCK", "Ljava/lang/Object;");
 	JNI_setThreadLock(JNI_getStaticObjectField(s_Backend_class, fID));
@@ -1035,6 +1104,7 @@ static void initPLJavaClasses(void)
 	PgSavepoint_initialize();
 	XactListener_initialize();
 	SubXactListener_initialize();
+	SQLChunkIOOrder_initialize(); /* safely caches relevant system properties */
 	SQLInputFromChunk_initialize();
 	SQLOutputToChunk_initialize();
 	SQLOutputToTuple_initialize();
@@ -1048,7 +1118,60 @@ int Backend_setJavaLogLevel(int logLevel)
 	s_javaLogLevel = logLevel;
 	return oldLevel;
 }
-	
+
+static const char DEATH_HINT[] =
+	"Depending on log_min_messages and whether logging_collector is active, "
+	"relevant information may be near this message in the server log. If "
+	"during VM startup, pljava.vmoptions and other pljava.* settings should "
+	"be checked for mistakes or incompatibility with the Java version of the "
+	"library pljava.libjvm_location points to. Causes can include a misspelled "
+	"entry in pljava.module_path or a jar that can't be opened on that path. "
+	"If during \"CREATE EXTENSION pljava\" and there is little information in "
+	"the log, try in a new session with LOAD rather than CREATE EXTENSION.";
+
+static void onJVMExitOrAbort(void);
+
+static void JNICALL my_abort()
+{
+	onJVMExitOrAbort();
+	ereport(FATAL, (
+		errcode(ERRCODE_CLASS_SQLJRT),
+		errmsg("PostgreSQL backend exiting because Java VM requested abort"),
+		errdetail("Abort requested %s.",
+			s_startingVM ? "during VM startup" : "by already started VM"),
+		errhint(DEATH_HINT)
+	));
+}
+
+static void JNICALL my_exit(jint code)
+{
+	onJVMExitOrAbort();
+	ereport(FATAL, (
+		errcode(ERRCODE_CLASS_SQLJRT),
+		errmsg("PostgreSQL backend exiting because Java VM requested exit "
+			"with code %d", (int)code),
+		errdetail("Exit requested %s.",
+			s_startingVM ? "during VM startup" : "by already started VM"),
+		errhint(DEATH_HINT)
+	));
+}
+
+static void onJVMExitOrAbort()
+{
+	/*
+	 * We will later hit the proc_exit handler, which will try to destroy the
+	 * already-gone JVM if this reference is non-null.
+	 */
+	s_javaVM = NULL;
+	/*
+	 * This does a PostgreSQL UnregisterResourceReleaseCallback, which should
+	 * be painless if the callback hasn't been registered yet. The key is to
+	 * avoid triggering a ResourceOwner callback that tries a JNI upcall into
+	 * the already-gone JVM.
+	 */
+	pljava_ResourceOwner_unregister();
+}
+
 /**
  * Special purpose logging function called from JNI when verbose is enabled.
  */
@@ -1303,25 +1426,7 @@ static void terminationTimeoutHandler()
  */
 static void _destroyJavaVM(int status, Datum dummy)
 {
-	if(s_javaVM == 0)
-	{
-		if ( s_startingVM )
-		{
-			ereport(FATAL, (
-				errcode(ERRCODE_INTERNAL_ERROR),
-				errmsg("the Java VM exited while loading PL/Java"),
-				errdetail(
-					"The Java VM's exit forces this session to end."),
-				errhint(
-					"This has been known to happen when the entry in "
-					"pljava.module_path for the pljava-api jar has been "
-					"misspelled or the jar cannot be opened. If "
-					"logging_collector is active, there may be useful "
-					"information in the log.")
-					));
-		}
-	}
-	else
+	if(s_javaVM != 0)
 	{
 		Invocation ctx;
 #ifdef USE_PLJAVA_SIGHANDLERS
@@ -1668,6 +1773,21 @@ static void registerGUCOptions(void)
 		assign_policy_urls,
 		NULL); /* show hook */
 
+	STRING_GUC(
+		unenforcedGUC,
+		"Which PL/Java-based PLs may execute without security enforcement",
+		"List the language names (such as javau) separated by commas. When "
+		"PL/Java is loaded with -Djava.security.manager=disallow (as is "
+		"needed on Java 24 and later), only functions in the languages named "
+		"here can be executed.",
+		&allow_unenforced,
+		NULL, /* boot value */
+		PGC_SUSET,
+		PLJAVA_IMPLEMENTOR_FLAGS | GUC_SUPERUSER_ONLY,
+		NULL, /* check hook */
+		assign_allow_unenforced,
+		NULL); /* show hook */
+
 	BOOL_GUC(
 		"pljava.debug",
 		"Stop the backend to attach a debugger",
@@ -1716,6 +1836,18 @@ static void registerGUCOptions(void)
 		check_enabled, /* check hook */
 		assign_enabled,
 		NULL); /* show hook */
+
+	BOOL_GUC(
+		"pljava.allow_unenforced_udt",
+		"Whether PL/Java-based \"mapped UDT\" data conversion functions are "
+		"allowed to execute without security enforcement",
+		NULL, /* extended description */
+		&allow_unenforced_udt,
+		false, /* boot value */
+		PGC_SUSET,
+		GUC_SUPERUSER_ONLY,    /* flags */
+		check_allow_unenforced_udt, /* check hook */
+		NULL, NULL); /* assign hook, show hook */
 
 	STRING_GUC(
 		"pljava.implementors",
@@ -1926,7 +2058,32 @@ static Datum internalValidator(PG_FUNCTION_ARGS, bool legacy)
 	Oid funcoid = PG_GETARG_OID(0);
 	Invocation ctx;
 
-	if (!CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid))
+	bool ok = CheckFunctionValidatorAccess(fcinfo->flinfo->fn_oid, funcoid);
+	/*
+	 * CheckFunctionValidatorAccess reserves a possible future behavior where
+	 * it returns false and this validator should immediately return. Here we
+	 * abuse that convention slightly by first checking an additional constraint
+	 * on function creation in withoutEnforcing mode. That, arguably, is a check
+	 * that should never be skipped, just like the permission checks made in
+	 * CheckFunctionValidatorAccess itself.
+	 */
+	if ( withoutEnforcement  && ! superuser() )
+		ereport(ERROR, (
+			errmsg(
+				"PL/Java language restricted to superuser when "
+				"\"java.security.manager\"=\"disallow\""),
+			errdetail(
+				"This PL/Java version enforces security policy using important "
+				"Java features that upstream Java has disabled as of Java 24, "
+				"as described in JEP 486. In Java 18 through 23, enforcement is "
+				"still available, but requires "
+				"\"-Djava.security.manager=allow\" in \"pljava.vmoptions\". "
+				"The alternative \"-Djava.security.manager=disallow\" permits "
+				"use on Java 24 and later, but with no enforcement and no "
+				"distinction between trusted and untrusted. In this mode, only "
+				"a superuser may use even a 'trusted' PL/Java language")
+		));
+	if ( ! ok )
 		PG_RETURN_VOID();
 
 	if ( IS_PLJAVA_INSTALLING > initstage )
@@ -2000,7 +2157,7 @@ void Backend_warnJEP411(bool isCommit)
 {
 	static bool warningEmitted = false; /* once only per session */
 
-	if ( warningEmitted  ||  ! warnJEP411 )
+	if ( ! warnJEP411  ||  withoutEnforcement  ||  warningEmitted )
 		return;
 
 	if ( ! isCommit )
@@ -2013,17 +2170,23 @@ void Backend_warnJEP411(bool isCommit)
 
 	ereport(javaGE17 ? WARNING : NOTICE, (
 		errmsg(
-			"[JEP 411] migration advisory: there will be a Java version "
-			"(after Java 17) that will be unable to run PL/Java %s "
-			 "with policy enforcement", SO_VERSION_STRING),
+			"[JEP 411] migration advisory: Java version 24 and later "
+			"cannot run PL/Java %s with policy enforcement", SO_VERSION_STRING),
 		errdetail(
 			"This PL/Java version enforces security policy using important "
-			"Java features that will be phased out in future Java versions. "
-			"Those changes will come in releases after Java 17."),
+			"Java features that upstream Java has disabled as of Java 24, "
+			"as described in JEP 486. In Java 18 through 23, enforcement is "
+			"still available, but requires "
+			"\"-Djava.security.manager=allow\" in \"pljava.vmoptions\". "),
 		errhint(
 			"For migration planning, this version of PL/Java can still "
-			"enforce policy in Java versions up to and including 22, "
+			"enforce policy in Java versions up to and including 23, "
 			"and Java 17 and 21 are positioned as long-term support releases. "
+			"Java 24 and later can be used, if wanted, WITH ABSOLUTELY NO "
+			"EXPECTATIONS OF SECURITY POLICY ENFORCEMENT, by adding "
+			"\"-Djava.security.manager=disallow\" in \"pljava.vmoptions\". "
+			"This mode should be considered only if all Java code to be used "
+			"is considered well vetted and trusted. "
 			"For details on how PL/Java will adapt, please bookmark "
 			"https://github.com/tada/pljava/wiki/JEP-411")
 	));
@@ -2054,10 +2217,21 @@ JNICALL Java_org_postgresql_pljava_internal_Backend__1getConfigOption(JNIEnv* en
 		PG_TRY();
 		{
 			const char *value;
-			if ( 0 == strcmp(policyUrlsGUC, key) )
+			if ( 0 != strncmp(policyUrlsGUC, key, 7) )
+				goto fallback;
+			if ( 0 == strcmp(policyUrlsGUC+7, key+7) )
+			{
 				value = policy_urls;
-			else
-				value = PG_GETCONFIGOPTION(key);
+				goto finish;
+			}
+			if ( 0 == strcmp(unenforcedGUC+7, key+7) )
+			{
+				value = allow_unenforced;
+				goto finish;
+			}
+fallback:
+			value = PG_GETCONFIGOPTION(key);
+finish:
 			pfree(key);
 			if(value != 0)
 				result = String_createJavaStringFromNTS(value);
@@ -2156,6 +2330,17 @@ Java_org_postgresql_pljava_internal_Backend__1isCreatingExtension(JNIEnv *env, j
 	bool inExtension = false;
 	pljavaCheckExtension( &inExtension);
 	return inExtension ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Backend
+ * Method:    _allowingUnenforcedUDT
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_postgresql_pljava_internal_Backend__1allowingUnenforcedUDT(JNIEnv *env, jclass cls)
+{
+	return allow_unenforced_udt;
 }
 
 /*

@@ -688,7 +688,7 @@ the Saxon-HE XML-processing library) provides a partial implementation of true
 `XMLQUERY` and `XMLTABLE` functions for PostgreSQL, using the standard-specified
 XML Query language rather than the XPath 1.0 of the native PostgreSQL functions.
 
-[exxml]: pljava-examples/apidocs/index.html?org/postgresql/pljava/example/annotation/PassXML.html
+[exxml]: pljava-examples/apidocs/org/postgresql/pljava/example/annotation/PassXML.html
 [exsaxon]: examples/saxon.html
 
 $h4 New Java property exposes the PostgreSQL server character-set encoding
@@ -767,7 +767,7 @@ to PostgreSQL, and there has not been a way to suppress the row operation.
 The `TriggerData` interface now has a [`suppress`][tgsuppress] method that
 the trigger can invoke to suppress the operation for the row.
 
-[tgsuppress]: pljava-api/apidocs/index.html?org/postgresql/pljava/TriggerData.html#suppress()
+[tgsuppress]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/TriggerData.html#suppress()
 
 $h4 Constraint triggers
 
@@ -1076,7 +1076,7 @@ functions, triggers, and user-defined types, both base and composite.
 [user]: use/use.html
 [hello]: use/hello.html
 [exanno]: $project.scm.url/pljava-examples/src/main/java/org/postgresql/pljava/example/annotation
-[apianno]: pljava-api/apidocs/index.html?org/postgresql/pljava/annotation/package-summary.html#package_description
+[apianno]: pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/package-summary.html#package-description
 
 The history of this feature in PL/Java is long, with the first related commits
 appearing in 2005, six years in advance of an enhancement request for it.
@@ -1164,7 +1164,7 @@ of major version because the prior API, while deprecated, is still available.
     and ignore the role should be rare, and should be discussed on the mailing
     list or opened as issues.
 
-#set($sessapi = 'pljava-api/apidocs/index.html?org/postgresql/pljava/Session.html#')
+#set($sessapi = 'pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/Session.html#')
 
 [goun]: ${sessapi}getOuterUserName()
 [eaou]: ${sessapi}executeAsOuterUser(java.sql.Connection,java.lang.String)

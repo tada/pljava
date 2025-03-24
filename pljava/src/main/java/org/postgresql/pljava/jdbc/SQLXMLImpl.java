@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -221,6 +221,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 	@Override
 	public void free() throws SQLException
 	{
+		@SuppressWarnings("unchecked") // javac 24 first to warn here
 		V backing = (V)s_backingVH.getAndSet(this, null);
 		if ( null == backing )
 			return;
@@ -302,6 +303,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 
 	protected V backingIfNotFreed() throws SQLException
 	{
+		@SuppressWarnings("unchecked") // javac 24 first to warn here
 		V backing = (V)s_backingVH.getAcquire(this);
 		if ( null == backing )
 			throw new SQLNonTransientException(
@@ -428,6 +430,7 @@ public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 	{
 		if ( null == o )
 			o = this;
+		@SuppressWarnings("unchecked") // javac 24 first to warn here
 		V backing = (V)s_backingVH.getAcquire(this);
 		if ( null != backing )
 			return ((DatumImpl)backing).toString(o);

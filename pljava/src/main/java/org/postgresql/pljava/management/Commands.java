@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -22,6 +22,7 @@ import java.net.Authenticator;
 import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLPermission;
@@ -43,6 +44,7 @@ import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import static java.util.Arrays.fill;
+import static java.util.Objects.requireNonNullElse;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -68,6 +70,7 @@ import org.postgresql.pljava.internal.Oid;
 import static org.postgresql.pljava.internal.Privilege.doPrivileged;
 import static org.postgresql.pljava.jdbc.SQLUtils.getDefaultConnection;
 import org.postgresql.pljava.sqlj.Loader;
+import static org.postgresql.pljava.sqlj.Loader.PUBLIC_SCHEMA;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -448,7 +451,7 @@ public class Commands
 	{
 		try
 		{
-			URL url = new URL(urlString);
+			URL url = new URI(urlString).toURL();
 			URLConnection uc = url.openConnection();
 			uc.setRequestProperty("Accept",
 				"application/java-archive, " +
@@ -498,6 +501,11 @@ public class Commands
 			{
 				addClassImages(jarId, urlStream, sz[0]);
 			}
+		}
+		catch(URISyntaxException e)
+		{
+			throw new SQLException("reading jar file: " +
+				e.toString(), "46001", e);
 		}
 		catch(IOException e)
 		{
@@ -934,7 +942,8 @@ public class Commands
 	 * 
 	 * @param schemaName Name of the schema for which this path is valid.
 	 * @param path Colon separated list of names. Each name must denote the name
-	 *            of a jar that is present in the jar repository.
+	 *            of a jar that is present in the jar repository. An empty
+	 *            string or null equivalently set no class path for the schema.
 	 * @throws SQLException If no schema can be found with the givene name, or
 	 *             if one or several names of the path denotes a nonexistant jar
 	 *             file.
@@ -1022,7 +1031,6 @@ public class Commands
 		{
 			// Insert the new path.
 			//
-			;
 			try(PreparedStatement stmt = getDefaultConnection()
 				.prepareStatement(
 					"INSERT INTO sqlj.classpath_entry("+
@@ -1042,41 +1050,60 @@ public class Commands
 		Loader.clearSchemaLoaders();
 	}
 
+	/**
+	 * Run <var>runnable</var> while a temporary class path including
+	 * <var>jarName</var>, if needed, is imposed on the current
+	 * (head-of-{@code search_path}) schema.
+	 *<p>
+	 * The temporary class path is imposed if <var>jarName</var> is not already
+	 * included in the current schema's class path, and also not in the public
+	 * schema's class path if the current schema is not the public one.
+	 *
+	 * @param jarName Caller must have checked (as with {@code assertJarName})
+	 *  that this is a sensible jar name, in particular without the colons that
+	 *  separate a PL/Java class path.
+	 * @param schemaMayVanish Caller passes true if this is a {@code remove_jar}
+	 *  action, when it should not be surprising if undoing the temporary class
+	 *  path fails because the schema is gone after the undeploy steps.
+	 * @param runnable The deploy/undeploy actions to take while the temporary
+	 *  class path is possibly imposed.
+	 */
 	private static void withJarInPath(String jarName, boolean schemaMayVanish,
 		Checked.Runnable<SQLException> runnable) throws SQLException
 	{
+		String jarNameX = ':' + jarName + ':';
 		Identifier.Simple originalSchema = getCurrentSchema();
-		String originalClasspath = getClassPath(originalSchema);
-		boolean changed;
-		if(originalClasspath == null)
-		{
-			setClassPath(originalSchema, jarName);
-			changed = true;
-		}
-		else
-		{
-			String[] elems = originalClasspath.split(":");
-			int idx = elems.length;
-			boolean found = false;
-			while(--idx >= 0)
-				if(elems[idx].equals(jarName))
-				{
-					found = true;
-					break;
-				}
+		String originalClasspath =
+			requireNonNullElse(getClassPath(originalSchema), "");
 
-			if(found)
-				changed = false;
-			else
-			{
-				setClassPath(originalSchema, jarName + ':' + originalClasspath);
-				changed = true;
-			}
+		boolean found = false;
+
+		if ( ! originalClasspath.isEmpty() )
+			found = (':'+originalClasspath+':').contains(jarNameX);
+		else if ( ! PUBLIC_SCHEMA.equals(originalSchema) )
+		{
+			String fallbackClasspath =
+				requireNonNullElse(getClassPath(PUBLIC_SCHEMA), "");
+			found = (':'+fallbackClasspath+':').contains(jarNameX);
+		}
+
+		if ( ! found )
+		{
+			String newPath = jarName;
+			if ( ! originalClasspath.isEmpty() )
+				newPath += ':' + originalClasspath;
+			setClassPath(originalSchema, newPath);
 		}
 
 		runnable.run();
 
-		if ( changed )
+		/*
+		 * This is not a finally, because if something went wrong PostgreSQL
+		 * won't allow the SPI operations in setClassPath anyway, and that's
+		 * also ok, because if something went wrong PostgreSQL will roll back
+		 * the transaction.
+		 */
+		if ( ! found )
 		{
 			try
 			{
@@ -1453,17 +1480,20 @@ public class Commands
 		try
 		{
 			deployInstall(jarId, jarName);
+			deploy = false; // flag that deployInstall completed
 		}
-		catch ( Error | RuntimeException | SQLException e )
+		finally
 		{
-			Loader.clearSchemaLoaders();
-			throw e;
+			if ( deploy ) // or in case it didn't complete ...
+				Loader.clearSchemaLoaders();
 		}
 	}
 
 	private static void replaceJar(String urlString, String jarName,
 		boolean redeploy, byte[] image) throws SQLException
 	{
+		assertJarName(jarName);
+
 		AclId[] ownerRet = new AclId[1];
 		int jarId = getJarId(jarName, ownerRet);
 		if(jarId < 0)

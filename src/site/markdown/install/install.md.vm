@@ -39,10 +39,9 @@ see the jar file there.
 __Upgrade installations__
 below*.
 
-*Not running PostgreSQL 9.1 or higher? Use
+*Avoiding `CREATE EXTENSION` for some reason? Use
 `LOAD 'libpljava-so-${project.version}';` instead of the `CREATE EXTENSION`
-command. (It works in later versions too, if you prefer it to
-`CREATE EXTENSION`.) Using a Mac? Be sure to add `.bundle` at the end of the file name
+command. Using a Mac? Be sure to add `.bundle` at the end of the file name
 in the `LOAD` command. Windows? Remove `lib` from the front. Something else?
 Keep reading.*
 
@@ -98,8 +97,8 @@ you will have to become patient, and read the rest of this page.
 **You will most probably have to set `pljava.libjvm_location`.** See the
 next section.
 
-**It is useful to consider `pljava.vmoptions`.** See the
-[VM options page][vmop].
+**It is useful to consider `pljava.vmoptions`. For Java 18 or later it is
+necessary.** See the [VM options page][vmop].
 
 [vmop]: vmoptions.html
 
@@ -134,11 +133,27 @@ things right on the first try, you might set them after, too.) For example:
     Then set this variable to the full pathname, including the filename
     and extension.
 
+    The version of Java this variable points to will determine whether PL/Java
+    can operate [with security policy enforcement][policy] or must be used
+    [with no policy enforcement][unenforced].
+
+`pljava.allow_unenforced`
+: When using PL/Java with no policy enforcement, this variable must be set
+    as described on the [PL/Java with no policy enforcement][unenforced] page.
+
+`pljava.allow_unenforced_udt`
+: When using PL/Java with no policy enforcement, if PL/Java
+    [mapped user-defined types][mappedudt] are to be used, this variable must
+    be set as described on the
+    [PL/Java with no policy enforcement][unenforced] page.
+
 `pljava.vmoptions`
-: While it should not be necessary to set these before seeing the first signs
-    of life from PL/Java, there are useful options to consider setting here
-    before calling the installation complete. Some are described on the
-    [VM options page][vmop].
+: JVM options can be set here, a number of which are described on the
+    [VM options page][vmop]. For the most part, they are not essential to
+    seeing the first signs of life from PL/Java and can be left for tuning
+    later. However, on Java 18 and later, it is necessary to choose
+    a `-Djava.security.manager=...` setting before PL/Java will run at all.
+    Details are on the [VM options page][vmop].
 
 `pljava.module_path`
 : There is probably no need to set this variable unless installation locations
@@ -187,7 +202,7 @@ Another approach is to save them to the server's configuration file.
 If you wish PL/Java to be available for all databases in a cluster, it may
 be more convenient to put the settings in the file than to issue
 `ALTER DATABASE` for several databases, but `pg_ctl reload` will be needed
-to make changed settings effective. Starting with PostgreSQL 9.4,
+to make changed settings effective.
 `ALTER SYSTEM` may be used as an alternative to editing the file.
 
 If you have several databases in the cluster and you favor the
@@ -196,9 +211,6 @@ with `ALTER SYSTEM` or the cluster-wide configuration file will make
 sure that `CREATE EXTENSION` just works, in any database where PL/Java
 is wanted. Different per-database settings can still be made if one
 database needs them.
-
-For PostgreSQL releases [earlier than 9.2][pre92], the configuration file is
-the _only_ way to make your settings persistent.
 
 $h2 Upgrade installations
 
@@ -215,13 +227,17 @@ $h2 Usage permission
 
 Installation of PL/Java creates two "languages", `java` and `javau`.
 Functions that specify `LANGUAGE javau` can be created only by superusers,
-and are subject to very few restrictions at runtime. Functions that specify
+and PL/Java's default policy grants them some filesystem access. Functions that
+specify
 `LANGUAGE java` can be created by any user or role that has been granted
-`USAGE` permission `ON LANGUAGE java`. They run under a security manager that
-denies access to the host filesystem.
+`USAGE` permission `ON LANGUAGE java`. The default policy grants them no extra
+permissions. The exact permissions granted in either case can be customized
+in [`pljava.policy`][policy].
 
-__Note: For implications when running on Java 17 or later,
-please see [JEP 411][jep411]__.
+__Important: The above description applies when PL/Java is run
+[with policy enforcement][policy], available on Java 23 and older.
+On stock Java 24 and later, PL/Java can only be run with no policy enforcement,
+and the implications should be reviewed carefully [here][unenforced].__
 
 PostgreSQL, by default, would grant `USAGE` to `PUBLIC` on the `java` language,
 but PL/Java takes a more conservative approach on a new installation.
@@ -233,16 +249,19 @@ if a site prefers that traditional policy.
 In a repeat or upgrade installation (the language `java` already exists),
 no change will be made to the access permissions granted on it.
 
+When running [with no policy enforcement][unenforced], PL/Java allows only
+database superusers to create functions even in the `java` language,
+disregarding any `USAGE` grants.
+
 $h2 Special topics
 
 Be sure to read these additional sections if:
 
-* You are installing to [a PostgreSQL release earlier than 9.2][pre92]
+* You intend to use [Java 24 or later][unenforced]
 * You are installing on [a system using SELinux][selinux]
 * You are installing on [Mac OS X][osx]
 * You are installing on [Ubuntu][ubu] and the self-extracting jar won't work
 
-[pre92]: prepg92.html
 [selinux]: selinux.html
 [osx]: ../build/macosx.html
 [ubu]: ../build/ubuntu.html
@@ -254,9 +273,10 @@ $h3 Puzzling error message from `CREATE EXTENSION`
     ERROR:  relation "see doc: do CREATE EXTENSION PLJAVA in new session"
     already exists
 
-For PL/Java, `CREATE EXTENSION` (which works in PostgreSQL 9.1 and later) is a
-wrapper around installation via `LOAD` (which works in all versions PL/Java
-supports). A quirk of this arrangement is that PostgreSQL treats `LOAD` as a
+For PL/Java, `CREATE EXTENSION` is a wrapper around installation via `LOAD`
+(which was needed for PostgreSQL versions now of only historical interest,
+and remains supported for cases where `CREATE EXTENSION` is too inflexible).
+A quirk of this arrangement is that PostgreSQL treats `LOAD` as a
 no-op for the remainder of a session once the library has been loaded, so
 `CREATE EXTENSION pljava` works in a *fresh* session, but not in one where
 PL/Java's native code is already in place.
@@ -283,7 +303,7 @@ Because PL/Java, by design, runs entirely in the backend process created
 for each connection to PostgreSQL, to configure it does not require any
 cluster-wide actions such as stopping or restarting the server, or editing
 the configuration file; any necessary settings can be made in SQL over
-an ordinary connection (in PostgreSQL 9.2 and later, anyway).
+an ordinary connection.
 
 _Caution: if you are installing a new, little-tested PL/Java build, be aware
 that in the unexpected case of a crash, the `postmaster` will kick other
@@ -398,4 +418,6 @@ In this case, simply place the files in any location where you can make them
 readable by the user running `postgres`, and set the `pljava.*` variables
 accordingly.
 
-[jep411]: https://github.com/tada/pljava/wiki/JEP-411
+[policy]: ../use/policy.html
+[unenforced]: ../use/unenforced.html
+[mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html

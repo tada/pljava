@@ -59,6 +59,11 @@
 						<arg>--processor-module-path</arg>
 						<arg>${basedir}/../pljava-api/target/pljava-api-${project.version}.jar</arg>
 					</compilerArgs>
+					<annotationProcessors>
+						<annotationProcessor>
+							org.postgresql.pljava.annotation.processing.DDRProcessor
+						</annotationProcessor>
+					</annotationProcessors>
 				</configuration>
 			</plugin>
 			<plugin>

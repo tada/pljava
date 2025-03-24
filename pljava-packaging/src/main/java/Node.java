@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -1919,7 +1919,9 @@ public class Node extends JarX {
 		Path p = Paths.get(
 			repo, "net", "sf", "saxon", "Saxon-HE", version,
 			"Saxon-HE-" + version + ".jar");
-		return installJar(c, "file:" + p, "saxon", false);
+		String uri = p.toUri()
+			.toString().replaceFirst("^file:///", "file:/");
+		return installJar(c, uri, "saxon", false);
 	}
 
 	/**

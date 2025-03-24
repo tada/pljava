@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -111,6 +111,7 @@ import static net.sf.saxon.value.StringValue.getStringLength;
 import org.postgresql.pljava.ResultSetProvider;
 
 import org.postgresql.pljava.annotation.Function;
+import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 import static org.postgresql.pljava.annotation.Function.OnNullInput.CALLED;
 
@@ -288,6 +289,23 @@ import org.xml.sax.SAXException;
  * XQuery regular-expression methods provided here.
  * @author Chapman Flack
  */
+@SQLAction(
+	implementor = "postgresql_xml",  // skip it all if no xml support
+	requires = "presentOnClassPath",
+	provides = "saxon9api",
+	install =
+	"SELECT CASE WHEN" +
+	" presentOnClassPath('net.sf.saxon.s9api.QName')" +
+	"THEN" +
+	" CAST(" +
+	"  set_config('pljava.implementors', 'saxon9api,' || " +
+	"   current_setting('pljava.implementors'), true)" +
+	"  AS void" +
+	" )" +
+	"ELSE" +
+	" logMessage('INFO', 'Saxon examples skipped: s9api classes missing')" +
+	"END"
+)
 public class S9 implements ResultSetProvider.Large
 {
 	private S9(
@@ -399,7 +417,7 @@ public class S9 implements ResultSetProvider.Large
 	 * @param sve SQL string value to use in a text node
 	 * @return XML content, the text node wrapped in a document node
 	 */
-	@Function(schema="javatest")
+	@Function(implementor="saxon9api", schema="javatest")
 	public static SQLXML xmltext(String sve) throws SQLException
 	{
 		SQLXML rx = s_dbc.createSQLXML();
@@ -457,6 +475,7 @@ public class S9 implements ResultSetProvider.Large
 	 * type to be cast to.
 	 */
 	@Function(
+		implementor="saxon9api",
 		schema="javatest",
 		type="pg_catalog.record",
 		onNullInput=CALLED,
@@ -615,6 +634,7 @@ public class S9 implements ResultSetProvider.Large
 	 * namespace.
 	 */
 	@Function(
+		implementor="saxon9api",
 		schema="javatest",
 		onNullInput=CALLED,
 		settings="IntervalStyle TO iso_8601"
@@ -683,6 +703,7 @@ public class S9 implements ResultSetProvider.Large
 	 * SQL value is null.
 	 */
 	@Function(
+		implementor="saxon9api",
 		schema="javatest",
 		onNullInput=CALLED,
 		settings="IntervalStyle TO iso_8601"
@@ -822,6 +843,7 @@ public class S9 implements ResultSetProvider.Large
 	 * for base64 or (the default, false) hexadecimal.
 	 */
 	@Function(
+		implementor="saxon9api",
 		schema="javatest",
 		onNullInput=CALLED,
 		settings="IntervalStyle TO iso_8601"
@@ -2983,7 +3005,7 @@ public class S9 implements ResultSetProvider.Large
 	 * SQLFeatureNotSupportedException (0A000) if (in the current
 	 * implementation) w3cNewlines is false or omitted.
 	 */
-	@Function(schema="javatest")
+	@Function(implementor="saxon9api", schema="javatest")
 	public static boolean like_regex(
 		String value,                          //strict
 		String pattern,                        //strict
@@ -3036,7 +3058,7 @@ public class S9 implements ResultSetProvider.Large
 	 * SQLFeatureNotSupportedException (0A000) if (in the current
 	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
-	@Function(schema="javatest")
+	@Function(implementor="saxon9api", schema="javatest")
 	public static int occurrences_regex(
 		String pattern,                        //strict
 		@SQLType(name="\"in\"") String in,     //strict
@@ -3115,7 +3137,7 @@ public class S9 implements ResultSetProvider.Large
 	 * SQLFeatureNotSupportedException (0A000) if (in the current
 	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
-	@Function(schema="javatest")
+	@Function(implementor="saxon9api", schema="javatest")
 	public static int position_regex(
 		String pattern,                                         //strict
 		@SQLType(name="\"in\"") String in,                      //strict
@@ -3197,7 +3219,7 @@ public class S9 implements ResultSetProvider.Large
 	 * SQLFeatureNotSupportedException (0A000) if (in the current
 	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
-	@Function(schema="javatest")
+	@Function(implementor="saxon9api", schema="javatest")
 	public static String substring_regex(
 		String pattern,                                          //strict
 		@SQLType(name="\"in\"") String in,                       //strict
@@ -3298,7 +3320,7 @@ public class S9 implements ResultSetProvider.Large
 	 * SQLFeatureNotSupportedException (0A000) if (in the current
 	 * implementation) usingOctets is true, or w3cNewlines is false or omitted.
 	 */
-	@Function(schema="javatest")
+	@Function(implementor="saxon9api", schema="javatest")
 	public static String translate_regex(
 		String pattern, 										 //strict
 		@SQLType(name="\"in\"") String in,						 //strict

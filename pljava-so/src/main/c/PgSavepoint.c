@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2024 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -187,7 +187,9 @@ Java_org_postgresql_pljava_internal_PgSavepoint__1rollback(JNIEnv* env, jclass c
 	PG_TRY();
 	{
 		unwind(RollbackAndReleaseCurrentSubTransaction, xid, nestLevel);
+#if PG_VERSION_NUM < 100000
 		SPI_restore_connection();
+#endif
 	}
 	PG_CATCH();
 	{

@@ -83,6 +83,48 @@ refer to any of the Java SE API. However, PL/Java instances may use less memory
 and start up more quickly if an effort is made to add only modules actually
 needed.
 
+### Limiting the module graph
+
+Less conveniently perhaps, but advantageously for memory footprint and quick
+startup, the [`--limit-modules`][limitmods] option can be used. As of this
+writing in early 2025, starting up a simple PL/Java installation on Java 24
+with no `--add-modules` option results in 48 modules resolved, and the 48
+include some unlikely choices for PL/Java purposes, such as `java.desktop`,
+`jdk.unsupported.desktop`, `jdk.javadoc`, and others.
+
+With the option `--limit-modules=org.postgresql.pljava.internal` added, only
+nine modules are resolved---the transitive closure of those required by PL/Java
+itself---and all of PL/Java's supplied examples successfully run.
+
+The `--add-modules` option can then be used to make any other actually-needed
+modules available again. Those named with `--add-modules` are implicitly added
+to those named with `--limit-modules`, so there is no need to change the
+`--limit-modules` setting when adding another module. For example,
+
+```
+--limit-modules=org.postgresql.pljava.internal --add-modules=java.net.http
+```
+
+will allow use of `java.net.http` in addition to the nine modules resolved for
+PL/Java itself.
+
+Limiting the module graph can be especially advisable when running PL/Java with
+no security policy enforcement, as required on stock Java 24 and later. The page
+[PL/Java with no policy enforcement][unenforced] should be carefully reviewed
+for other implications of running PL/Java that way.
+
+The supplied [examples jar][examples] provides a function, [java_modules][],
+that can be used to see what modules have been resolved into Java's boot module
+layer.
+
+For more detail on why the boot layer includes the modules it does,
+`-Djdk.module.showModuleResolution=true` can be added temporarily in
+`pljava.vmoptions`, and a log of module requirements and bindings will be sent
+to the standard output of the backend process when PL/Java starts. PostgreSQL,
+however, may normally start backend processes with standard output going
+nowhere, so the logged information may be invisible unless running PostgreSQL
+in [a test harness][node].
+
 ## Configuring the launch-time module path
 
 The configuration variable `pljava.module_path` controls the
@@ -115,3 +157,8 @@ character.
 [jpms]: https://cr.openjdk.java.net/~mr/jigsaw/spec/
 [resolution]: https://docs.oracle.com/javase/9/docs/api/java/lang/module/package-summary.html#resolution
 [addm]: ../install/vmoptions.html#Adding_to_the_set_of_readable_modules
+[limitmods]: https://openjdk.org/jeps/261#Limiting-the-observable-modules
+[unenforced]: unenforced.html
+[examples]: ../examples/examples.html
+[java_modules]: ../pljava-examples/apidocs/org/postgresql/pljava/example/annotation/Modules.html#method-detail
+[node]: ../develop/node.html

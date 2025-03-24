@@ -1,5 +1,9 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project
+	xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation=
+	"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.postgresql</groupId>
@@ -9,7 +13,8 @@
 	<artifactId>pljava-so</artifactId>
 	<name>PL/Java backend native code</name>
 	<description>
-		Generates the pljava (.so, .dll, etc.) library which gets loaded by the PostgreSQL backend
+		Generates the pljava (.so, .dll, etc.) library which gets loaded
+		by the PostgreSQL backend
 	</description>
 	<packaging>pom</packaging>
 
@@ -28,324 +33,352 @@
 						<configuration>
 							<script mimetype="application/javascript">
 <![CDATA[
-	var ArrayList = Java.type("java.util.ArrayList");
-	var HashMap = Java.type("java.util.HashMap");
-	var Paths = Java.type("java.nio.file.Paths");
-	var of = java.util.List.of;
+var ArrayList = Java.type("java.util.ArrayList");
+var HashMap = Java.type("java.util.HashMap");
+var Paths = Java.type("java.nio.file.Paths");
+var of = java.util.List.of;
 
-	var isDebugEnabled =  java.lang.Boolean.valueOf(session.userProperties.getProperty("so.debug"));
-	if (!session.userProperties.getProperty("so.optimize", "none").equalsIgnoreCase("none"))
-		warn("Property so.optimize is currently not supported and will be ignored.");
+var isDebugEnabled =
+	java.lang.Boolean.valueOf(session.userProperties.getProperty("so.debug"));
 
-	var base_dir_path = project.basedir.getAbsolutePath();
-	var source_path = Paths.get(base_dir_path, "src", "main", "c");
-	var target_path = Paths.get(project.build.directory, "pljava-pgxs");
-	var library_name = "pljava-so-" + project.parent.version;
+if ( ! session.userProperties.getProperty("so.optimize", "none")
+	.equalsIgnoreCase("none") )
+	warn(
+		"Property so.optimize is currently not supported and will be ignored.");
 
-	var cc = getPgConfigProperty("--cc");
-	var cflags = getPgConfigProperty("--cflags");
-	var cppflags = getPgConfigProperty("--cppflags");
-	var cflags_sl = getPgConfigProperty("--cflags_sl");
-	var ldflags = getPgConfigProperty("--ldflags");
-	var ldflags_sl = getPgConfigProperty("--ldflags_sl");
-	var ldflags_ex = getPgConfigProperty("--ldflags_ex");
-	var includedir = getPgConfigProperty("--includedir");
-	var includedir_server = getPgConfigProperty("--includedir-server");
-	var bindir = getPgConfigProperty("--bindir");
-	var pkglibdir = getPgConfigProperty("--pkglibdir");
+var base_dir_path = project.basedir.getAbsolutePath();
+var source_path = Paths.get(base_dir_path, "src", "main", "c");
+var target_path = Paths.get(project.build.directory, "pljava-pgxs");
+var library_name = "pljava-so-" + project.parent.version;
 
-	var java_home = java.lang.System.getProperty("java.home");
-	var java_include =  Paths.get(java_home, "include");
-	var pljava_include = Paths.get(base_dir_path, "src", "main", "include");
-	var base_includes = new ArrayList(java.util.List.of(
-		java_include.toString(),
-		includedir,
-		includedir_server,
-		pljava_include.toString(),
-		resolve(pljava_include, Paths.get("fallback", "jdbc")).toString(),
-		Paths.get(base_dir_path, "..", "pljava", "target", "javah-include").toString()
-	));
+var cc = getPgConfigProperty("--cc");
+var cflags = getPgConfigProperty("--cflags");
+var cppflags = getPgConfigProperty("--cppflags");
+var cflags_sl = getPgConfigProperty("--cflags_sl");
+var ldflags = getPgConfigProperty("--ldflags");
+var ldflags_sl = getPgConfigProperty("--ldflags_sl");
+var ldflags_ex = getPgConfigProperty("--ldflags_ex");
+var includedir = getPgConfigProperty("--includedir");
+var includedir_server = getPgConfigProperty("--includedir-server");
+var bindir = getPgConfigProperty("--bindir");
+var pkglibdir = getPgConfigProperty("--pkglibdir");
 
-	var base_defines = new HashMap();
-	base_defines.put("PLJAVA_SO_VERSION", project.parent.version);
-	if ( cc.equalsIgnoreCase("gcc") )
-		base_defines.put("GNU_GCC", null);
+var java_home = java.lang.System.getProperty("java.home");
+var java_include =  Paths.get(java_home, "include");
+var pljava_include = Paths.get(base_dir_path, "src", "main", "include");
+var base_includes = new ArrayList(of(
+	java_include.toString(),
+	includedir,
+	includedir_server,
+	pljava_include.toString(),
+	resolve(pljava_include, Paths.get("fallback", "jdbc")).toString(),
+	Paths.get(base_dir_path, "..", "pljava", "target", "javah-include")
+		.toString()
+));
 
-	var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
-	if ( null !== jvmdflt )
+utils.reportPostgreSQLVersion(includedir_server);
+
+var base_defines = new HashMap();
+base_defines.put("PLJAVA_SO_VERSION", project.parent.version);
+if ( cc.equalsIgnoreCase("gcc") )
+	base_defines.put("GNU_GCC", null);
+
+var jvmdflt = java.lang.System.getProperty('pljava.libjvmdefault');
+if ( null !== jvmdflt )
+{
+	var jvmdfltQuoted = quoteStringForC(jvmdflt);
+	base_defines.put("PLJAVA_LIBJVMDEFAULT", jvmdfltQuoted);
+}
+
+var configuration = [
 	{
-		var jvmdfltQuoted = quoteStringForC(jvmdflt);
-		base_defines.put("PLJAVA_LIBJVMDEFAULT", jvmdfltQuoted);
-	}
+		name : "Linux",
 
-	var configuration = [
-		{
-			name : "Linux",
-			
-			object_extension : ".o",
+		object_extension : ".o",
 
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("linux");
-			},
-
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_include.resolve("linux").toString());
-				defines.put("Linux", null);
-				flags.add("-c");
-				if(isDebugEnabled)
-					flags.add("-g");
-				var compileProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(pgxs.formatDefines(defines));
-					l.addAll(pgxs.formatIncludes(includes));
-					l.addAll(flags);
-					l.addAll(files);
-				});
-				compileProcess.directory(output_dir.toFile());
-				return runCommand(compileProcess);
-			},
-
-			link : function(cc, flags, files, target_path) {
-				if(isDebugEnabled)
-					flags.add("-g");
-				flags.add("-shared-libgcc");
-				var linkingProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(flags);
-					l.addAll(of("-shared", "-o", "lib" + library_name + ".so"));
-					l.addAll(files);
-				});
-				linkingProcess.directory(target_path.toFile());
-				return runCommand(linkingProcess);
-			}
+		probe: function(os_name) {
+			return os_name.toLowerCase().contains("linux");
 		},
 
-		{
-			name : "FreeBSD",
-
-			object_extension : ".o",
-
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("freebsd");
-			},
-
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_include.resolve("freebsd").toString());
-				defines.put("FreeBSD", null);
-				flags.add("-c");
-				if(isDebugEnabled)
-					flags.add("-g");
-				var compileProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(pgxs.formatDefines(defines));
-					l.addAll(pgxs.formatIncludes(includes));
-					l.addAll(flags);
-					l.addAll(files);
-				});
-				compileProcess.directory(output_dir.toFile());
-				return runCommand(compileProcess);
-			},
-
-			link : function(cc, flags, files, target_path) {
-				if(isDebugEnabled)
-					flags.add("-g");
-				flags.add("-shared-libgcc");
-				var linkingProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(flags);
-					l.addAll(of("-shared", "-o", "lib" + library_name + ".so"));
-					l.addAll(files);
-				});
-				linkingProcess.directory(target_path.toFile());
-				return runCommand(linkingProcess);
-			}
-		},
-								
-		{
-			name : "Mac OS X",
-
-			object_extension : ".o",
-
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("mac os x");
-			},
-
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_include.resolve("darwin").toString());
-				defines.put("Darwin", null);
-				flags.add("-c");
-				if(isDebugEnabled)
-					flags.add("-g");
-				var compileProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(pgxs.formatDefines(defines));
-					l.addAll(pgxs.formatIncludes(includes));
-					l.addAll(flags);
-					l.addAll(files);
-				});
-				compileProcess.directory(output_dir.toFile());
-				return runCommand(compileProcess);
-			},
-
-			link : function(cc, flags, files, target_path) {
-				flags.addAll(of("-bundle_loader", Paths.get(bindir, "postgres").toString()));
-				if(isDebugEnabled)
-					flags.add("-g");
-				var linkingProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(flags);
-					l.addAll(of("-bundle", "-o", "lib" + library_name + ".bundle"));
-					l.addAll(files);
-				});
-				linkingProcess.directory(target_path.toFile());
-				return runCommand(linkingProcess);
-			}
+		compile : function(cc, files, output_dir, includes, defines, flags) {
+			includes.add(java_include.resolve("linux").toString());
+			defines.put("Linux", null);
+			flags.add("-c");
+			if(isDebugEnabled)
+				flags.add("-g");
+			var compileProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(pgxs.formatDefines(defines));
+				l.addAll(pgxs.formatIncludes(includes));
+				l.addAll(flags);
+				l.addAll(files);
+			});
+			compileProcess.directory(output_dir.toFile());
+			return runCommand(compileProcess);
 		},
 
-		{
-			name : "Windows MinGW",
-
-			object_extension : ".o",
-
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("windows")
-					&& java.lang.System.getenv().containsKey("MSYSTEM")
-					&& java.lang.System.getenv().get("MSYSTEM").equalsIgnoreCase("MINGW64");
-			},
-
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_include.resolve("win32").toString());
-				includes.add(Paths.get(includedir_server, "port", "win32").toString());
-				includes.add(resolve(pljava_include,
-					Paths.get("fallback", "win32")).toString());
-				defines.put("Windows", null);
-				flags.add("-c");
-				if(isDebugEnabled)
-					flags.add("-g");
-				/*
-				 * -DBUILDING_DLL appears in the flags reported by pg_config
-				 * because it was used when building PostgreSQL itself; it
-				 * causes PostgreSQL's importable symbols to be marked as
-				 * exports. To us, those symbols are imports, not exports; in
-				 * building an extension, this is incorrect and must be removed.
-				 */
-				flags.remove("-DBUILDING_DLL");
-
-				var compileProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(pgxs.formatDefines(defines));
-					l.addAll(pgxs.formatIncludes(includes));
-					l.addAll(flags);
-					l.addAll(files);
-				});
-				compileProcess.directory(output_dir.toFile());
-				return runCommand(utils.forWindowsCRuntime(compileProcess));
-			},
-
-			link : function(cc, flags, files, target_path) {
-				flags.addAll(of("-Wl,--export-all-symbols","-shared-libgcc"));
-				if(isDebugEnabled)
-					flags.add("-g");
-				var linkingProcess = utils.processBuilder(function(l) {
-					l.add(cc);
-					l.addAll(flags);
-					l.addAll(of("-shared", "-o", library_name + ".dll"));
-					l.addAll(files);
-
-					// From compiler-mingw64 profile
-					l.addAll(of("-L" + pkglibdir, "-Bdynamic", "-lpostgres"));
-				});
-				linkingProcess.directory(target_path.toFile());
-				return runCommand(utils.forWindowsCRuntime(linkingProcess));
-			}
-		},
-
-		{
-			name : "Windows MSVC",
-
-			object_extension : ".obj",
-
-			probe: function(os_name) {
-				return os_name.toLowerCase().contains("windows")
-					&& java.lang.System.getenv().containsKey("VCINSTALLDIR");
-			},
-
-			formatIncludes : function(includes_list) {
-				return includes_list.stream().map(function(s) {
-					return "/I" + s;
-				}).collect(java.util.stream.Collectors.toList());
-			},
-
-			formatDefines : function(defines_map) {
-				return defines_map.entrySet().stream().map(function(s) {
-					var define = "/D" + s.getKey();
-					if (s.getValue() != null)
-						define += "=" + s.getValue();
-					return define;
-				}).collect(java.util.stream.Collectors.toList());
-			},
-
-			compile : function(cc, files, output_dir, includes, defines, flags) {
-				includes.add(java_include.resolve("win32").toString());
-				includes.add(Paths.get(includedir_server, "port", "win32").toString());
-				includes.add(resolve(pljava_include,
-					Paths.get("fallback", "win32")).toString());
-				includes.add(Paths.get(includedir_server, "port", "win32_msvc").toString());
-
-				defines.put("Windows", null);
-				defines.put("WIN32", null);
-				defines.put("NDEBUG", null);
-
-				var compileProcess = utils.processBuilder(function(l) {
-					l.add("cl");
-					l.addAll(of("/c", "/nologo"));
-					if(isDebugEnabled)
-						l.addAll(of("/Zi", "/Od", "/RTC1", "/D_DEBUG", "/MDd"));
-					else
-						l.add("/MD");
-					l.addAll(pgxs.formatDefines(defines));
-					l.addAll(pgxs.formatIncludes(includes));
-					l.addAll(files);
-				});
-
-				compileProcess.directory(output_dir.toFile());
-				return runCommand(utils.forWindowsCRuntime(compileProcess));
-			},
-
-			link : function(cc, flags, files, target_path) {
-
-				var linkingProcess = utils.processBuilder(function(l) {
-					l.add("link");
-					l.addAll(of("/MANIFEST", "/NOLOGO", "/DLL", "/SUBSYSTEM:CONSOLE", "/INCREMENTAL:NO"));
-					l.add("/OUT:" + library_name + ".dll");
-					if(isDebugEnabled)
-						l.add("/DEBUG");
-					// From compiler-msvc profile
-					l.add(Paths.get(pkglibdir, "postgres.lib").toString());
-					l.addAll(files);
-				});
-				linkingProcess.directory(target_path.toFile());
-				return runCommand(utils.forWindowsCRuntime(linkingProcess));
-			}
+		link : function(cc, flags, files, target_path) {
+			if(isDebugEnabled)
+				flags.add("-g");
+			flags.add("-shared-libgcc");
+			var linkingProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(flags);
+				l.addAll(of("-shared", "-o", "lib" + library_name + ".so"));
+				l.addAll(files);
+			});
+			linkingProcess.directory(target_path.toFile());
+			return runCommand(linkingProcess);
 		}
-	];
+	},
 
-	var os_name = java.lang.System.getProperty("os.name");
-	var implementation = null;
-	var extension = null;
-	for (var index = 0; index < configuration.length; index ++) {
-		if(configuration[index].probe(os_name)) {
-			implementation = configuration[index];
-			extension = implementation.object_extension;
-			info("Using compiling/linking rules for " + implementation.name);
-			break;
+	{
+		name : "FreeBSD",
+
+		object_extension : ".o",
+
+		probe: function(os_name) {
+			return os_name.toLowerCase().contains("freebsd");
+		},
+
+		compile : function(cc, files, output_dir, includes, defines, flags) {
+			includes.add(java_include.resolve("freebsd").toString());
+			defines.put("FreeBSD", null);
+			flags.add("-c");
+			if(isDebugEnabled)
+				flags.add("-g");
+			var compileProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(pgxs.formatDefines(defines));
+				l.addAll(pgxs.formatIncludes(includes));
+				l.addAll(flags);
+				l.addAll(files);
+			});
+			compileProcess.directory(output_dir.toFile());
+			return runCommand(compileProcess);
+		},
+
+		link : function(cc, flags, files, target_path) {
+			if(isDebugEnabled)
+				flags.add("-g");
+			flags.add("-shared-libgcc");
+			var linkingProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(flags);
+				l.addAll(of("-shared", "-o", "lib" + library_name + ".so"));
+				l.addAll(files);
+			});
+			linkingProcess.directory(target_path.toFile());
+			return runCommand(linkingProcess);
+		}
+	},
+
+	{
+		name : "Mac OS X",
+
+		object_extension : ".o",
+
+		probe: function(os_name) {
+			return os_name.toLowerCase().contains("mac os x");
+		},
+
+		compile : function(cc, files, output_dir, includes, defines, flags) {
+			includes.add(java_include.resolve("darwin").toString());
+			defines.put("Darwin", null);
+			flags.add("-c");
+			if(isDebugEnabled)
+				flags.add("-g");
+			var compileProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(pgxs.formatDefines(defines));
+				l.addAll(pgxs.formatIncludes(includes));
+				l.addAll(flags);
+				l.addAll(files);
+			});
+			compileProcess.directory(output_dir.toFile());
+			return runCommand(compileProcess);
+		},
+
+		link : function(cc, flags, files, target_path) {
+			flags.addAll(of(
+				"-bundle_loader", Paths.get(bindir, "postgres").toString()));
+			if(isDebugEnabled)
+				flags.add("-g");
+			var linkingProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(flags);
+				l.addAll(of("-bundle", "-o", "lib" + library_name + ".bundle"));
+				l.addAll(files);
+			});
+			linkingProcess.directory(target_path.toFile());
+			return runCommand(linkingProcess);
+		}
+	},
+
+	{
+		name : "Windows MinGW",
+
+		object_extension : ".o",
+
+		probe: function(os_name) {
+			return os_name.toLowerCase().contains("windows")
+				&& java.lang.System.getenv().containsKey("MSYSTEM")
+				&& java.lang.System.getenv().get("MSYSTEM")
+					.equalsIgnoreCase("MINGW64");
+		},
+
+		compile : function(cc, files, output_dir, includes, defines, flags) {
+			includes.add(java_include.resolve("win32").toString());
+			includes.add(
+				Paths.get(includedir_server, "port", "win32").toString());
+			includes.add(resolve(pljava_include,
+				Paths.get("fallback", "win32")).toString());
+			defines.put("Windows", null);
+			flags.add("-c");
+			if(isDebugEnabled)
+				flags.add("-g");
+			/*
+			 * -DBUILDING_DLL appears in the flags reported by pg_config
+			 * because it was used when building PostgreSQL itself; it
+			 * causes PostgreSQL's importable symbols to be marked as
+			 * exports. To us, those symbols are imports, not exports; in
+			 * building an extension, this is incorrect and must be removed.
+			 */
+			flags.remove("-DBUILDING_DLL");
+
+			var compileProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(pgxs.formatDefines(defines));
+				l.addAll(pgxs.formatIncludes(includes));
+				l.addAll(flags);
+				l.addAll(files);
+			});
+			compileProcess.directory(output_dir.toFile());
+			return runWindowsCRuntimeCommand(compileProcess);
+		},
+
+		link : function(cc, flags, files, target_path) {
+			flags.addAll(of("-Wl,--export-all-symbols","-shared-libgcc"));
+			if(isDebugEnabled)
+				flags.add("-g");
+			var linkingProcess = utils.processBuilder(function(l) {
+				l.add(cc);
+				l.addAll(flags);
+				l.addAll(of("-shared", "-o", library_name + ".dll"));
+				l.addAll(files);
+
+				// From compiler-mingw64 profile
+				l.addAll(of("-L" + pkglibdir, "-Bdynamic", "-lpostgres"));
+			});
+			linkingProcess.directory(target_path.toFile());
+			return runWindowsCRuntimeCommand(linkingProcess);
+		}
+	},
+
+	{
+		name : "Windows MSVC",
+
+		object_extension : ".obj",
+
+		probe: function(os_name) {
+			return os_name.toLowerCase().contains("windows")
+				&& java.lang.System.getenv().containsKey("VCINSTALLDIR");
+		},
+
+		formatIncludes : function(includes_list) {
+			return includes_list.stream().map(function(s) {
+				return "/I" + s;
+			}).collect(java.util.stream.Collectors.toList());
+		},
+
+		formatDefines : function(defines_map) {
+			return defines_map.entrySet().stream().map(function(s) {
+				var define = "/D" + s.getKey();
+				if (s.getValue() != null)
+					define += "=" + s.getValue();
+				return define;
+			}).collect(java.util.stream.Collectors.toList());
+		},
+
+		compile : function(cc, files, output_dir, includes, defines, flags) {
+			includes.add(java_include.resolve("win32").toString());
+			includes.add(
+				Paths.get(includedir_server, "port", "win32").toString());
+			includes.add(resolve(pljava_include,
+				Paths.get("fallback", "win32")).toString());
+			includes.add(
+				Paths.get(includedir_server, "port", "win32_msvc").toString());
+
+			defines.put("Windows", null);
+			defines.put("WIN32", null);
+			defines.put("NDEBUG", null);
+
+			var compileProcess = utils.processBuilder(function(l) {
+				l.add("cl");
+				l.addAll(of("/c", "/nologo"));
+				if(isDebugEnabled)
+					l.addAll(of("/Zi", "/Od", "/RTC1", "/D_DEBUG", "/MDd"));
+				else
+					l.add("/MD");
+				l.addAll(pgxs.formatDefines(defines));
+				l.addAll(pgxs.formatIncludes(includes));
+				l.addAll(files);
+			});
+
+			compileProcess.directory(output_dir.toFile());
+			return runCommand(utils.forWindowsCRuntime(compileProcess));
+		},
+
+		link : function(cc, flags, files, target_path) {
+
+			var linkingProcess = utils.processBuilder(function(l) {
+				l.add("link");
+				l.addAll(of(
+					"/MANIFEST", "/NOLOGO", "/DLL", "/SUBSYSTEM:CONSOLE",
+					"/INCREMENTAL:NO"));
+				l.add("/OUT:" + library_name + ".dll");
+				if(isDebugEnabled)
+					l.add("/DEBUG");
+				// From compiler-msvc profile
+				l.add(Paths.get(pkglibdir, "postgres.lib").toString());
+				l.addAll(files);
+			});
+			linkingProcess.directory(target_path.toFile());
+			return runCommand(utils.forWindowsCRuntime(linkingProcess));
 		}
 	}
+];
 
-	var pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
+var os_name = java.lang.System.getProperty("os.name");
+var implementation = null;
+var extension = null;
+var pgxs = null;
+for (var index = 0; index < configuration.length; index ++) {
+	if(configuration[index].probe(os_name)) {
+		implementation = configuration[index];
+		extension = implementation.object_extension;
+		info("Using compiling/linking rules for " + implementation.name);
+		break;
+	}
+}
+
+if ( null !== implementation )
+	pgxs = new org.postgresql.pljava.pgxs.AbstractPGXS(implementation);
 
 function execute()
 {
+	if ( null === pgxs )
+	{
+		return plugin.exceptionWrap("\
+No compiling/linking rules were selected for this platform. Rules for \
+supported platforms can be found below 'var configuration = [' in \
+pljava-so/pom.xml. If you believe one of the supported platforms should have \
+matched, studying its probe: function may reveal why it did not match. \
+An expected environment variable might not be set, for example. If your \
+platform is not one of those supported, please consider adding a rule set \
+for it, and submitting a pull request so that PL/Java can support it.", true);
+	}
+
 	try
 	{
 		var files = utils.getFilesWithExtension(source_path, ".c");
@@ -390,8 +423,8 @@ function execute()
 				</executions>
 			</plugin>
 
-			<!-- The deploy goal will be hijacked by an ant task so the original plugin
-				has to be silenced until we actually use it.
+			<!-- The deploy goal will be hijacked by an ant task so the original
+				 plugin has to be silenced until we actually use it.
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-deploy-plugin</artifactId>
