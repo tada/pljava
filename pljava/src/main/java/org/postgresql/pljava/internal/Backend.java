@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -47,6 +47,10 @@ public class Backend
 	 */
 	public static final ThreadLocal<Boolean> IAMPGTHREAD = new ThreadLocal<>();
 
+	public static final boolean WITHOUT_ENFORCEMENT =
+		"disallow".equals(System.getProperty("java.security.manager"));
+
+	@SuppressWarnings("deprecation") // Java >= 10: .feature()
 	static final int JAVA_MAJOR = Runtime.version().major();
 
 	static
@@ -243,7 +247,11 @@ public class Backend
 	public static List<Identifier.Simple> getListConfigOption(String key)
 	throws SQLException
 	{
-		final Matcher m = s_gucList.matcher(getConfigOption(key));
+		String s = getConfigOption(key);
+		if ( null == s )
+			return null;
+
+		final Matcher m = s_gucList.matcher(s);
 		ArrayList<Identifier.Simple> al = new ArrayList<>();
 		while ( m.find() )
 		{
@@ -287,6 +295,11 @@ public class Backend
 	public static boolean isCreatingExtension()
 	{
 		return doInPG(Backend::_isCreatingExtension);
+	}
+
+	public static boolean allowingUnenforcedUDT()
+	{
+		return doInPG(Backend::_allowingUnenforcedUDT);
 	}
 
 	/**
@@ -335,6 +348,7 @@ public class Backend
 	private static native boolean _isCreatingExtension();
 	private static native String _myLibraryPath();
 	private static native void _pokeJEP411(Class<?> caller, Object token);
+	private static native boolean _allowingUnenforcedUDT();
 
 	private static class EarlyNatives
 	{

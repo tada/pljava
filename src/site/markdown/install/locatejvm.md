@@ -27,6 +27,18 @@ by a process, this works:
 strace -e open java 2>&1 | grep libjvm
 ```
 
+## Version of the Java library selected
+
+The library pointed to be `pljava.libjvm_location` must be a Java 9 or later
+JVM for the PL/Java 1.6 series. The actual version of the library will determine
+what Java language features are available for PL/Java functions to use.
+
+The Java version also influences whether PL/Java can operate
+[with security policy enforcement][policy] or
+[with no policy enforcement][unenforced]. For stock Java 24 or later, it is only
+possible to operate with no enforcement, and the implications detailed for
+[PL/Java with no policy enforcement][unenforced] should be carefully reviewed.
+
 ## Using a less-specific path
 
 The methods above may find the `libjvm` object on a very specific path
@@ -47,3 +59,7 @@ generic one like `jre`, linked to whichever Java version is considered
 current. Using an alias that is too generic could possibly invite headaches
 if the default Java version is ever changed to one your PL/Java modules
 were not written for (or PL/Java itself was not built for).
+
+
+[policy]: ../use/policy.html
+[unenforced]: ../use/unenforced.html

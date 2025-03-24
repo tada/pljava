@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -67,6 +67,7 @@ import javax.xml.validation.SchemaFactory;
 
 import org.postgresql.pljava.Adjusting;
 import static org.postgresql.pljava.Adjusting.XML.setFirstSupported;
+import org.postgresql.pljava.SessionManager;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -643,7 +644,8 @@ public class PassXML implements SQLData
 			 */
 			if ( rlt instanceof StreamResult )
 				t.setOutputProperty(ENCODING,
-					System.getProperty("org.postgresql.server.encoding"));
+					SessionManager.current().frozenSystemProperties()
+					.getProperty("org.postgresql.server.encoding"));
 			else if ( Boolean.TRUE.equals(indent) )
 				logMessage("WARNING",
 					"indent requested, but howout specifies a non-stream " +
@@ -712,7 +714,8 @@ public class PassXML implements SQLData
 			 */
 			if ( howout < 5 )
 				t.setOutputProperty(ENCODING,
-					System.getProperty("org.postgresql.server.encoding"));
+					SessionManager.current().frozenSystemProperties()
+					.getProperty("org.postgresql.server.encoding"));
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )

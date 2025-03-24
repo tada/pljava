@@ -24,11 +24,14 @@ below.
 
 It is also possible for an application or library to create subclasses
 of `Thread` that override the behavior of `getContextClassLoader` so that
-the value set by PL/Java will have no effect. PL/Java does not detect or work
-around such a case. A clear sign of code that does subclass `Thread`
-in this way is that it will need the `enableContextClassLoaderOverride`
-[`RuntimePermission`][runtimeperm] to be granted in
-the [policy](../use/policy.html).
+the value set by PL/Java will have no effect. PL/Java does not detect such
+a case to work around it.
+
+When PL/Java is used [with policy enforcement][policy], a clear sign of code
+that does subclass `Thread` in this way is that it will need the
+`enableContextClassLoaderOverride` [`RuntimePermission`][runtimeperm] to be
+granted in the [policy][]. When PL/Java is used [without enforcement][nopolicy],
+there will be no such clear sign, making a problem of this kind harder to trace.
 
 ## Effects on application code
 
@@ -97,3 +100,5 @@ in the `pljava.vmoptions` [setting](../use/variables.html).
 [tfndi]: https://docs.oracle.com/javase/9/docs/api/javax/xml/transform/TransformerFactory.html#newDefaultInstance--
 [runtimeperm]: https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/lang/RuntimePermission.html
 [baseudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/BaseUDT.html
+[policy]: ../use/policy.html
+[nopolicy]: ../use/unenforced.html

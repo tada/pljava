@@ -97,8 +97,8 @@ you will have to become patient, and read the rest of this page.
 **You will most probably have to set `pljava.libjvm_location`.** See the
 next section.
 
-**It is useful to consider `pljava.vmoptions`.** See the
-[VM options page][vmop].
+**It is useful to consider `pljava.vmoptions`. For Java 18 or later it is
+necessary.** See the [VM options page][vmop].
 
 [vmop]: vmoptions.html
 
@@ -133,11 +133,27 @@ things right on the first try, you might set them after, too.) For example:
     Then set this variable to the full pathname, including the filename
     and extension.
 
+    The version of Java this variable points to will determine whether PL/Java
+    can operate [with security policy enforcement][policy] or must be used
+    [with no policy enforcement][unenforced].
+
+`pljava.allow_unenforced`
+: When using PL/Java with no policy enforcement, this variable must be set
+    as described on the [PL/Java with no policy enforcement][unenforced] page.
+
+`pljava.allow_unenforced_udt`
+: When using PL/Java with no policy enforcement, if PL/Java
+    [mapped user-defined types][mappedudt] are to be used, this variable must
+    be set as described on the
+    [PL/Java with no policy enforcement][unenforced] page.
+
 `pljava.vmoptions`
-: While it should not be necessary to set these before seeing the first signs
-    of life from PL/Java, there are useful options to consider setting here
-    before calling the installation complete. Some are described on the
-    [VM options page][vmop].
+: JVM options can be set here, a number of which are described on the
+    [VM options page][vmop]. For the most part, they are not essential to
+    seeing the first signs of life from PL/Java and can be left for tuning
+    later. However, on Java 18 and later, it is necessary to choose
+    a `-Djava.security.manager=...` setting before PL/Java will run at all.
+    Details are on the [VM options page][vmop].
 
 `pljava.module_path`
 : There is probably no need to set this variable unless installation locations
@@ -218,8 +234,10 @@ specify
 permissions. The exact permissions granted in either case can be customized
 in [`pljava.policy`][policy].
 
-__Note: For implications when running on Java 17 or later,
-please see [JEP 411][jep411]__.
+__Important: The above description applies when PL/Java is run
+[with policy enforcement][policy], available on Java 23 and older.
+On stock Java 24 and later, PL/Java can only be run with no policy enforcement,
+and the implications should be reviewed carefully [here][unenforced].__
 
 PostgreSQL, by default, would grant `USAGE` to `PUBLIC` on the `java` language,
 but PL/Java takes a more conservative approach on a new installation.
@@ -231,10 +249,15 @@ if a site prefers that traditional policy.
 In a repeat or upgrade installation (the language `java` already exists),
 no change will be made to the access permissions granted on it.
 
+When running [with no policy enforcement][unenforced], PL/Java allows only
+database superusers to create functions even in the `java` language,
+disregarding any `USAGE` grants.
+
 $h2 Special topics
 
 Be sure to read these additional sections if:
 
+* You intend to use [Java 24 or later][unenforced]
 * You are installing on [a system using SELinux][selinux]
 * You are installing on [Mac OS X][osx]
 * You are installing on [Ubuntu][ubu] and the self-extracting jar won't work
@@ -395,5 +418,6 @@ In this case, simply place the files in any location where you can make them
 readable by the user running `postgres`, and set the `pljava.*` variables
 accordingly.
 
-[jep411]: https://github.com/tada/pljava/wiki/JEP-411
 [policy]: ../use/policy.html
+[unenforced]: ../use/unenforced.html
+[mappedudt]: ../pljava-api/apidocs/org.postgresql.pljava/org/postgresql/pljava/annotation/MappedUDT.html

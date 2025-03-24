@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -29,8 +29,6 @@ public class ELogFormatter extends Formatter
 	private final static MessageFormat s_tsFormatter = new MessageFormat(
 			"{0,date,dd MMM yy} {0,time,HH:mm:ss} {1} {2}");
 
-	private final static String s_lineSeparator = System.getProperty("line.separator");
-
 	private final Date m_timestamp = new Date();
 	private final Object m_args[] = new Object[] { m_timestamp, null, null };
 	private final StringBuffer m_buffer = new StringBuffer();
@@ -54,9 +52,9 @@ public class ELogFormatter extends Formatter
 		Throwable thrown = record.getThrown();
 		if(thrown != null)
 		{
-			sb.append(s_lineSeparator);
 			StringWriter sw = new StringWriter();
 			PrintWriter pw = new PrintWriter(sw);
+			pw.println(); /* line.separator safely cached in JVM initPhase1 */
 			record.getThrown().printStackTrace(pw);
 			pw.close();
 			sb.append(sw.toString());

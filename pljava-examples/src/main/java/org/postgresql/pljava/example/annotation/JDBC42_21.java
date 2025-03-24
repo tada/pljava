@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -10,6 +10,10 @@
  *   Chapman Flack
  */
 package org.postgresql.pljava.example.annotation;
+
+import java.sql.SQLException;
+
+import org.postgresql.pljava.SessionManager;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
@@ -133,9 +137,10 @@ public class JDBC42_21
 	 * recent as the argument ('1.6', '1.7', '1.8', '9', '10', '11', ...).
 	 */
 	@Function(schema="javatest", provides="javaSpecificationGE")
-	public static boolean javaSpecificationGE(String want)
+	public static boolean javaSpecificationGE(String want) throws SQLException
 	{
-		String got = System.getProperty("java.specification.version");
+		String got = SessionManager.current().frozenSystemProperties()
+			.getProperty("java.specification.version");
 		if ( want.startsWith("1.") )
 			want = want.substring(2);
 		if ( got.startsWith("1.") )
