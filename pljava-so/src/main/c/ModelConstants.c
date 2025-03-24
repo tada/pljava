@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -348,6 +348,9 @@ StaticAssertStmt((c) == \
 #if PG_VERSION_NUM >= 150000
 	CONFIRMCONST( ACL_SET          );
 	CONFIRMCONST( ACL_ALTER_SYSTEM);
+#endif
+#if PG_VERSION_NUM >= 170000
+	CONFIRMCONST( ACL_MAINTAIN     );
 #endif
 	CONFIRMCONST( ACL_ID_PUBLIC    );
 

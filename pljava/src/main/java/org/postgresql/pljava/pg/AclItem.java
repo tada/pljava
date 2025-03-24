@@ -49,6 +49,8 @@ public abstract class AclItem implements CatalogObject.Grant
 	// below appearing in PG 15
 	@Native static final short ACL_SET          = 1 << 12;
 	@Native static final short ACL_ALTER_SYSTEM = 1 << 13;
+	// below appearing in PG 17
+	@Native static final short ACL_MAINTAIN     = 1 << 14;
 
 	@Native static final   int ACL_ID_PUBLIC    =       0;
 
@@ -67,13 +69,13 @@ public abstract class AclItem implements CatalogObject.Grant
 	 * It can also be found as {@code ACL_ALL_RIGHTS_STR} in
 	 * {@code include/utils/acl.h}.
 	 */
-	private static final String s_abbr = "arwdDxtXUCTcsA";
+	private static final String s_abbr = "arwdDxtXUCTcsAm";
 
 	static
 	{
 		/*
 		 * This is not a check for equality, because N_ACL_RIGHTS has grown
-		 * (between PG 14 and 15). So the string should
+		 * (between PG 14 and 15, and between 16 and 17). So the string should
 		 * include all the letters that might be used, and the assertion will
 		 * catch if a new PG version has grown the count again.
 		 *
@@ -313,6 +315,16 @@ public abstract class AclItem implements CatalogObject.Grant
 		@Override public boolean alterSystemGrantable()
 		{
 			return goption(ACL_ALTER_SYSTEM);
+		}
+
+		@Override public boolean maintainGranted()
+		{
+			return priv(ACL_MAINTAIN);
+		}
+
+		@Override public boolean maintainGrantable()
+		{
+			return goption(ACL_MAINTAIN);
 		}
 	}
 }
