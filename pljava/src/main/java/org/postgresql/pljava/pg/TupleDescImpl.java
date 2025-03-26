@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -411,13 +411,19 @@ implements TupleDescriptor
 		return new Ephemeral(td);
 	}
 
-	private static ByteBuffer asNonDirectNativeOrder(ByteBuffer bb)
+	/**
+	 * Copy a byte buffer (which may refer to native-managed memory) to one
+	 * with JVM-managed backing memory.
+	 *<p>
+	 * Acquiescing to JDK-8318966, it still has to be a direct buffer to avoid
+	 * exceptions when checking alignment. But it will use off-heap memory
+	 * managed by the JVM (reclaimed when the buffer is unreachable), and so
+	 * will not depend on the lifespan of the source buffer.
+	 */
+	private static ByteBuffer asManagedNativeOrder(ByteBuffer bb)
 	{
-		if ( bb.isDirect() )
-		{
-			ByteBuffer copy = ByteBuffer.allocate(bb.capacity()).put(bb);
-			bb = copy;
-		}
+		ByteBuffer copy = ByteBuffer.allocateDirect(bb.capacity()).put(bb);
+		bb = copy;
 		return bb.order(nativeOrder());
 	}
 
@@ -526,7 +532,7 @@ implements TupleDescriptor
 		private Ephemeral(ByteBuffer td)
 		{
 			super(
-				asNonDirectNativeOrder(td), null, false,
+				asManagedNativeOrder(td), null, false,
 				(o, i) -> new AttributeImpl.Transient(o, i)
 			);
 		}
