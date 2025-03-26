@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,7 @@ import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
+import java.util.ArrayList;
 import java.util.BitSet;
 import static java.util.Collections.unmodifiableSet;
 import java.util.HashSet;
@@ -678,6 +679,30 @@ implements
 		private PLJavaMemo(RegProcedureImpl<? super PLJavaBased> carrier)
 		{
 			super(carrier);
+		}
+
+		/*
+		 * Discards a PLJavaMemo that has been retained with a null template.
+		 *
+		 * The validator logic in LookupImpl creates the usual linkages between
+		 * a RegProcedure and its language and validator, but never installs a
+		 * template in the RegProcedure's memo as the first actual call would.
+		 * Often, that isn't noticeable, because a shared-invalidation event
+		 * upon rollback if the validator rejected, or even upon successful
+		 * entry of the routine, causes the incomplete memo to be discarded.
+		 *
+		 * It can happen, though, if a routine is created/validated and then
+		 * used in the same transaction, that the incomplete memo with null
+		 * template is still there. Here is a convenient method to get rid of
+		 * it the same way shared-invalidation would.
+		 */
+		void discardIncomplete()
+		{
+			assert null == m_routineTemplate; // discarding because null
+			List<SwitchPoint> sps = new ArrayList<>();
+			List<Runnable> postOps = new ArrayList<>();
+			invalidate(sps, postOps);
+			assert 0 == sps.size()  &&  0 == postOps.size();
 		}
 
 		@Override

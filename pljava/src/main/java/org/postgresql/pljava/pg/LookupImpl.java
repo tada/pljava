@@ -907,6 +907,73 @@ class LookupImpl implements RegProcedure.Lookup
 
 		impl.essentialChecks(narrowed, checkBody);
 		impl.additionalChecks(narrowed, checkBody);
+
+		/*
+		 * On the way to invoking this method, nearly all of the linkages
+		 * between the subject RegProcedure and its language and validator have
+		 * been created, except of course for a null in the RegProcedure memo
+		 * where a Template ought to be.
+		 *
+		 * Often, the linkages are torn down by a shared-invalidation event
+		 * should validate() fail, or even if it succeeds and the affected
+		 * pg_proc row is committed. But it can happen, if creation / validation
+		 * and use occur in the same transaction, that the teardown by a SINVAL
+		 * event can't be relied on, and the attempt to use the now-validated
+		 * routine could stumble on a null template reference in the memo.
+		 *
+		 * There are two ways to prevent that. An obvious choice is to simulate
+		 * what a SINVAL event would do and discard the incomplete memo. We'll
+		 * do that here if checkBody was false, as some necessary validation
+		 * could have been skipped.
+		 *
+		 * On the other hand, if checkBody was true, we have here a fully
+		 * validated RegProcedure and the Routines instance needed to prepare
+		 * it, and may as well replace the null with a preparingTemplate which,
+		 * if it is still there (no SINVAL) on the first attempt at use, will
+		 * directly call impl.prepare and replace itself in the memo.
+		 */
+		doInPG(() ->
+		{
+			PLJavaMemo m = (PLJavaMemo)narrowed.memo();
+			if ( null == m  ||  null != m.m_routineTemplate )
+				return;
+			if ( checkBody )
+				m.m_routineTemplate = preparingTemplate(narrowed, impl);
+			else
+				m.discardIncomplete();
+		});
+	}
+
+	/**
+	 * Returns a placeholder {@code Template} whose {@code specialize} method
+	 * will first generate and memoize the real {@code Template} and then call
+	 * its {@code specialize} method and return the result.
+	 */
+	private static Template preparingTemplate(
+		RegProcedure<PLJavaBased> subject, Routines impl)
+	{
+		return flinfo ->
+		{
+			assert flinfo.target() == subject: "preparingTemplate wrong target";
+
+			/*
+			 * A call of prepare is normally preceded by a call of
+			 * essentialChecks in case the routine was not fully validated.
+			 * This Template, however, is only present after successful full
+			 * validation, so a repeated call of essentialChecks isn't needed.
+			 */
+			Template t = impl.prepare(subject);
+
+			doInPG(() ->
+			{
+				PLJavaMemo m = (PLJavaMemo)subject.memo();
+				if ( null == m )
+					return;
+				m.m_routineTemplate = t;
+			});
+
+			return t.specialize(flinfo);
+		};
 	}
 
 	/**
