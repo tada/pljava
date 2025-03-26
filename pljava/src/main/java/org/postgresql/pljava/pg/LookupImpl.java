@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -801,6 +801,7 @@ class LookupImpl implements RegProcedure.Lookup
 		{
 			int placeholders = 0;
 			ProceduralLanguageImpl pl_outer = null;
+			boolean reportable = true;
 			try
 			{
 				ProceduralLanguageImpl pl = pl_outer =
@@ -838,7 +839,7 @@ class LookupImpl implements RegProcedure.Lookup
 						pl, subject));
 
 				if ( ! checkBody )
-					return () -> {};
+					reportable = false;
 
 				Checked.Function
 					<ProceduralLanguage,? extends Routines,SQLException>
@@ -849,20 +850,33 @@ class LookupImpl implements RegProcedure.Lookup
 
 				return () ->
 				{
-					Routines impl = ctor.apply(pl);
-
-					doInPG(() ->
+					Routines impl = null;
+					try
 					{
-						pl.memoizeImplementingClass(
-							s_placeholderInstance, impl);
+						impl = ctor.apply(pl);
+					}
+					catch ( Throwable t )
+					{
+						if ( checkBody )
+							throw t;
+					}
+					finally
+					{
+						Routines f_impl = impl;
+						doInPG(() ->
+						{
+							pl.memoizeImplementingClass(
+								s_placeholderInstance, f_impl);
 
-						/*
-						 * See note above where this is also done:
-						 */
-						pl.addDependentRoutine(subject);
-					});
+							/*
+							 * See note above where this is also done:
+							 */
+							pl.addDependentRoutine(subject);
+						});
+					}
 
-					validate(impl, subject, checkBody);
+					if ( null != impl )
+						validate(impl, subject, checkBody);
 				};
 			}
 			catch ( Throwable t )
@@ -870,7 +884,9 @@ class LookupImpl implements RegProcedure.Lookup
 				if ( 1 == placeholders  &&  null != pl_outer )
 					pl_outer.memoizeImplementingClass(
 						s_placeholderInstance, null);
-				throw t;
+				if ( reportable )
+					throw t;
+				return () -> {};
 			}
 		});
 

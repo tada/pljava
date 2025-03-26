@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -67,7 +67,7 @@ extends
 	 * a PL/Java-based language implementation.
 	 *<p>
 	 * A valid memo of this type may be obtained within the body of
-	 * a language-handler method that has been passed am argument of
+	 * a language-handler method that has been passed an argument of
 	 * {@code RegProcedure<PLJavaBased>}.
 	 */
 	interface PLJavaBased extends Memo<PLJavaBased>
@@ -173,7 +173,7 @@ extends
 		 * unspecified-record-returning case, where a column definition list
 		 * must be consulted at each call site; it is an empty set for the
 		 * {@code VOID}-returning case where no further resolution is needed
-		 * (as an empty {@code BitSet} here would normally indicate).
+		 * (just as an empty {@code BitSet} here would normally indicate).
 		 */
 		public BitSet unresolvedOutputs();
 	}

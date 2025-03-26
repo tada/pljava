@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,6 +13,7 @@ package org.postgresql.pljava;
 
 import java.sql.SQLException;
 
+import org.postgresql.pljava.model.ProceduralLanguage; // javadoc
 import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 import org.postgresql.pljava.model.RegProcedure;
 import org.postgresql.pljava.model.RegProcedure.Call;
@@ -22,9 +23,12 @@ import org.postgresql.pljava.model.TupleTableSlot; // javadoc
 /**
  * Interface for a procedural language on PL/Java infrastructure.
  *<p>
- * An implementation must also implement at least one of
- * {@link InlineBlocks InlineBlocks}
- * and {@link Routines Routines}.
+ * An implementing class does not implement this interface directly, but rather
+ * implements one or both of the subinterfaces {@link InlineBlocks InlineBlocks}
+ * and {@link Routines Routines}. It must have a public constructor with a
+ * {@link ProceduralLanguage ProceduralLanguage} parameter, which it may ignore,
+ * or use to determine the name, oid, accessibility, or other details of the
+ * declared PostgreSQL language the handler class has been instantiated for.
  */
 public interface PLJavaBasedLanguage
 {
