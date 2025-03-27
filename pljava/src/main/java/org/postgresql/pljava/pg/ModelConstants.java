@@ -217,16 +217,15 @@ public abstract class ModelConstants
 
 	@Native private static final int IDX_SIZEOF_DATUM            = 1;
 	@Native private static final int IDX_SIZEOF_INT              = 2;
-	@Native private static final int IDX_SIZEOF_SIZE             = 3;
+	@Native private static final int IDX_SIZEOF_LONG             = 3;
+	@Native private static final int IDX_SIZEOF_SIZE             = 4;
 
-	@Native private static final int IDX_ALIGNOF_SHORT           = 4;
-	@Native private static final int IDX_ALIGNOF_INT             = 5;
-	@Native private static final int IDX_ALIGNOF_DOUBLE          = 6;
-	@Native private static final int IDX_MAXIMUM_ALIGNOF         = 7;
+	@Native private static final int IDX_ALIGNOF_SHORT           = 5;
+	@Native private static final int IDX_ALIGNOF_INT             = 6;
+	@Native private static final int IDX_ALIGNOF_DOUBLE          = 7;
+	@Native private static final int IDX_MAXIMUM_ALIGNOF         = 8;
 
-	@Native private static final int IDX_NAMEDATALEN             = 8;
-
-
+	@Native private static final int IDX_NAMEDATALEN             = 9;
 
 	@Native private static final int IDX_SIZEOF_varatt_indirect  = 10;
 	@Native private static final int IDX_SIZEOF_varatt_expanded  = 11;
@@ -360,9 +359,11 @@ public abstract class ModelConstants
 	/*
 	 * In backporting, can be useful when the git history shows something was
 	 * always of 'int' type, so it doesn't need a dedicated SIZEOF_FOO, but does
-	 * need to notice if a platform has an unexpected 'int' width.
+	 * need to notice if a platform has an unexpected 'int' width. Same for
+	 * 'long', widely used in SPI and having an unexpected width on Windows.
 	 */
 	public static final int SIZEOF_INT;
+	public static final int SIZEOF_LONG;
 	public static final int SIZEOF_SIZE;
 
 	public static final int ALIGNOF_SHORT;
@@ -371,8 +372,6 @@ public abstract class ModelConstants
 	public static final int MAXIMUM_ALIGNOF;
 
 	public static final short NAMEDATALEN;
-
-
 
 	public static final int SIZEOF_varatt_indirect;
 	public static final int SIZEOF_varatt_expanded;
@@ -506,6 +505,7 @@ public abstract class ModelConstants
 
 			SIZEOF_DATUM      = n.get(IDX_SIZEOF_DATUM);
 			SIZEOF_INT        = n.get(IDX_SIZEOF_INT);
+			SIZEOF_LONG       = n.get(IDX_SIZEOF_LONG);
 			SIZEOF_SIZE       = n.get(IDX_SIZEOF_SIZE);
 
 			ALIGNOF_SHORT     = n.get(IDX_ALIGNOF_SHORT);
@@ -517,9 +517,6 @@ public abstract class ModelConstants
 			NAMEDATALEN       = (short)c;
 			assert c == NAMEDATALEN;
 
-
-
-			n.gap(IDX_SIZEOF_varatt_indirect);
 			SIZEOF_varatt_indirect = n.get(IDX_SIZEOF_varatt_indirect);
 			SIZEOF_varatt_expanded = n.get(IDX_SIZEOF_varatt_expanded);
 			SIZEOF_varatt_external = n.get(IDX_SIZEOF_varatt_external);

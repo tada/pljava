@@ -509,6 +509,7 @@ public interface CatalogObject
 		protected abstract CharsetEncoding clientEncoding();
 		protected abstract CharsetEncoding encodingFromOrdinal(int ordinal);
 		protected abstract CharsetEncoding encodingFromName(String name);
+		protected abstract long fetchAll();
 
 		/*
 		 * These magic numbers are hardcoded here inside the pljava-api project

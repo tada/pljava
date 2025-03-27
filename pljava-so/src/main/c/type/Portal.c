@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -141,18 +141,13 @@ void pljava_Portal_initialize(void)
 	CONFIRMCONST(FETCH_RELATIVE);
 
 	/*
-	 * FETCH_ALL is a 64-bit constant, which javac -h (before Java 25)
-	 * outputs with a nonstandard i64 suffix once used by MSVC, instead of
-	 * the standard LL. https://bugs.openjdk.org/browse/JDK-8309551
-	 * That breaks compilation in gcc for the obvious reason (invalid suffix
-	 * "i64" on integer constant), but also even breaks on MSVC for some
-	 * less-obvious reason ("C2034: type of bit field too small for number of
-	 * bits"??). I give up. If the value ever changes upstream, CI on some
-	 * other OS will have to catch it.
+	 * Many SPI functions are declared with 'long' parameters and while
+	 * FETCH_ALL is declared as LONG_MAX everywhere, it's not the same value
+	 * everywhere (Windows has 32-bit longs), so this can't just be a fixed Java
+	 * constant with CONFIRMCONST here. May as well check that the assumption
+	 * FETCH_ALL == LONG_MAX still holds, though.
 	 */
-#if ! defined(_WIN32)
-	CONFIRMCONST(FETCH_ALL);
-#endif
+	StaticAssertStmt((FETCH_ALL) == (LONG_MAX), "Unexpected FETCH_ALL value");
 }
 
 /****************************************

@@ -85,6 +85,7 @@ static int32 constants[] = {
 
 	CONSTANT(SIZEOF_DATUM),
 	CONSTANTEXPR(SIZEOF_INT, sizeof (int)),
+	CONSTANTEXPR(SIZEOF_LONG, sizeof (long)),
 	CONSTANTEXPR(SIZEOF_SIZE, sizeof (Size)),
 
 	CONSTANT(ALIGNOF_SHORT),
