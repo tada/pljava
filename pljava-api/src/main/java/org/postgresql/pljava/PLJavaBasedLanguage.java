@@ -99,9 +99,10 @@ public interface PLJavaBasedLanguage
 		 * or {@code pg_upgrade}.
 		 *<p>
 		 * This method is invoked with <var>checkBody</var> false only if the
-		 * receiver has already been loaded and instantiated. If it has not,
-		 * and <var>checkBody</var> is false, PL/Java does not attempt to do so,
-		 * and treats the validation as successful.
+		 * JVM has been started and PL/Java has already loaded and instantiated
+		 * the implementing class, or succeeds in doing so. If not, and
+		 * <var>checkBody</var> is false, PL/Java simply treats the validation
+		 * as successful.
 		 *<p>
 		 * This default implementation checks nothing.
 		 */
@@ -118,8 +119,8 @@ public interface PLJavaBasedLanguage
 		 * This method should be used for checks that may give helpful feedback
 		 * at routine-creation time, but can be skipped at run time because the
 		 * correct behavior of {@link #prepare prepare} does not depend on them.
-		 * PL/Java calls this method only at routine-creation time, if
-		 * {@link #essentialChecks essentialChecks} completed normally.
+		 * PL/Java calls this method only at routine-creation time, just after
+		 * {@link #essentialChecks essentialChecks} has completed normally.
 		 *<p>
 		 * This method should throw an informative exception for any check that
 		 * fails, otherwise returning normally.
