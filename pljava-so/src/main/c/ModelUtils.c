@@ -1257,7 +1257,7 @@ Java_org_postgresql_pljava_pg_LookupImpl__1notionalCallResultType(JNIEnv* env, j
  * Signature: (Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;II)Z
  */
 JNIEXPORT jboolean JNICALL
-Java_org_postgresql_pljava_pg_LookupImpl__1resolveArgTypes(JNIEnv* env, jobject _cls, jobject fcinfo_b, jobject types_b, jobject unresolved_b, int tplSz, int argSz)
+Java_org_postgresql_pljava_pg_LookupImpl__1resolveArgTypes(JNIEnv* env, jobject _cls, jobject fcinfo_b, jobject types_b, jobject unresolved_b, jint tplSz, jint argSz)
 {
 	FunctionCallInfo fcinfo = (*env)->GetDirectBufferAddress(env, fcinfo_b);
 	Oid *types = (*env)->GetDirectBufferAddress(env, types_b);

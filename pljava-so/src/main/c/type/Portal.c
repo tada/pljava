@@ -139,7 +139,20 @@ void pljava_Portal_initialize(void)
 	CONFIRMCONST(FETCH_BACKWARD);
 	CONFIRMCONST(FETCH_ABSOLUTE);
 	CONFIRMCONST(FETCH_RELATIVE);
+
+	/*
+	 * FETCH_ALL is a 64-bit constant, which javac -h (before Java 25)
+	 * outputs with a nonstandard i64 suffix once used by MSVC, instead of
+	 * the standard LL. https://bugs.openjdk.org/browse/JDK-8309551
+	 * That breaks compilation in gcc for the obvious reason (invalid suffix
+	 * "i64" on integer constant), but also even breaks on MSVC for some
+	 * less-obvious reason ("C2034: type of bit field too small for number of
+	 * bits"??). I give up. If the value ever changes upstream, CI on some
+	 * other OS will have to catch it.
+	 */
+#if ! defined(_WIN32)
 	CONFIRMCONST(FETCH_ALL);
+#endif
 }
 
 /****************************************
