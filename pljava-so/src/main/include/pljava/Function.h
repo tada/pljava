@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -51,8 +51,8 @@ extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
 
 /*
  * First translate a function Oid to a Function (looking it up according to the
- * trusted, forTrigger, forValidator, and checkBody parameters), and then
- * (unless forValidator is true) invoke it: i.e. coerce the parameters, call the
+ * forTrigger, forValidator, and checkBody parameters), and then (unless
+ * forValidator is true) invoke it: i.e. coerce the parameters, call the
  * java method, and coerce the return value back to a Datum. The return-value
  * coercion is handled by a convention where this call will delegate to the Type
  * representing the SQL return type. That will call back on one of the flavors
@@ -64,7 +64,7 @@ extern Type Function_checkTypeBaseUDT(Oid typeId, Form_pg_type typeStruct);
  */
 extern Datum Function_invoke(
 	Oid funcoid,
-	bool trusted, bool forTrigger, bool forValidator, bool checkBody,
+	bool forTrigger, bool forValidator, bool checkBody,
 	PG_FUNCTION_ARGS);
 
 /*
@@ -136,26 +136,32 @@ extern jobject pljava_Function_udtReadHandle(
 	jclass clazz, char *langName, bool trusted);
 
 /*
- * Returns the type map that is held by the function's schema loader (the
- * initiating loader that was used when the function was resolved). It is a map
- * from Java Oid objects to Class<SQLData> objects, as resolved by that loader.
+ * Returns a JNI global reference to the initiating (schema) class loader used
+ * to load the currently-executing function.
  */
-extern jobject Function_getTypeMap(Function self);
+extern jobject Function_currentLoader(void);
+
+/*
+ * Returns the type map held by the innermost executing PL/Java function's
+ * schema loader (the initiating loader that was used to resolve the function).
+ * The type map is a map from Java Oid objects to Class<? extends SQLData>,
+ * as resolved by that loader. This is effectively Function_currentLoader()
+ * followed by JNI-invoking getTypeMap on the loader, but cached to avoid JNI.
+ */
+extern jobject Function_currentTypeMap(void);
 
 /*
  * Returns true if the currently executing function is non volatile, i.e. stable
- * or immutable. Such functions are not allowed to have side effects.
+ * or immutable: the function author has declared it will not have visible
+ * side effects in the database. The normal behavior of JDBC methods that
+ * call SPI functions having a "read-only" parameter will be to pass true
+ * for that parameter, if this function returns true. Passing true to an SPI
+ * "read-only" parameter means both less and more than you might think: it may
+ * not necessarily preclude all visible effects, and it also constrains the
+ * function to use an existing snapshot in which the results of recent
+ * preceding operations cannot be seen.
  */
 extern bool Function_isCurrentReadOnly(void);
-
-/*
- * Return a global reference to the initiating (schema) class loader used
- * to load the currently-executing function.
- *
- * Invocation_getTypeMap is equivalent to calling this and then JNI-invoking
- * getTypeMap on the returned loader (cast to PL/Java's loader subclass).
- */
-extern jobject Function_currentLoader(void);
 
 /*
  * A nameless Function singleton with the property ! isCurrentReadOnly()

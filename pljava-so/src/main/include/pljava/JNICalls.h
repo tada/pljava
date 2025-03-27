@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,8 +25,12 @@ extern "C" {
 extern jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
 #define BEGIN_NATIVE_NO_ERRCHECK if(beginNativeNoErrCheck(env)) {
-#define BEGIN_NATIVE if(beginNative(env)) {
+#define BEGIN_NATIVE if(!beginNative(env)) ; else {
 #define END_NATIVE JNI_setEnv(0); }
+
+#define BEGIN_NATIVE_AND_TRY BEGIN_NATIVE PG_TRY(); {
+#define END_NATIVE_AND_CATCH(shortfunc) } PG_CATCH(); { \
+	Exception_throw_ERROR(shortfunc); } PG_END_TRY(); END_NATIVE
 
 /***********************************************************************
  * All calls to and from the JVM uses this header. The calls are implemented

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -16,7 +16,9 @@ import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
 
 import java.security.AccessControlContext;
+import java.security.AccessController;
 import static java.security.AccessController.doPrivileged;
+import java.security.Permission;
 import java.security.PrivilegedAction;
 
 import java.sql.SQLData;
@@ -27,6 +29,8 @@ import java.sql.SQLInput;
 import java.sql.SQLOutput;
 
 import static java.util.Objects.requireNonNull;
+
+import java.util.function.Consumer;
 
 import org.postgresql.pljava.internal.UncheckedException;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
@@ -372,6 +376,22 @@ class EntryPoints
 		};
 
 		return doPrivilegedAndUnwrap(action, acc);
+	}
+
+	/**
+	 * Returns a permission checker for use when enforcing.
+	 *<p>
+	 * With JEP 486, Java essentially becomes everything-is-allowed, except
+	 * where user code makes its own permission checks. JEP 486 changed
+	 * {@link AccessController#checkPermission(Permission) checkPermission}
+	 * to unconditionally throw an exception. So checking has to be abstracted,
+	 * using the {@code Consumer} returned by this method when the Java runtime
+	 * supports it, otherwise a different {@code Consumer} that does something
+	 * else.
+	 */
+	static Consumer<Permission> permissionChecker()
+	{
+		return AccessController::checkPermission;
 	}
 
 	/**

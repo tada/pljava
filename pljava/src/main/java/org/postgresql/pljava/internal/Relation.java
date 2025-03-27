@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,6 +13,7 @@
 package org.postgresql.pljava.internal;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.Invocation;
 
 import java.sql.SQLException;
 
@@ -27,18 +28,17 @@ public class Relation
 	private TupleDesc m_tupleDesc;
 	private final State m_state;
 
-	Relation(DualState.Key cookie, long resourceOwner, long pointer)
+	Relation(long pointer)
 	{
-		m_state = new State(cookie, this, resourceOwner, pointer);
+		m_state = new State(this, pointer);
 	}
 
 	private static class State
 	extends DualState.SingleGuardedLong<Relation>
 	{
-		private State(
-			DualState.Key cookie, Relation r, long ro, long hth)
+		private State(Relation r, long hth)
 		{
-			super(cookie, r, ro, hth);
+			super(r, Invocation.current(), hth);
 		}
 
 		/**

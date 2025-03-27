@@ -33,12 +33,12 @@ environment:
     - SYS: MSVC
       JDK: 21
       PG: 13
-    - SYS: MSVC
-      JDK: 21
-      PG: 12
-    - SYS: MSVC
-      JDK: 11
-      PG: 9.6
+#   - SYS: MSVC
+#     JDK: 21
+#     PG: 12
+#   - SYS: MSVC
+#     JDK: 11
+#     PG: 9.6
 before_build:
   - ps: .appveyor/appveyor_download_java.ps1
   - set JAVA_HOME=%ProgramFiles%\Java\jdk%JDK%

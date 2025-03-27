@@ -28,7 +28,7 @@ import org.postgresql.pljava.annotation.SQLAction;
  * to the {@link #executeSelect executeSelect} function.
  */
 @SQLAction(requires="selecttorecords fn",
-install=
+install={
 " SELECT " +
 "  CASE WHEN r IS DISTINCT FROM ROW('Foo'::varchar, 1::integer, 1.5::float, " +
 "       23.67::decimal(8,2), '2005-06-01'::date, '20:56'::time, " +
@@ -41,8 +41,20 @@ install=
 "   'select ''Foo'',  1,  1.5::float,  23.67,  ''2005-06-01'',  " +
 "           ''20:56''::time, ''192.168.0''') " +
 "  AS r(t_varchar varchar, t_integer integer, t_float float, " +
-"      t_decimal decimal(8,2), t_date date, t_time time, t_cidr cidr)"
-)
+"      t_decimal decimal(8,2), t_date date, t_time time, t_cidr cidr)",
+
+" SELECT " +
+"  CASE WHEN every(a IS NOT DISTINCT FROM b) " +
+"  THEN javatest.logmessage('INFO', 'nested/SPI SetOfRecordTest ok') " +
+"  ELSE javatest.logmessage('WARNING', 'nested/SPI SetOfRecordTest not ok') " +
+"  END " +
+" FROM " +
+"  javatest.executeselecttorecords('" +
+"   SELECT " +
+"    javatest.executeselect(''select generate_series(1,1)''), " +
+"    javatest.executeselect(''select generate_series(1,1)'') " +
+"  ') AS t(a text, b text)"
+})
 public class SetOfRecordTest implements ResultSetHandle {
 
 	@Function(schema="javatest", name="executeselecttorecords",

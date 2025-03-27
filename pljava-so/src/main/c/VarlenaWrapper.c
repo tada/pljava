@@ -44,8 +44,11 @@
 
 #define INITIALSIZE 1024
 
+static jclass s_DatumImpl_class;
+
+static jmethodID s_DatumImpl_adopt;
+
 static jclass s_VarlenaWrapper_class;
-static jmethodID s_VarlenaWrapper_adopt;
 
 static jclass s_VarlenaWrapper_Input_class;
 static jclass s_VarlenaWrapper_Output_class;
@@ -190,7 +193,7 @@ constructResult:
 	p2ldatum.ptrVal = vl;
 
 	vr = JNI_newObjectLocked(s_VarlenaWrapper_Input_class,
-		s_VarlenaWrapper_Input_init, pljava_DualState_key(),
+		s_VarlenaWrapper_Input_init,
 		p2lro.longVal, p2lcxt.longVal, p2lpin.longVal, p2ldatum.longVal,
 		(jlong)parked, (jlong)actual, dbb);
 
@@ -256,7 +259,7 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 	dbb = JNI_newDirectByteBuffer(evosh->tail + 1, INITIALSIZE);
 
 	vos = JNI_newObjectLocked(s_VarlenaWrapper_Output_class,
-			s_VarlenaWrapper_Output_init, pljava_DualState_key(),
+			s_VarlenaWrapper_Output_init,
 			p2lro.longVal, p2lcxt.longVal, p2ldatum.longVal, dbb);
 	JNI_deleteLocalRef(dbb);
 
@@ -275,9 +278,7 @@ Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 {
 	Ptr2Long p2l;
 
-	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
-					pljava_DualState_key());
-
+	p2l.longVal = JNI_callLongMethodLocked(vlw, s_DatumImpl_adopt);
 	return PointerGetDatum(p2l.ptrVal);
 }
 
@@ -340,6 +341,9 @@ void pljava_VarlenaWrapper_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	s_DatumImpl_class =
+		(jclass)JNI_newGlobalRef(PgObject_getJavaClass(
+			"org/postgresql/pljava/pg/DatumImpl"));
 	s_VarlenaWrapper_class =
 		(jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper"));
@@ -352,17 +356,14 @@ void pljava_VarlenaWrapper_initialize(void)
 
 	s_VarlenaWrapper_Input_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Input_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;"
-		"JJJJJJLjava/nio/ByteBuffer;)V");
+		"(JJJJJJLjava/nio/ByteBuffer;)V");
 
 	s_VarlenaWrapper_Output_init = PgObject_getJavaMethod(
 		s_VarlenaWrapper_Output_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;"
-		"JJJLjava/nio/ByteBuffer;)V");
+		"(JJJLjava/nio/ByteBuffer;)V");
 
-	s_VarlenaWrapper_adopt = PgObject_getJavaMethod(
-		s_VarlenaWrapper_class, "adopt",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;)J");
+	s_DatumImpl_adopt = PgObject_getJavaMethod(
+		s_DatumImpl_class, "adopt", "()J");
 
 	clazz = PgObject_getJavaClass(
 			"org/postgresql/pljava/internal/VarlenaWrapper$Input$State");
