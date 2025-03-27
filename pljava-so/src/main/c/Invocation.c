@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -41,6 +41,7 @@ Invocation currentInvocation[] =
 		.errorOccurred = false,
 		.hasConnected = false,
 		.inExprContextCB = false,
+		.nonAtomic = false,
 		.upperContext = NULL,
 		.savedLoader = NULL,
 		.function = NULL,
@@ -120,7 +121,8 @@ void Invocation_assertConnect(void)
 	int rslt;
 	if(!currentInvocation->hasConnected)
 	{
-		rslt = SPI_connect();
+		rslt = SPI_connect_ext(
+			currentInvocation->nonAtomic ? SPI_OPT_NONATOMIC : 0);
 		if ( SPI_OK_CONNECT != rslt )
 			elog(ERROR, "SPI_connect returned %s",
 						SPI_result_code_string(rslt));
@@ -178,6 +180,7 @@ void Invocation_pushInvocation(Invocation* ctx)
 	ctx->primSlot0       = *s_primSlot0;
 	ctx->savedLoader     = pljava_Function_NO_LOADER;
 	ctx->hasConnected    = false;
+	ctx->nonAtomic       = false;
 	ctx->upperContext    = CurrentMemoryContext;
 	ctx->errorOccurred   = false;
 	ctx->inExprContextCB = false;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -55,7 +55,7 @@ struct Invocation_
 	 * Set when an SPI_connect is issued. Ensures that SPI_finish
 	 * is called when the function exits.
 	 */
-	bool hasConnected;
+	bool hasConnected:1,
 
 	/**
 	 * Set to true if the call originates from an ExprContextCallback. When
@@ -63,7 +63,12 @@ struct Invocation_
 	 * in the setup of a value-per-call set-returning function, and used to
 	 * detect when no further values of the set will be wanted.
 	 */
-	bool inExprContextCB;
+	     inExprContextCB:1,
+
+	/**
+	 * Set if transaction-control operations are to be allowed in SPI.
+	 */
+	     nonAtomic:1;
 
 	/**
 	 * The context to use when allocating values that are to be

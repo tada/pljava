@@ -72,14 +72,13 @@ import org.postgresql.pljava.pg.TupleTableSlotImpl;
  * procedure is running in.  It is returned from the driver manager
  * with
  * <code>DriverManager.getConnection("jdbc:default:connection");</code>
- * and cannot be managed in any way since it's already running inside
- * a transaction.  This means the following methods cannot be used.
- * <ul>
- * <li><code>commit()</code></li>
- * <li><code>rollback()</code></li>
- * <li><code>setAutoCommit()</code></li>
- * <li><code>setTransactionIsolation()</code></li>
- * </ul>
+ *<p>
+ * PostgreSQL calls functions within a transaction and does not allow them to
+ * issue transaction control operations ({@code commit} / {@code rollback} /
+ * {@code setAutoCommit} / {@code setTransactionIsolation}). It can allow
+ * commit / rollback within a procedure or a {@code DO} block, if that
+ * procedure or {@code DO} block was not executed in an existing explicit
+ * transaction.
  * @author Thomas Hallgren
  */
 public class SPIConnection implements Connection, SlotTester
@@ -233,25 +232,31 @@ public class SPIConnection implements Connection, SlotTester
 	}
 
 	/**
-	 * It's not legal to do a commit within a call from SQL.
-	 * @throws SQLException indicating that this feature is not supported.
+	 * Commits the top-level transaction.
+	 *<p>
+	 * PostgreSQL does not allow such an action from within a function, but it
+	 * can be allowed within a procedure or DO block, if not executed within
+	 * an existing explicit transaction.
 	 */
 	@Override
 	public void commit()
 	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Connection.commit");
+		SPI.commit();
 	}
 
 	/**
-	 * It's not legal to do a rollback within a call from SQL.
-	 * @throws SQLException indicating that this feature is not supported.
+	 * Rolls back the top-level transaction.
+	 *<p>
+	 * PostgreSQL does not allow such an action from within a function, but it
+	 * can be allowed within a procedure or DO block, if not executed within
+	 * an existing explicit transaction.
 	 */
 	@Override
 	public void rollback()
 	throws SQLException
 	{
-		throw new UnsupportedFeatureException("Connection.rollback");
+		SPI.rollback();
 	}
 
 	/**

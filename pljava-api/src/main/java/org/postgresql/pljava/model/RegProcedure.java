@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -288,8 +288,17 @@ extends
 			{
 			}
 
+			/**
+			 * Supplied when the routine being called is a procedure
+			 * rather than a function.
+			 */
 			interface CallContext extends Context
 			{
+				/**
+				 * Indicates whether transaction control operations within
+				 * the procedure are disallowed (true) or allowed (false).
+				 */
+				boolean atomic();
 			}
 
 			interface ErrorSaveContext extends Context

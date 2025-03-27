@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -32,6 +32,7 @@
 
 #include "pljava/Backend.h"
 #include "pljava/Exception.h"
+#include "pljava/Invocation.h"
 #include "pljava/PgObject.h"
 #include "pljava/ModelUtils.h"
 #include "pljava/VarlenaWrapper.h"
@@ -207,6 +208,13 @@ void pljava_ModelUtils_inlineDispatch(PG_FUNCTION_ARGS)
 	len = strlen(codeblock->source_text);
 	src = JNI_newDirectByteBuffer(codeblock->source_text, (jlong)len);
 
+	/*
+	 * The atomic flag will also be passed to the handler in case it cares,
+	 * but recording it in currentInvocation for SPI's use should always happen
+	 * and this is the simplest place to do it.
+	 */
+	currentInvocation->nonAtomic = ! codeblock->atomic;
+
 	JNI_callStaticVoidMethod(s_LookupImpl_class, s_LookupImpl_dispatchInline,
 		(jint)codeblock->langOid, (jboolean)codeblock->atomic, src);
 }
@@ -235,20 +243,61 @@ Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
 	Ptr2Long p2l_mcxt;
 	Ptr2Long p2l_extra;
 
+	/*
+	 * If the caller has supplied an expression node representing the call site,
+	 * get its tag. The handler can use the information to, for example, resolve
+	 * the types of polymorphic parameters to concrete types from the call site.
+	 */
 	if ( NULL != expr )
 		exprTag = nodeTag(expr);
 
+	/*
+	 * If the caller has supplied a context node with extra information about
+	 * the call, get its tag. The handler will be able to consult its contents.
+	 *
+	 * The atomic flag (if it is a CallContext) or TriggerData (if that's what
+	 * it is) will be recorded in currentInvocation right here, so that always
+	 * happens without attention from the handler.
+	 */
 	if ( NULL != context )
+	{
 		contextTag = nodeTag(context);
 
+		if ( T_CallContext == contextTag )
+			currentInvocation->nonAtomic = ! ((CallContext *)context)->atomic;
+		else if ( T_TriggerData == contextTag )
+			currentInvocation->triggerData = (TriggerData *)context;
+	}
+
+	/*
+	 * If the caller has supplied a resultinfo node to control how results are
+	 * returned, get its tag.
+	 */
 	if ( NULL != resultinfo )
 		resultinfoTag = nodeTag(resultinfo);
 
+	/*
+	 * If there is a RegProcedureLookup struct that was saved in extra during
+	 * an earlier look at this call site, recover the existing Java LookupImpl
+	 * object to call its dispatch method. A new ByteBuffer covering an fcinfo,
+	 * context, or resultinfo struct, respectively, will be passed only if the
+	 * presence, type, size, or location of the struct has changed; if not, a
+	 * ByteBuffer from the earlier encounter can be used again. The newExpr and
+	 * hasExpr params likewise indicate whether LookupImpl needs to refresh any
+	 * expression information possibly cached from before. The target routine
+	 * oid is passed here only as a sanity check; it had better match the one
+	 * used when the LookupImpl was constructed.
+	 *
+	 * This block returns to the caller after invoking dispatch(...) and
+	 * handling the result. XXX Result handling yet to be implemented; only
+	 * returns void for now (the caller will see null if the handler poked
+	 * fcinfo->isnull).
+	 */
 	if ( NULL != extra )
-		lookup = extra->lookup;
-
-	if ( NULL != lookup )
 	{
+		lookup = extra->lookup;
+		Assert(NULL != lookup); /* extra with null lookup shouldn't be seen */
+
 		if ( exprTag != extra->exprTag  ||  expr != extra->expr )
 		{
 			newExpr = JNI_TRUE;
@@ -298,9 +347,32 @@ Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
 	}
 
 	/*
-	 * lookup is NULL; ought to mean extra itself is NULL.
+	 * Arrival here means extra was NULL: no Java LookupImpl exists yet.
+	 * A RegProcedureLookup struct will be freshly allocated in the
+	 * flinfo->fn_mcxt memory context and saved as flinfo->fn_extra, and
+	 * LookupImpl's static dispatchNew method will be called. The new C struct
+	 * will end up holding a JNI global reference to the new LookupImpl thanks
+	 * to a _cacheReference JNI callback (below in this file) made in the course
+	 * of dispatchNew.
+	 *
+	 * The remainder of the RegProcedureLookup struct is populated here with
+	 * the tags and addresses of any expr, context, or resultinfo nodes supplied
+	 * by the caller, and the argument count and address of the caller-supplied
+	 * fcinfo. Those will be used on subsequent calls to notice if the presence,
+	 * tag (hence likely size), or address of any of those pieces has changed.
+	 *
+	 * dispatchNew is passed the memory context of the RegProcedureLookup
+	 * struct, to bound its lifespan; when the context is reset, the JNI global
+	 * ref to the LookupImpl instance will be released. The method is also
+	 * passed the fn_extra address (for use by the _cacheReference callback),
+	 * the target routine oid, forValidator and hasExpr flags, and ByteBuffers
+	 * windowing the fcinfo struct, and the context and resultinfo structs when
+	 * present.
+	 *
+	 * Once dispatchNew returns, any returned result needs appropriate handling.
+	 * XXX For now, void is unconditionally returned (the caller will see null
+	 * if the handler has poked fcinfo->isnull).
 	 */
-	Assert(NULL == extra);
 
 	extra = MemoryContextAllocZero(mcxt, sizeof *extra);
 

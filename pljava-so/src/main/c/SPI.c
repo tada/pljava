@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -42,6 +42,11 @@ void SPI_initialize(void)
 		"_exec",
 		"(Ljava/lang/String;I)I",
 		Java_org_postgresql_pljava_internal_SPI__1exec
+		},
+		{
+		"_endXact",
+		"(Z)V",
+		Java_org_postgresql_pljava_internal_SPI__1endXact
 		},
 		{
 		"_getTupTable",
@@ -159,6 +164,36 @@ Java_org_postgresql_pljava_internal_SPI__1exec(JNIEnv* env, jclass cls, jstring 
 	}
 	END_NATIVE	
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_SPI
+ * Method:    _endXact
+ * Signature: (Z)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_internal_SPI__1endXact(JNIEnv* env, jclass cls, jboolean rollback)
+{
+	char *where = rollback ? "SPI_rollback" : "SPI_commit";
+	BEGIN_NATIVE
+	STACK_BASE_VARS
+	STACK_BASE_PUSH(env)
+	PG_TRY();
+	{
+		Invocation_assertConnect();
+		if ( rollback )
+			SPI_rollback();
+		else
+			SPI_commit();
+
+	}
+	PG_CATCH();
+	{
+		Exception_throw_ERROR(where);
+	}
+	PG_END_TRY();
+	STACK_BASE_POP()
+	END_NATIVE
 }
 
 /*

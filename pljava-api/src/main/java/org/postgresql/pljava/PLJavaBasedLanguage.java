@@ -35,6 +35,38 @@ public interface PLJavaBasedLanguage
 	/**
 	 * To be implemented by a language that supports routines (that is,
 	 * functions and/or procedures).
+	 *<p>
+	 * Whether a routine is a function or procedure can be determined at
+	 * validation time ({@code subject.}{@link RegProcedure#kind() kind()} in
+	 * {@link #essentialChecks essentialChecks} or
+	 * {@link #additionalChecks additionalChecks}) or at
+	 * {@link #prepare prepare} time
+	 * (({@code target.}{@link RegProcedure#kind() kind()}).
+	 * A procedure can also be distinguished from a function in that,
+	 * at {@link Routine#call Routine.call(fcinfo)} time, if a procedure is
+	 * being called, {@code fcinfo.}{@link Call#context() context()} returns
+	 * an instance of {@link Call.Context.CallContext CallContext}.
+	 *<h2>Transaction control</h2>
+	 *<p>
+	 * A function is always called within an existing transaction; while it may
+	 * use subtransactions / savepoints, it can never commit, roll back, or
+	 * start a new top-level transaction.
+	 *<p>
+	 * A procedure is allowed to start, commit, and roll back top-level
+	 * transactions, provided it was not called inside an existing explicit
+	 * transation. That condition can be checked by consulting
+	 * {@link Call.Context.CallContext#atomic() CallContext.atomic()} when
+	 * {@code fcinfo.context()} returns an instance of {@code CallContext}.
+	 * When {@code atomic()} returns {@code true}, transaction control is not
+	 * allowed. (If {@code fcinfo.context()} returns anything other than an
+	 * instance of {@code CallContext}, this is not a procedure call, and
+	 * transaction control is never allowed.)
+	 *<p>
+	 * A handler may use this information to impose its own (for example,
+	 * compile-time) limits on a routine's access to transaction-control
+	 * operations. Any use of SPI by the routine will be appropriately limited
+	 * with no need for attention from the handler, as PL/Java propagates the
+	 * atomic/nonatomic flag to SPI always.
 	 */
 	public interface Routines extends PLJavaBasedLanguage
 	{
@@ -151,6 +183,19 @@ public interface PLJavaBasedLanguage
 
 	/**
 	 * To be implemented by a language that supports inline code blocks.
+	 *<h2>Transaction control</h2>
+	 *<p>
+	 * A {@code DO} block is allowed to start, commit, and roll back top-level
+	 * transactions, as long as it was not invoked inside an existing explicit
+	 * transaction. The <var>atomic</var> parameter passed to
+	 * {@link #execute execute} will be {@code true} if transaction control
+	 * is disallowed.
+	 *<p>
+	 * A handler may use this information to impose its own (for example,
+	 * compile-time) limits on the availability of transaction-control
+	 * operations. Any use of SPI by the code block will be appropriately
+	 * limited with no need for attention from the handler, as PL/Java
+	 * propagates the atomic/nonatomic flag to SPI always.
 	 */
 	public interface InlineBlocks extends PLJavaBasedLanguage
 	{
@@ -176,6 +221,16 @@ public interface PLJavaBasedLanguage
 	@FunctionalInterface
 	public interface Routine
 	{
+		/**
+		 * Actually executes the prepared and specialized {@code Routine}, using
+		 * the arguments and other call-specific information passed in
+		 * {@code fcinfo}.
+		 *<p>
+		 * Various special cases of routine calls (triggers, procedure calls,
+		 * and so on) can be distinguished by the specific subtypes of
+		 * {@link Call.Context} that may be returned by
+		 * {@code fcinfo.}{@link Call#context() context()}.
+		 */
 		void call(Call fcinfo) throws SQLException;
 	}
 

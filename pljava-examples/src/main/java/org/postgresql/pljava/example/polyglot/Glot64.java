@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -108,8 +108,22 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "CREATE FUNCTION javatest.hello(text, VARIADIC \"any\") RETURNS text[]" +
 " LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",
 
-"DO LANGUAGE glot64 'SGVsbG8sIHdvcmxkIQo='"
+"CREATE PROCEDURE javatest.say_hello()" +
+" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",
+
+"DO LANGUAGE glot64 'SGVsbG8sIHdvcmxkIQo='",
+
+"SELECT javatest.hello()",
+
+"SELECT javatest.hello()",
+
+"SELECT javatest.hello(42)",
+
+"SELECT javatest.hello(n) FROM generate_series(1,3) AS t(n)",
+
+"CALL javatest.say_hello()"
 }, remove = {
+"DROP PROCEDURE javatest.say_hello()",
 "DROP FUNCTION javatest.hello(text,VARIADIC \"any\")",
 "DROP FUNCTION javatest.hello(int4,int4)",
 "DROP FUNCTION javatest.hello(anyelement)",
@@ -150,7 +164,7 @@ public class Glot64 implements InlineBlocks, Routines
 	@Override
 	public void execute(String inlineSource, boolean atomic) throws SQLException
 	{
-		System.out.printf("%s inline code block:\n", pl)
+		System.out.printf("%s inline code block (atomic: %s):\n", pl, atomic)
 			.print(compile(inlineSource));
 	}
 
@@ -409,12 +423,26 @@ public class Glot64 implements InlineBlocks, Routines
 			 */
 			return fcinfo ->
 			{
+				Call.Context cx = fcinfo.context();
+
+				String subifc = ofNullable(cx)
+					.map(c -> c.getClass().getInterfaces()[0].getSimpleName())
+					.orElse("null");
+
+				String maybeAtomic =
+					(cx instanceof Call.Context.CallContext)
+					? String.format("atomic: %s\n",
+						((Call.Context.CallContext)cx).atomic())
+					: "";
+
 				System.out.printf(
 					"%s Routine.call():\n" +
 					"collation: %s\n" +
+					"context: %s\n%s" +
 					"result:\n%s",
 					target,
 					fcinfo.collation(),
+					subifc, maybeAtomic,
 					compiled // here we 'execute' the 'compiled' routine :)
 				);
 			};

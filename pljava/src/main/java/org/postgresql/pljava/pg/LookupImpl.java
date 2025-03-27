@@ -83,7 +83,11 @@ import static org.postgresql.pljava.pg.ModelConstants.T_ReturnSetInfo;
 import static org.postgresql.pljava.pg.ModelConstants.T_TriggerData;
 import static org.postgresql.pljava.pg.ModelConstants.T_WindowAggState;
 import static org.postgresql.pljava.pg.ModelConstants.T_WindowObjectData;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_CallContext_atomic;
+import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_CallContext_atomic;
+
 import org.postgresql.pljava.pg.ProceduralLanguageImpl.PLJavaMemo;
+
 import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.newNullableDatum;
 
@@ -1321,6 +1325,9 @@ class LookupImpl implements RegProcedure.Lookup
 				if ( null != m_contextImpl )
 					return m_contextImpl;
 
+				if ( null == m_context )
+					return null;
+
 				int tag = m_context.getInt(0);
 
 				if ( T_Invalid == tag )
@@ -1350,6 +1357,9 @@ class LookupImpl implements RegProcedure.Lookup
 			{
 				if ( null != m_resultinfoImpl )
 					return m_resultinfoImpl;
+
+				if ( null == m_resultinfo )
+					return null;
 
 				int tag = m_resultinfo.getInt(0);
 
@@ -1381,6 +1391,12 @@ class LookupImpl implements RegProcedure.Lookup
 
 		class CallContextImpl implements Context.CallContext
 		{
+			@Override
+			public boolean atomic()
+			{
+				assert 1 == SIZEOF_CallContext_atomic;
+				return 0 != m_context.get(OFFSET_CallContext_atomic);
+			}
 		}
 
 		class ErrorSaveContextImpl implements Context.ErrorSaveContext

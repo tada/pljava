@@ -488,6 +488,21 @@ StaticAssertStmt((sizeof ((strct *)0)->fld) == \
 #undef CONFIRMATTNUM
 #undef CONFIRMEXPR
 
+#define CONFIRMSIZEOF(strct,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_ModelConstants_SIZEOF_##strct##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+#define CONFIRMOFFSET(strct,fld) \
+StaticAssertStmt(offsetof(strct,fld) == \
+(org_postgresql_pljava_pg_ModelConstants_OFFSET_##strct##_##fld), \
+	"Java/C offset mismatch for " #strct "." #fld)
+
+	CONFIRMOFFSET( CallContext, atomic );
+	CONFIRMSIZEOF( CallContext, atomic );
+
+#undef CONFIRMOFFSET
+#undef CONFIRMSIZEOF
+
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
 (org_postgresql_pljava_pg_TupleTableSlotImpl_##c), \
