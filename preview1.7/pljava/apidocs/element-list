@@ -4,6 +4,7 @@ org.postgresql.pljava.internal
 org.postgresql.pljava.jdbc
 org.postgresql.pljava.management
 org.postgresql.pljava.mbeans
+org.postgresql.pljava.nopolicy
 org.postgresql.pljava.pg
 org.postgresql.pljava.pg.adt
 org.postgresql.pljava.policy
