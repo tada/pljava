@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -887,8 +887,6 @@ implements
 	 */
 	static class OfType extends Transient
 	{
-		private static final Simple s_anonymous = Simple.fromJava("?column?");
-
 		private final RegType m_type;
 
 		OfType(TupleDescriptor td, RegType type)
@@ -898,9 +896,15 @@ implements
 		}
 
 		@Override
+		public boolean exists()
+		{
+			return true;
+		}
+
+		@Override
 		public Simple name()
 		{
-			return s_anonymous;
+			return Simple.None.INSTANCE;
 		}
 
 		@Override

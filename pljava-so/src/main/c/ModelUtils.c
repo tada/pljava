@@ -1218,32 +1218,6 @@ Java_org_postgresql_pljava_pg_LookupImpl__1notionalCallResultType(JNIEnv* env, j
 	joid = typeId;
 	JNI_setIntArrayRegion(returnTypeOid, 0, 1, &joid);
 
-	if ( NULL == td ) /* no real td; make a notional one */
-	{
-		if ( VOIDOID != typeId  &&  RECORDOID != typeId )
-		{
-			bool isArray;
-			HeapTuple tp;
-			Form_pg_type typform;
-
-			/*
-			 * This feels like a nutty amount of work just to decide whether
-			 * 1 or 0 makes the better dummy value to pass as attdim to
-			 * TupleDescInitEntry.
-			 */
-			tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeId));
-			if ( ! HeapTupleIsValid(tp) )
-				elog(ERROR, "cache lookup failed for type %u", typeId);
-			typform = (Form_pg_type) GETSTRUCT(tp);
-			isArray = (InvalidOid != typform->typelem);
-			ReleaseSysCache(tp);
-
-			td = CreateTemplateTupleDesc(1);
-			TupleDescInitEntry(td, 1, "", typeId, -1, isArray ? 1 : 0);
-			TupleDescInitEntryCollation(td, 1, fcinfo->fncollation);
-		}
-	}
-
 	if ( NULL != td )
 		result = pljava_TupleDescriptor_create(td, InvalidOid);
 

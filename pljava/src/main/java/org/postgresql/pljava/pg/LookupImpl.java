@@ -88,6 +88,7 @@ import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_CallContext_atomic;
 
 import org.postgresql.pljava.pg.ProceduralLanguageImpl.PLJavaMemo;
 
+import org.postgresql.pljava.pg.TupleDescImpl.OfType;
 import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.newNullableDatum;
 
@@ -1163,21 +1164,35 @@ class LookupImpl implements RegProcedure.Lookup
 			int[] retOid = new int[1];
 			TupleDescriptor td =
 				_notionalCallResultType(m_savedCall.m_fcinfo, retOid);
-			if ( null == td  &&  RegType.VOID != m_target.returnType() )
-				throw new SQLSyntaxErrorException(String.format(
-					"RECORD-returning function %s called without the " +
-					"required column-definition list following " +
-					"the call", m_target), "42P18");
-				/*
-				 * ^^^ that can also happen if a polymorphic return type
-				 * gets resolved to match an input for which a row type
-				 * was passed whose tuple descriptor is not cataloged.
-				 * (Interned is no good, because the polymorphic
-				 * resolution does not keep track of the typmods.)
-				 * For now, I'm just going to leave that gobbledygook
-				 * out of the message. And maybe forever.
-				 */
 			m_returnType = of(RegType.CLASSID, retOid[0]);
+
+			/*
+			 * The native method will have returned null for these cases:
+			 * - Type resolved to VOID. No problem. Return null here.
+			 * - Resolved type is not composite. Make an OfType descriptor here.
+			 * - Type resolved to RECORD, no columns at call site. Bad.
+			 */
+			if ( null == td  &&  RegType.VOID != m_returnType )
+			{
+				if ( RegType.RECORD != m_returnType )
+					td = new OfType(m_returnType);
+				else
+				{
+					throw new SQLSyntaxErrorException(String.format(
+						"RECORD-returning function %s called without the " +
+						"required column-definition list following " +
+						"the call", m_target), "42P18");
+					/*
+					 * ^^^ that can also happen if a polymorphic return type
+					 * gets resolved to match an input for which a row type
+					 * was passed whose tuple descriptor is not cataloged.
+					 * (Interned is no good, because the polymorphic
+					 * resolution does not keep track of the typmods.)
+					 * For now, I'm just going to leave that gobbledygook
+					 * out of the message. And maybe forever.
+					 */
+				}
+			}
 			return m_outputsDescriptor = td;
 		});
 	}
