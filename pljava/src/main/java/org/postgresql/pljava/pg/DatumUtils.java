@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -341,9 +341,23 @@ public /*XXX*/ class DatumUtils
 				"no support for BITS_PER_BITMAPWORD " + BITS_PER_BITMAPWORD);
 	}
 
+	static BitSet fromBitmapset(long nativeAddress)
+	{
+		/*
+		 * Null is the PostgreSQL representation of an empty bitmapset.
+		 */
+		if ( 0 == nativeAddress )
+			return new BitSet();
+
+		ByteBuffer bb = doInPG(() -> _mapBitmapset(nativeAddress));
+		return fromBitmapset(bb.asReadOnlyBuffer());
+	}
+
 	private static native long _addressOf(ByteBuffer bb);
 
 	private static native ByteBuffer _map(long nativeAddress, int length);
+
+	private static native ByteBuffer _mapBitmapset(long nativeAddress);
 
 	private static native ByteBuffer _mapCString(long nativeAddress);
 

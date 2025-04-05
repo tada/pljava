@@ -193,7 +193,7 @@ implements Nonshared<Trigger>, Trigger
 				save[0] = m_td;
 				save[1] = m_bb;
 				m_td = td;
-				m_bb = null; // XXX get this from m_bb
+				m_bb = td.m_trigger;
 			});
 			return work.get();
 		}
@@ -201,7 +201,7 @@ implements Nonshared<Trigger>, Trigger
 		{
 			doInPG(() ->
 			{
-				m_bb = (ByteBuffer)save[1]; // XXX also restore value in m_bb
+				m_td.m_trigger = m_bb = (ByteBuffer)save[1];
 				m_td = (TriggerDataImpl)save[0];
 			});
 		}
@@ -268,7 +268,10 @@ implements Nonshared<Trigger>, Trigger
 	@Override
 	public RegClass relation()
 	{
-		throw notyet();
+		if ( null == m_td )
+			throw notyet();
+
+		return m_td.relation();
 	}
 
 	@Override

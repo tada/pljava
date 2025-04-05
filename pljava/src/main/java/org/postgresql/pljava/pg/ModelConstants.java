@@ -202,9 +202,6 @@ public abstract class ModelConstants
 	@Native public static final int SIZEOF_fcinfo_isnull            = 1;
 	@Native public static final int SIZEOF_fcinfo_nargs             = 2;
 
-	@Native public static final int OFFSET_CallContext_atomic       = 4;
-	@Native public static final int SIZEOF_CallContext_atomic       = 1;
-
 	/*
 	 * These constants (which will be included in a generated header available
 	 * to the C code) are (almost) indices into the 'statics' array where the
@@ -234,6 +231,7 @@ public abstract class ModelConstants
 	@Native private static final int IDX_SIZEOF_varatt_expanded  = 11;
 	@Native private static final int IDX_SIZEOF_varatt_external  = 12;
 
+	@Native private static final int IDX_OFFSET_Relation_rd_id   = 13;
 
 
 	@Native private static final int IDX_HEAPTUPLESIZE           = 20;
@@ -355,6 +353,18 @@ public abstract class ModelConstants
 
 
 	/*
+	 * Layouts of fcinfo->context structures.
+	 */
+	@Native private static final int IDX_OFFSET_TRGD_tg_event       = 180;
+	@Native private static final int IDX_OFFSET_TRGD_tg_relation    = 181;
+	@Native private static final int IDX_OFFSET_TRGD_tg_trigtuple   = 182;
+	@Native private static final int IDX_OFFSET_TRGD_tg_newtuple    = 183;
+	@Native private static final int IDX_OFFSET_TRGD_tg_trigger     = 184;
+	@Native private static final int IDX_OFFSET_TRGD_tg_updatedcols = 185;
+
+
+
+	/*
 	 * Identifiers of different caches in PG's syscache, utils/cache/syscache.c.
 	 * As upstream adds new caches, the enum is kept in alphabetical order, so
 	 * they belong in this section to have their effective values picked up.
@@ -409,6 +419,7 @@ public abstract class ModelConstants
 	public static final int SIZEOF_varatt_expanded;
 	public static final int SIZEOF_varatt_external;
 
+	public static final int OFFSET_Relation_rd_id;
 
 
 	public static final int HEAPTUPLESIZE;
@@ -527,6 +538,18 @@ public abstract class ModelConstants
 
 
 	/*
+	 * Layouts of fcinfo->context structures.
+	 */
+	public static final int OFFSET_TRGD_tg_event;
+	public static final int OFFSET_TRGD_tg_relation;
+	public static final int OFFSET_TRGD_tg_trigtuple;
+	public static final int OFFSET_TRGD_tg_newtuple;
+	public static final int OFFSET_TRGD_tg_trigger;
+	public static final int OFFSET_TRGD_tg_updatedcols;
+
+
+
+	/*
 	 * These identify different caches in the PostgreSQL syscache.
 	 * The indicated classes import them.
 	 */
@@ -580,6 +603,8 @@ public abstract class ModelConstants
 			SIZEOF_varatt_indirect = n.get(IDX_SIZEOF_varatt_indirect);
 			SIZEOF_varatt_expanded = n.get(IDX_SIZEOF_varatt_expanded);
 			SIZEOF_varatt_external = n.get(IDX_SIZEOF_varatt_external);
+
+			OFFSET_Relation_rd_id  = n.get(IDX_OFFSET_Relation_rd_id);
 
 
 
@@ -700,6 +725,16 @@ public abstract class ModelConstants
 			OFFSET_TRG_tgoldtable      = n.get(IDX_OFFSET_TRG_tgoldtable);
 			OFFSET_TRG_tgnewtable      = n.get(IDX_OFFSET_TRG_tgnewtable);
 			SIZEOF_Trigger             = n.get(IDX_SIZEOF_Trigger);
+
+
+
+			n.gap(IDX_OFFSET_TRGD_tg_event);
+			OFFSET_TRGD_tg_event       = n.get(IDX_OFFSET_TRGD_tg_event);
+			OFFSET_TRGD_tg_relation    = n.get(IDX_OFFSET_TRGD_tg_relation);
+			OFFSET_TRGD_tg_trigtuple   = n.get(IDX_OFFSET_TRGD_tg_trigtuple);
+			OFFSET_TRGD_tg_newtuple    = n.get(IDX_OFFSET_TRGD_tg_newtuple);
+			OFFSET_TRGD_tg_trigger     = n.get(IDX_OFFSET_TRGD_tg_trigger);
+			OFFSET_TRGD_tg_updatedcols = n.get(IDX_OFFSET_TRGD_tg_updatedcols);
 
 
 

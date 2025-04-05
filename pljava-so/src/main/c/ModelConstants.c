@@ -40,6 +40,7 @@
 #include <nodes/memnodes.h>
 
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
+#include "org_postgresql_pljava_pg_LookupImpl.h"
 #include "org_postgresql_pljava_pg_ModelConstants.h"
 #include "org_postgresql_pljava_pg_ModelConstants_Natives.h"
 #include "org_postgresql_pljava_pg_TriggerImpl.h"
@@ -106,6 +107,7 @@ static int32 constants[] = {
 	CONSTANTEXPR(SIZEOF_varatt_expanded, sizeof (varatt_expanded)),
 	CONSTANTEXPR(SIZEOF_varatt_external, sizeof (varatt_external)),
 
+	TYPEOFFSET(RelationData,Relation,rd_id),
 
 
 	CONSTANT(HEAPTUPLESIZE),
@@ -230,6 +232,15 @@ static int32 constants[] = {
 	TYPEOFFSET(Trigger, TRG, tgoldtable),
 	TYPEOFFSET(Trigger, TRG, tgnewtable),
 	CONSTANTEXPR(SIZEOF_Trigger, sizeof (Trigger)),
+
+
+
+	TYPEOFFSET(TriggerData, TRGD, tg_event),
+	TYPEOFFSET(TriggerData, TRGD, tg_relation),
+	TYPEOFFSET(TriggerData, TRGD, tg_trigtuple),
+	TYPEOFFSET(TriggerData, TRGD, tg_newtuple),
+	TYPEOFFSET(TriggerData, TRGD, tg_trigger),
+	TYPEOFFSET(TriggerData, TRGD, tg_updatedcols),
 
 
 
@@ -558,9 +569,6 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 	CONFIRMSIZETAG( FunctionCallInfoBaseData, fcinfo, isnull );
 	CONFIRMSIZETAG( FunctionCallInfoBaseData, fcinfo, nargs );
 
-	CONFIRMOFFSET( CallContext, atomic );
-	CONFIRMSIZEOF( CallContext, atomic );
-
 #undef CONFIRMVLOFFSET
 #undef CONFIRMSIZETAG
 #undef CONFIRMSIZEOF
@@ -665,6 +673,53 @@ StaticAssertStmt((sizeof ((strct *)0)->fld) == \
 /*
  * END:CONFIRMCONST for TriggerImpl constants
  * END:CONFIRMSIZETAG for TriggerImpl constants
+ *
+ * BEGIN:CONFIRMCONST for LookupImpl constants
+ * BEGIN:CONFIRMOFFSET for LookupImpl constants
+ * BEGIN:CONFIRMSIZEOF for LookupImpl constants
+ * BEGIN:CONFIRMSIZETAG for LookupImpl constants
+ */
+
+#define CONFIRMCONST(c) \
+StaticAssertStmt((c) == \
+(org_postgresql_pljava_pg_LookupImpl_##c), \
+	"Java/C value mismatch for " #c)
+#define CONFIRMOFFSET(strct,fld) \
+StaticAssertStmt(offsetof(strct,fld) == \
+(org_postgresql_pljava_pg_LookupImpl_OFFSET_##strct##_##fld), \
+	"Java/C offset mismatch for " #strct "." #fld)
+#define CONFIRMSIZEOF(strct,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_LookupImpl_SIZEOF_##strct##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+#define CONFIRMSIZETAG(strct,tag,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_LookupImpl_SIZEOF_##tag##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+
+	CONFIRMOFFSET( CallContext, atomic );
+	CONFIRMSIZEOF( CallContext, atomic );
+
+	CONFIRMSIZETAG( TriggerData, TRGD, tg_event );
+
+	CONFIRMCONST( TRIGGER_EVENT_INSERT );
+	CONFIRMCONST( TRIGGER_EVENT_DELETE );
+	CONFIRMCONST( TRIGGER_EVENT_UPDATE );
+	CONFIRMCONST( TRIGGER_EVENT_TRUNCATE );
+	CONFIRMCONST( TRIGGER_EVENT_OPMASK );
+	CONFIRMCONST( TRIGGER_EVENT_ROW );
+	CONFIRMCONST( TRIGGER_EVENT_BEFORE );
+	CONFIRMCONST( TRIGGER_EVENT_AFTER );
+	CONFIRMCONST( TRIGGER_EVENT_INSTEAD );
+	CONFIRMCONST( TRIGGER_EVENT_TIMINGMASK );
+	CONFIRMCONST( FirstLowInvalidHeapAttributeNumber );
+
+#undef CONFIRMCONST
+#undef CONFIRMSIZETAG
+
+/*
+ * END:CONFIRMCONST for LookupImpl constants
+ * END:CONFIRMSIZETAG for LookupImpl constants
  */
 }
 

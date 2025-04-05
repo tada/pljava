@@ -11,6 +11,8 @@
  */
 package org.postgresql.pljava.pg;
 
+import java.lang.annotation.Native;
+
 import java.lang.reflect.Constructor;
 
 import java.nio.ByteBuffer;
@@ -35,11 +37,14 @@ import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routines;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
 
+import org.postgresql.pljava.TargetList.Projection;
+
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import static org.postgresql.pljava.internal.Backend.validateBodies;
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.DualState;
+import org.postgresql.pljava.internal.Invocation;
 
 import org.postgresql.pljava.model.Attribute;
 import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
@@ -61,7 +66,9 @@ import org.postgresql.pljava.model.TupleTableSlot;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.notyet;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.of;
 import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
+import static org.postgresql.pljava.pg.DatumUtils.fetchPointer;
 import static org.postgresql.pljava.pg.DatumUtils.fromBitmapset;
+import static org.postgresql.pljava.pg.DatumUtils.mapFixedLength;
 import static org.postgresql.pljava.pg.DatumUtils.toBitmapset;
 import static org.postgresql.pljava.pg.ModelConstants.ALIGNOF_INT;
 import static org.postgresql.pljava.pg.ModelConstants.ANYOID;
@@ -83,8 +90,6 @@ import static org.postgresql.pljava.pg.ModelConstants.T_ReturnSetInfo;
 import static org.postgresql.pljava.pg.ModelConstants.T_TriggerData;
 import static org.postgresql.pljava.pg.ModelConstants.T_WindowAggState;
 import static org.postgresql.pljava.pg.ModelConstants.T_WindowObjectData;
-import static org.postgresql.pljava.pg.ModelConstants.OFFSET_CallContext_atomic;
-import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_CallContext_atomic;
 
 import org.postgresql.pljava.pg.ProceduralLanguageImpl.PLJavaMemo;
 
@@ -97,6 +102,29 @@ import static org.postgresql.pljava.pg.adt.OidAdapter.REGPROCEDURE_INSTANCE;
 import static org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
 import static org.postgresql.pljava.sqlj.Loader.getSchemaLoader;
+
+/* Imports for TriggerData implementation */
+
+import org.postgresql.pljava.annotation.Trigger.Called;
+import org.postgresql.pljava.annotation.Trigger.Event;
+import org.postgresql.pljava.annotation.Trigger.Scope;
+import org.postgresql.pljava.model.RegClass;
+import org.postgresql.pljava.model.Trigger;
+
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_Relation_rd_id;
+
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRGD_tg_event;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRGD_tg_relation;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRGD_tg_trigtuple;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRGD_tg_newtuple;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRGD_tg_trigger;
+import static
+	org.postgresql.pljava.pg.ModelConstants.OFFSET_TRGD_tg_updatedcols;
+
+import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_Trigger;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRG_tgoid;
+import static
+	org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlotNoFree;
 
 /**
  * The implementation of {@link Lookup}, serving as the dispatcher for routines,
@@ -1386,6 +1414,154 @@ class LookupImpl implements RegProcedure.Lookup
 
 		class TriggerDataImpl implements Context.TriggerData
 		{
+			/**
+			 * When non-null, holds a {@code ByteBuffer} that windows the
+			 * structurs at {@code *td_trigger}.
+			 *<p>
+			 * In a bit of an incestuous relationship, this will be set
+			 * by the {@link #trigger trigger()} method below, which returns
+			 * the corresponding instance of {@link TriggerDataImpl}. That
+			 * class has a package-visible {@code withTriggerData} method that
+			 * the caller can use to run client code in a scope throughout which
+			 * that {@code Trigger} instance will be associated with this
+			 * instance and can read from this {@code ByteBuffer}.
+			 *<p>
+			 * On exit of that scope, this field will be reset to null and the
+			 * association between the {@code TriggerImpl} instance and this
+			 * broken.
+			 *<p>
+			 * The dispatcher will execute client {@code specialize} and
+			 * {@code apply} methods within such a scope, so those methods will
+			 * see a {@code Trigger} instance that works, while avoiding thorny
+			 * questions here about cache validity, since every call will use
+			 * the structure freshly passed by PostgreSQL.
+			 */
+			ByteBuffer m_trigger;
+
+			@Override
+			public Called called()
+			{
+				assert Integer.BYTES == SIZEOF_TRGD_tg_event;
+				int event = m_context.getInt(OFFSET_TRGD_tg_event);
+				switch ( event & TRIGGER_EVENT_TIMINGMASK )
+				{
+					case TRIGGER_EVENT_BEFORE:
+						return Called.BEFORE;
+					case TRIGGER_EVENT_AFTER:
+						return Called.AFTER;
+					case TRIGGER_EVENT_INSTEAD:
+						return Called.INSTEAD_OF;
+					default:
+						throw new
+							AssertionError("unexpected TriggerData.called");
+				}
+			}
+
+			@Override
+			public Event event()
+			{
+				int event = m_context.getInt(OFFSET_TRGD_tg_event);
+				switch ( event & TRIGGER_EVENT_OPMASK )
+				{
+					case TRIGGER_EVENT_INSERT:
+						return Event.INSERT;
+					case TRIGGER_EVENT_DELETE:
+						return Event.DELETE;
+					case TRIGGER_EVENT_UPDATE:
+						return Event.UPDATE;
+					case TRIGGER_EVENT_TRUNCATE:
+						return Event.TRUNCATE;
+					default:
+						throw new
+							AssertionError("unexpected TriggerData.event");
+				}
+			}
+
+			@Override
+			public Scope scope()
+			{
+				int event = m_context.getInt(OFFSET_TRGD_tg_event);
+				if ( 0 != (event & TRIGGER_EVENT_ROW) )
+					return Scope.ROW;
+				return Scope.STATEMENT;
+			}
+
+			@Override
+			public RegClass relation()
+			{
+				long r = fetchPointer(m_context, OFFSET_TRGD_tg_relation);
+				ByteBuffer bb =
+					mapFixedLength(r + OFFSET_Relation_rd_id, SIZEOF_Oid);
+				int oid = bb.getInt(0);
+				return of(RegClass.CLASSID, oid);
+			}
+
+			@Override
+			public TupleTableSlot triggerTuple()
+			{
+				return doInPG(() ->
+				{
+					long t = fetchPointer(m_context, OFFSET_TRGD_tg_trigtuple);
+
+					if ( 0 == t )
+						return null;
+
+					TupleDescriptor td = relation().tupleDescriptor();
+					return
+						heapTupleGetLightSlotNoFree(
+							td, t, Invocation.current());
+				});
+			}
+
+			@Override
+			public TupleTableSlot newTuple()
+			{
+				return doInPG(() ->
+				{
+					long t = fetchPointer(m_context, OFFSET_TRGD_tg_newtuple);
+
+					if ( 0 == t )
+						return null;
+
+					TupleDescriptor td = relation().tupleDescriptor();
+					return
+						heapTupleGetLightSlotNoFree(
+							td, t, Invocation.current());
+				});
+			}
+
+			@Override
+			public Trigger trigger()
+			{
+				long t = fetchPointer(m_context, OFFSET_TRGD_tg_trigger);
+				ByteBuffer bb = mapFixedLength(t, SIZEOF_Trigger);
+				int oid = bb.getInt(OFFSET_TRG_tgoid);
+				m_trigger = bb;
+				return of(Trigger.CLASSID, oid);
+			}
+
+			@Override
+			public Projection updatedColumns()
+			{
+				long t = fetchPointer(m_context, OFFSET_TRGD_tg_updatedcols);
+				BitSet s = fromBitmapset(t);
+				/*
+				 * The PostgreSQL bitmapset representation for a zero-length set
+				 * is null, so we think we got a zero-length set even for
+				 * non-update trigger events. But an empty set of update columns
+				 * is most likely a non-update event, so return null for that
+				 * case rather than constructing an empty Projection.
+				 */
+				if ( 0 == s.length() )
+					return null;
+				/*
+				 * Shifting out -FirstLowInvalidHeapAttributeNumber would
+				 * yield a BitSet with SQLish one-based numbering. Shift out
+				 * 1 - FirstLowInvalidHeapAttributeNumber to get a 0-based set.
+				 */
+				s = s.get(1 - FirstLowInvalidHeapAttributeNumber, s.length());
+				return relation().tupleDescriptor().project(s);
+			}
 		}
 
 		class EventTriggerDataImpl implements Context.EventTriggerData
@@ -1452,4 +1628,22 @@ class LookupImpl implements RegProcedure.Lookup
 	private static native boolean _resolveArgTypes(
 		ByteBuffer fcinfo, ByteBuffer types, ByteBuffer unresolvedBitmap,
 		int tplSz, int argSz);
+
+	@Native private static final int OFFSET_CallContext_atomic       = 4;
+	@Native private static final int SIZEOF_CallContext_atomic       = 1;
+
+	@Native private static final int SIZEOF_TRGD_tg_event            = 4;
+
+	@Native private static final int TRIGGER_EVENT_INSERT            = 0;
+	@Native private static final int TRIGGER_EVENT_DELETE            = 1;
+	@Native private static final int TRIGGER_EVENT_UPDATE            = 2;
+	@Native private static final int TRIGGER_EVENT_TRUNCATE          = 3;
+	@Native private static final int TRIGGER_EVENT_OPMASK            = 3;
+	@Native private static final int TRIGGER_EVENT_ROW               = 4;
+	@Native private static final int TRIGGER_EVENT_BEFORE            = 8;
+	@Native private static final int TRIGGER_EVENT_AFTER             = 0;
+	@Native private static final int TRIGGER_EVENT_INSTEAD           = 0x10;
+	@Native private static final int TRIGGER_EVENT_TIMINGMASK        = 0x18;
+
+	@Native private static final int FirstLowInvalidHeapAttributeNumber = -7;
 }

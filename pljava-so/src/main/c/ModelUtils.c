@@ -587,6 +587,11 @@ void pljava_ModelUtils_initialize(void)
 		Java_org_postgresql_pljava_pg_DatumUtils__1map
 		},
 		{
+		"_mapBitmapset",
+		"(J)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_DatumUtils__1mapBitmapset
+		},
+		{
 		"_mapCString",
 		"(J)Ljava/nio/ByteBuffer;",
 		Java_org_postgresql_pljava_pg_DatumUtils__1mapCString
@@ -685,6 +690,11 @@ void pljava_ModelUtils_initialize(void)
 		"_getsomeattrs",
 		"(Ljava/nio/ByteBuffer;I)V",
 		Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1getsomeattrs
+		},
+		{
+		"_mapHeapTuple",
+		"(J)Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1mapHeapTuple
 		},
 		{
 		"_store_heaptuple",
@@ -1069,6 +1079,24 @@ Java_org_postgresql_pljava_pg_DatumUtils__1map(JNIEnv* env, jobject _cls, jlong 
 	Ptr2Long p2l;
 	p2l.longVal = nativeAddress;
 	return (*env)->NewDirectByteBuffer(env, p2l.ptrVal, length);
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_DatumUtils
+ * Method:    _mapBitmapset
+ * Signature: (J)Ljava/nio/ByteBuffer;
+ * The Java caller has already checked that the address is not null.
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_DatumUtils__1mapBitmapset(JNIEnv* env, jobject _cls, jlong nativeAddress)
+{
+	Bitmapset *bms;
+	jlong size;
+	Ptr2Long p2l;
+	p2l.longVal = nativeAddress;
+	bms = (Bitmapset *)p2l.ptrVal;
+	size = offsetof(Bitmapset, words) + bms->nwords * sizeof(bitmapword);
+	return (*env)->NewDirectByteBuffer(env, (void *)bms, size);
 }
 
 /*
@@ -1518,6 +1546,32 @@ Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1getsomeattrs(JNIEnv* env, job
 	BEGIN_NATIVE_AND_TRY
 	slot_getsomeattrs_int(tts, attnum);
 	END_NATIVE_AND_CATCH("_getsomeattrs")
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_TupleTableSlotImpl
+ * Method:    _mapHeapTuple
+ * Signature: (J)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1mapHeapTuple(JNIEnv* env, jobject _cls, jlong nativeAddress)
+{
+	Ptr2Long p2l;
+	HeapTuple htp;
+	jlong size;
+
+	if ( 0 == nativeAddress )
+		return NULL;
+
+	p2l.longVal = nativeAddress;
+	htp = (HeapTuple)p2l.ptrVal;
+
+	if ( ! HeapTupleIsValid(htp)  ||  htp->t_data == NULL )
+		return NULL;
+
+	size = HEAPTUPLESIZE + htp->t_len;
+
+	return (*env)->NewDirectByteBuffer(env, htp, size);
 }
 
 /*

@@ -266,6 +266,32 @@ implements TupleTableSlot
 	static Heap heapTupleGetLightSlot(
 		TupleDescriptor td, ByteBuffer ht, Lifespan lifespan)
 	{
+		return heapTupleGetLightSlot(td, ht, lifespan, true);
+	}
+
+	/**
+	 * Allocate a 'light' (no native TupleTableSlot struct)
+	 * {@code TupleTableSlotImpl.Heap} object, given a tuple descriptor and
+	 * a pointer to a single-chunk-allocated {@code HeapTuple} (one where the
+	 * {@code HeapTupleHeader} directly follows the {@code HeapTupleData}) that
+	 * is <em>not</em> to be freed when no longer needed.
+	 *<p>
+	 * The first and, so far, only use of this method is from
+	 * {@code TriggerDataImpl} to present the old and/or new tuples for
+	 * inspection in a trigger function. The Lifespan passed should persist
+	 * no longer than the current function invocation, and no special action
+	 * will be taken to free the tuple itself, which belongs to PostgreSQL.
+	 */
+	static Heap heapTupleGetLightSlotNoFree(
+		TupleDescriptor td, long p, Lifespan lifespan)
+	{
+		ByteBuffer ht = doInPG(() -> _mapHeapTuple(p));
+		return heapTupleGetLightSlot(td, ht, lifespan, false);
+	}
+
+	static Heap heapTupleGetLightSlot(
+		TupleDescriptor td, ByteBuffer ht, Lifespan lifespan, boolean free)
+	{
 		ht = asReadOnlyNativeOrder(ht);
 
 		assert 4 == SIZEOF_HeapTupleData_t_len
@@ -328,7 +354,10 @@ implements TupleTableSlot
 		Heap slot = new Heap(
 			staticFormObjectId(RegClass.CLASSID, relOid), td, values, nulls);
 
-		slot.m_state = new HTChunkState(slot, lifespan, ht);
+		slot.m_state =
+			free
+			? new HTChunkState(slot, lifespan, ht)
+			: new BBOnlyState(slot, lifespan, ht);
 
 		return slot;
 	}
@@ -833,6 +862,8 @@ implements TupleTableSlot
 
 	private static native void _getsomeattrs(ByteBuffer tts, int idx);
 
+	private static native ByteBuffer _mapHeapTuple(long nativeAddress);
+
 	private static native void _store_heaptuple(
 		ByteBuffer tts, long ht, boolean shouldFree);
 
@@ -1056,6 +1087,16 @@ implements TupleTableSlot
 	extends DualState.BBHeapFreeTuple<TupleTableSlotImpl>
 	{
 		private HTChunkState(
+			TupleTableSlotImpl referent, Lifespan span, ByteBuffer ht)
+		{
+			super(referent, span, ht);
+		}
+	}
+
+	private static class BBOnlyState
+	extends DualState.SingleGuardedBB<TupleTableSlotImpl>
+	{
+		private BBOnlyState(
 			TupleTableSlotImpl referent, Lifespan span, ByteBuffer ht)
 		{
 			super(referent, span, ht);
