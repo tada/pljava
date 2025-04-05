@@ -30,6 +30,11 @@ import org.postgresql.pljava.PLJavaBasedLanguage.InlineBlocks;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routines;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
+import org.postgresql.pljava.PLJavaBasedLanguage.Triggers;
+import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;
+import org.postgresql.pljava.PLJavaBasedLanguage.TriggerTemplate;
+
+import org.postgresql.pljava.TargetList.Projection;
 
 import org.postgresql.pljava.annotation.SQLAction;
 
@@ -39,6 +44,7 @@ import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 import org.postgresql.pljava.model.RegProcedure;
 import org.postgresql.pljava.model.RegProcedure.Call;
 import org.postgresql.pljava.model.RegProcedure.Lookup;
+import org.postgresql.pljava.model.Trigger;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -121,8 +127,29 @@ import org.postgresql.pljava.model.TupleTableSlot;
 
 "SELECT javatest.hello(n) FROM generate_series(1,3) AS t(n)",
 
-"CALL javatest.say_hello()"
+"CALL javatest.say_hello()",
+
+"CREATE FUNCTION javatest.glot64_trigger() RETURNS trigger" +
+" LANGUAGE glot64 AS 'dHJpZ2dlciBkZW1vCg=='",
+
+"CREATE TRIGGER g64_as_d AFTER DELETE ON javatest.username_test" +
+" REFERENCING OLD TABLE AS oldone FOR EACH STATEMENT" +
+" EXECUTE FUNCTION javatest.glot64_trigger('ab', 'cd')",
+
+"CREATE CONSTRAINT TRIGGER g64_ar_iu AFTER INSERT OR UPDATE" +
+" ON javatest.username_test FOR EACH ROW" +
+" EXECUTE FUNCTION javatest.glot64_trigger('ef', 'gh')",
+
+"INSERT INTO javatest.username_test VALUES ('Wilhelm Glot', '64')",
+
+"UPDATE javatest.username_test SET name = 'Glot, Wilhelm'" +
+" WHERE username = '64'",
+
+"DELETE FROM javatest.username_test WHERE username = '64'"
 }, remove = {
+"DROP TRIGGER g64_ar_iu ON javatest.username_test",
+"DROP TRIGGER g64_as_d ON javatest.username_test",
+"DROP FUNCTION javatest.glot64_trigger()",
 "DROP PROCEDURE javatest.say_hello()",
 "DROP FUNCTION javatest.hello(text,VARIADIC \"any\")",
 "DROP FUNCTION javatest.hello(int4,int4)",
@@ -132,7 +159,7 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "DROP LANGUAGE glot64",
 "DROP FUNCTION javatest.glot64_validator(oid)"
 })
-public class Glot64 implements InlineBlocks, Routines
+public class Glot64 implements InlineBlocks, Routines, Triggers
 {
 	private final ProceduralLanguage pl;
 
@@ -449,6 +476,112 @@ public class Glot64 implements InlineBlocks, Routines
 		};
 	}
 
+	@Override
+	public void essentialTriggerChecks(
+		RegProcedure<PLJavaBased> subject, boolean checkBody)
+	throws SQLException
+	{
+		System.out.printf("essentialTriggerChecks: ");
+		essentialChecks(subject, checkBody);
+	}
+
+	@Override
+	public void additionalTriggerChecks(
+		RegProcedure<PLJavaBased> subject, boolean checkBody)
+	throws SQLException
+	{
+		System.out.printf("additionalTriggerChecks: ");
+		additionalChecks(subject, checkBody);
+	}
+
+	@Override
+	public TriggerTemplate prepareTrigger(RegProcedure<PLJavaBased> target)
+	throws SQLException
+	{
+		System.out.printf(
+			"%s prepareTrigger():\n",
+			target
+		);
+
+		String compiled = compile(target.src());
+
+		return trigger ->
+		{
+			System.out.printf(
+				"%s TriggerTemplate.specialize():\n" +
+				"name      : %s\n" +
+				"relation  : %s\n" +
+				"function  : %s\n" +
+				"called    : %s\n" +
+				"events    : %s\n" +
+				"scope     : %s\n" +
+				"enabled   : %s\n" +
+				"internal  : %s\n" +
+				"arguments : %s\n" +
+				"columns   : %s\n" +
+				"when      : %s\n" +
+				"tableOld  : %s\n" +
+				"tableNew  : %s\n" +
+				"isClone   : %s\n" +
+				"constraint: %s\n" +
+				"deferrable: %s\n" +
+				"initiallyDeferred: %s\n" +
+				"constraintTable  : %s\n" +
+				"constraintIndex  : %s\n",
+				target,
+				trigger.name(), trigger.relation(), trigger.function(),
+				trigger.called(), trigger.events(), trigger.scope(),
+				trigger.enabled(), trigger.internal(),
+				trigger.arguments(),
+				projectionListNames(trigger.columns()),
+				ofNullable(trigger.when())
+					.map(xml ->
+					{
+						try
+						{
+							return xml.getString();
+						}
+						catch ( SQLException e )
+						{
+							return e.toString();
+						}
+					}).orElse("null"),
+				trigger.tableOld(),
+				trigger.tableNew(),
+				trigger.isClone(),
+				trigger.constraint(),
+				trigger.deferrable(), trigger.initiallyDeferred(),
+				trigger.constraintRelation(), trigger.constraintIndex()
+			);
+
+			return triggerData ->
+			{
+				System.out.printf(
+					"%s TriggerFunction.apply():\n" +
+					"called       : %s\n" +
+					"event        : %s\n" +
+					"scope        : %s\n" +
+					"relation     : %s\n" +
+					"trigger      : %s\n" +
+					"triggerTuple : %s\n" +
+					"newTuple     : %s\n" +
+					"updatedCols  : %s\n" +
+					"result:\n%s",
+					target,
+					triggerData.called(), triggerData.event(),
+					triggerData.scope(), triggerData.relation(),
+					triggerData.trigger(),
+					slotListNamesTypes(triggerData.triggerTuple()),
+					slotListNamesTypes(triggerData.newTuple()),
+					projectionListNames(triggerData.updatedColumns()),
+					compiled // here we 'execute' the 'compiled' routine :)
+				);
+
+				return null; // in real life this suppresses triggering event
+			};
+		};
+	}
+
 	/**
 	 * This method handles 'compiling' Glot64 source code (which is Base64)
 	 * into its 'compiled' form, which is ASCII and easier to read than the
@@ -477,5 +610,30 @@ public class Glot64 implements InlineBlocks, Routines
 			throw new SQLSyntaxErrorException(
 				"compiling glot64 code: " + e, "42601", e);
 		}
+	}
+
+	private static String projectionListNames(Projection td)
+	{
+		return
+			ofNullable(td)
+				.map(d ->
+					d.stream()
+					.map(Attribute::name)
+					.map(Object::toString)
+					.collect(toList())
+					.toString())
+				.orElse("null");
+	}
+
+	private static String slotListNamesTypes(TupleTableSlot tts)
+	{
+		return
+			ofNullable(tts)
+				.map(s ->
+					s.descriptor().stream()
+					.map(a->a.name() + ":" + a.type().qualifiedName())
+					.collect(toList())
+					.toString())
+				.orElse("null");
 	}
 }
