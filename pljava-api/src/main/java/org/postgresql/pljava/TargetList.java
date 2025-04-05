@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -15,6 +15,7 @@ import java.sql.SQLException; // for javadoc
 import java.sql.SQLXML; // for javadoc
 
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 
@@ -122,6 +123,43 @@ public interface TargetList extends List<Attribute>
 		Projection project(int... indices);
 
 		/**
+		 * Returns a {@code Projection} containing only the attributes found
+		 * at the supplied <var>indices</var> in this {@code Projection}, and in
+		 * the order of the argument list.
+		 *<p>
+		 * The index of the first attribute is zero.
+		 * @throws IllegalArgumentException if more indices are supplied than
+		 * this Projection has attributes, if any index is negative or beyond
+		 * the last index in this Projection, or if any index appears more than
+		 * once.
+		 */
+		Projection project(short... indices);
+
+		/**
+		 * Returns a {@code Projection} containing only the attributes whose
+		 * indices in this {@code Projection} are set (true) in the supplied
+		 * {@link BitSet BitSet}, and in the same order.
+		 *<p>
+		 * The index of the first attribute is zero.
+		 * @throws IllegalArgumentException if more bits are set than this
+		 * Projection has attributes, or if any bit is set beyond the last index
+		 * in this Projection.
+		 */
+		Projection project(BitSet indices);
+
+		/**
+		 * Returns a {@code Projection} containing only the attributes whose
+		 * indices in this {@code Projection} are set (true) in the supplied
+		 * {@link BitSet BitSet}, and in the same order.
+		 *<p>
+		 * The index of the first attribute is one.
+		 * @throws IllegalArgumentException if more bits are set than this
+		 * Projection has attributes, or if any bit is set before the first or
+		 * beyond the last corresponding to a 1-based index in this Projection.
+		 */
+		Projection sqlProject(BitSet indices);
+
+		/**
 		 * Like {@link #project(int...) project(int...)} but using SQL's 1-based
 		 * indexing convention.
 		 *<p>
@@ -132,6 +170,18 @@ public interface TargetList extends List<Attribute>
 		 * more than once.
 		 */
 		Projection sqlProject(int... indices);
+
+		/**
+		 * Like {@link #project(int...) project(int...)} but using SQL's 1-based
+		 * indexing convention.
+		 *<p>
+		 * The index of the first attribute is 1.
+		 * @throws IllegalArgumentException if more indices are supplied than
+		 * this Projection has attributes, if any index is nonpositive or beyond
+		 * the last 1-based index in this Projection, or if any index appears
+		 * more than once.
+		 */
+		Projection sqlProject(short... indices);
 
 		/**
 		 * Returns a {@code Projection} containing only <var>attributes</var>

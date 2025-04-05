@@ -703,12 +703,6 @@ implements
 		return relation().tupleDescriptor();
 	}
 
-	boolean foundIn(TupleDescriptor td)
-	{
-		int idx = subId() - 1;
-		return ( idx < td.size() ) && ( this == td.get(idx) );
-	}
-
 	/**
 	 * An attribute that belongs to a full-fledged cataloged composite type.
 	 *<p>
@@ -867,12 +861,6 @@ implements
 		public TupleDescriptor containingTupleDescriptor()
 		{
 			return m_containingTupleDescriptor;
-		}
-
-		@Override
-		boolean foundIn(TupleDescriptor td)
-		{
-			return m_containingTupleDescriptor == td;
 		}
 	}
 

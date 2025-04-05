@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -351,8 +351,7 @@ implements TupleTableSlot
 		if ( 0 > idx || idx >= m_adapters.length
 			|| m_adapters [ idx ] != requireNonNull(adp) )
 		{
-			if ( ! (att instanceof AttributeImpl)
-				|| ! ((AttributeImpl)att).foundIn(m_tupdesc) )
+			if ( ! m_tupdesc.contains(att) )
 			{
 				throw new IllegalArgumentException(
 					"attribute " + att + " does not go with slot " + this);

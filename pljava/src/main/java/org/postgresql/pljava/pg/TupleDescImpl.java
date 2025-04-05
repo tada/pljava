@@ -22,7 +22,7 @@ import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.DualState;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
-import org.postgresql.pljava.pg.TargetListImpl.Projected;
+import org.postgresql.pljava.pg.TargetListImpl;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.*;
 import static org.postgresql.pljava.pg.DatumUtils.addressOf;
@@ -103,31 +103,55 @@ implements TupleDescriptor
 	@Override // Projection
 	public Projection subList(int fromIndex, int toIndex)
 	{
-		return Projected.subList(this, fromIndex, toIndex);
+		return TargetListImpl.subList(this, fromIndex, toIndex);
 	}
 
 	@Override // Projection
 	public Projection project(Simple... names)
 	{
-		return Projected.project(this, names);
+		return TargetListImpl.project(this, names);
 	}
 
 	@Override // Projection
 	public Projection project(int... indices)
 	{
-		return Projected.project(this, indices);
+		return TargetListImpl.project(this, indices);
 	}
 
 	@Override // Projection
 	public Projection sqlProject(int... indices)
 	{
-		return Projected.sqlProject(this, indices);
+		return TargetListImpl.sqlProject(this, indices);
+	}
+
+	@Override // Projection
+	public Projection project(short... indices)
+	{
+		return TargetListImpl.project(this, indices);
+	}
+
+	@Override // Projection
+	public Projection sqlProject(short... indices)
+	{
+		return TargetListImpl.sqlProject(this, indices);
 	}
 
 	@Override // Projection
 	public Projection project(Attribute... attrs)
 	{
-		return Projected.project(this, attrs);
+		return TargetListImpl.project(this, attrs);
+	}
+
+	@Override // Projection
+	public Projection project(BitSet indices)
+	{
+		return TargetListImpl.project(this, indices);
+	}
+
+	@Override // Projection
+	public Projection sqlProject(BitSet indices)
+	{
+		return TargetListImpl.sqlProject(this, indices);
 	}
 
 	@Override // TargetList
@@ -450,6 +474,61 @@ implements TupleDescriptor
 		return m_attrs[index];
 	}
 
+	@Override // Collection
+	public boolean contains(Object o)
+	{
+		if ( ! (o instanceof AttributeImpl) )
+			return false;
+
+		AttributeImpl ai = (AttributeImpl)o;
+		int idx = ai.subId() - 1;
+		return ( idx < m_attrs.length ) && ( ai == m_attrs[idx] );
+	}
+
+	@Override // List
+	public int indexOf(Object o)
+	{
+		if ( ! contains(o) )
+			return -1;
+
+		return ((Attribute)o).subId() - 1;
+	}
+
+	@Override // List
+	public int lastIndexOf(Object o)
+	{
+		return indexOf(o);
+	}
+
+	/**
+	 * An abstract base shared by the {@code Blessed} and {@code Ephemeral}
+	 * concrete classes, which are populated with
+	 * {@code AttributeImpl.Transient} instances.
+	 *<p>
+	 * Supplies their implementation of {@code contains}. {@code OfType} is also
+	 * populated with {@code AttributeImpl.Transient} instances, but it has an
+	 * even more trivial {@code contains} method.
+	 */
+	abstract static class NonCataloged extends TupleDescImpl
+	{
+		NonCataloged(
+			ByteBuffer td, SwitchPoint sp, boolean useState,
+			BiFunction<TupleDescImpl,Integer,Attribute> ctor)
+		{
+			super(td, sp, useState, ctor);
+		}
+
+		@Override // Collection
+		public boolean contains(Object o)
+		{
+			if ( ! (o instanceof AttributeImpl.Transient) )
+				return false;
+
+			AttributeImpl ai = (AttributeImpl)o;
+			return this == ai.containingTupleDescriptor();
+		}
+	}
+
 	/**
 	 * A tuple descriptor for a row type that appears in the catalog.
 	 */
@@ -486,7 +565,7 @@ implements TupleDescriptor
 	 * can be identified by {@code RECORD} and a distinct type modifier for the
 	 * life of the backend.
 	 */
-	static class Blessed extends TupleDescImpl implements Interned
+	static class Blessed extends NonCataloged implements Interned
 	{
 		private final RegType m_rowType; // using its SwitchPoint, keep it live
 
@@ -526,7 +605,7 @@ implements TupleDescriptor
 	 * A tuple descriptor that is not in the catalog, has not been interned, and
 	 * is useful only so long as a reference is held.
 	 */
-	static class Ephemeral extends TupleDescImpl
+	static class Ephemeral extends NonCataloged
 	implements TupleDescriptor.Ephemeral
 	{
 		private Ephemeral(ByteBuffer td)
@@ -592,6 +671,12 @@ implements TupleDescriptor
 		public Interned intern()
 		{
 			throw notyet();
+		}
+
+		@Override // Collection
+		public boolean contains(Object o)
+		{
+			return get(0) == o;
 		}
 	}
 
