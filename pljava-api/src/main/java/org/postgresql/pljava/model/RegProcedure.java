@@ -23,10 +23,16 @@ import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
+import org.postgresql.pljava.TargetList.Projection;
+
 import org.postgresql.pljava.annotation.Function.Effects;
 import org.postgresql.pljava.annotation.Function.OnNullInput;
 import org.postgresql.pljava.annotation.Function.Parallel;
 import org.postgresql.pljava.annotation.Function.Security;
+
+import org.postgresql.pljava.annotation.Trigger.Called;
+import org.postgresql.pljava.annotation.Trigger.Event;
+import org.postgresql.pljava.annotation.Trigger.Scope;
 
 /**
  * Model of a PostgreSQL "routine" (which in late versions can include
@@ -268,8 +274,61 @@ extends
 
 		interface Context
 		{
+			/**
+			 * Supplied when the routine is being called as a trigger.
+			 */
 			interface TriggerData extends Context
 			{
+				/**
+				 * When the trigger is being called (before, after, or instead)
+				 * with respect to the triggering event.
+				 */
+				Called called();
+
+				/**
+				 * The event that has fired this trigger.
+				 */
+				Event event();
+
+				/**
+				 * The scope (per-row or per-statement) of this trigger.
+				 */
+				Scope scope();
+
+				/**
+				 * The relation on which this trigger is declared.
+				 */
+				RegClass relation();
+
+				/**
+				 * The row for which the trigger was fired.
+				 *<p>
+				 * In a trigger fired for {@code INSERT} or {@code DELETE}, this
+				 * is the row to return if not altering or skipping the
+				 * operation.
+				 */
+				TupleTableSlot triggerTuple();
+
+				/**
+				 * The proposed new version of the row, only in a trigger fired
+				 * for {@code UPDATE}.
+				 *<p>
+				 * In a trigger fired for {@code UPDATE}, this is the row
+				 * to return if not altering or skipping the operation.
+				 */
+				TupleTableSlot newTuple();
+
+				/**
+				 * Information from the trigger's declaration in the system
+				 * catalogs.
+				 */
+				Trigger trigger();
+
+				/**
+				 * For {@code UPDATE} triggers, which columns have been updated
+				 * by the triggering command; null for other triggers.
+				 */
+				Projection updatedColumns();
 			}
 
 			interface EventTriggerData extends Context
