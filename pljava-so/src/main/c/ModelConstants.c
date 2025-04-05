@@ -28,6 +28,7 @@
 #include <catalog/pg_collation.h>
 #include <catalog/pg_ts_dict.h>
 #include <catalog/pg_ts_config.h>
+#include <catalog/pg_constraint.h>
 
 #include <executor/tuptable.h>
 
@@ -247,6 +248,7 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST(     RelationRelationId );
 	CONFIRMCONST(       AuthIdRelationId );
 	CONFIRMCONST(     DatabaseRelationId );
+	CONFIRMCONST(   ConstraintRelationId );
 	CONFIRMCONST(     LanguageRelationId );
 	CONFIRMCONST(    NamespaceRelationId );
 	CONFIRMCONST(     OperatorRelationId );

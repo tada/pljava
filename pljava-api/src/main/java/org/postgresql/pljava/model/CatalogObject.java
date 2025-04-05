@@ -528,6 +528,7 @@ public interface CatalogObject
 		protected static final int     RelationRelationId = 1259;
 		protected static final int       AuthIdRelationId = 1260;
 		protected static final int     DatabaseRelationId = 1262;
+		protected static final int   ConstraintRelationId = 2606;
 		protected static final int     LanguageRelationId = 2612;
 		protected static final int    NamespaceRelationId = 2615;
 		protected static final int     OperatorRelationId = 2617;
