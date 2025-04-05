@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -29,6 +29,32 @@ static jmethodID s_Oid_init;
 static jmethodID s_Oid_registerType;
 static jfieldID  s_Oid_m_native;
 static jobject   s_OidOid;
+
+static jclass    s_CatalogObject_class;
+static jclass    s_CatalogObjectImpl_class;
+static jmethodID s_CatalogObjectImpl_of;
+static jmethodID s_CatalogObject_oid;
+
+static bool _CatalogObject_canReplaceType(Type self, Type other)
+{
+	TypeClass cls = Type_getClass(other);
+	return Type_getClass(self) == cls  ||  Type_getOid(other) == OIDOID;
+}
+
+static jvalue _CatalogObject_coerceDatum(Type self, Datum arg)
+{
+	Oid oid = DatumGetObjectId(arg);
+	jvalue result;
+	result.l = JNI_callStaticObjectMethodLocked(
+		s_CatalogObjectImpl_class, s_CatalogObjectImpl_of, (jint)oid);
+	return result;
+}
+
+static Datum _CatalogObject_coerceObject(Type self, jobject obj)
+{
+	jint o = JNI_callIntMethod(obj, s_CatalogObject_oid);
+	return ObjectIdGetDatum((Oid)o);
+}
 
 /*
  * org.postgresql.pljava.type.Oid type.
@@ -224,6 +250,25 @@ void Oid_initialize(void)
 				"(Ljava/lang/Class;Lorg/postgresql/pljava/internal/Oid;)V");
 
 	JNI_callStaticVoidMethod(s_Oid_class, s_Oid_registerType, s_Oid_class, s_OidOid);
+
+	s_CatalogObject_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/model/CatalogObject"));
+	s_CatalogObjectImpl_class = JNI_newGlobalRef(PgObject_getJavaClass(
+		"org/postgresql/pljava/pg/CatalogObjectImpl"));
+	s_CatalogObject_oid = PgObject_getJavaMethod(s_CatalogObject_class,
+		"oid", "()I");
+	s_CatalogObjectImpl_of = PgObject_getStaticJavaMethod(
+		s_CatalogObjectImpl_class,
+		"of", "(I)Lorg/postgresql/pljava/model/CatalogObject;");
+
+	cls = TypeClass_alloc("type.CatalogObject");
+	cls->JNISignature   = "Lorg/postgresql/pljava/model/CatalogObject;";
+	cls->javaTypeName   = "org.postgresql.pljava.model.CatalogObject";
+	cls->canReplaceType = _CatalogObject_canReplaceType;
+	cls->coerceDatum    = _CatalogObject_coerceDatum;
+	cls->coerceObject   = _CatalogObject_coerceObject;
+	Type_registerType("org.postgresql.pljava.model.CatalogObject", 
+		TypeClass_allocInstance(cls, OIDOID));
 }
 
 /*

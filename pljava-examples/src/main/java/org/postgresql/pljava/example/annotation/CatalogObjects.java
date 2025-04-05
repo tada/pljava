@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -11,16 +11,23 @@
  */
 package org.postgresql.pljava.example.annotation;
 
+import java.lang.reflect.Method;
+import static java.lang.reflect.Modifier.isPublic;
+
 import java.sql.Connection;
 import static java.sql.DriverManager.getConnection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.sql.Statement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import java.util.logging.Logger;
@@ -30,13 +37,16 @@ import static java.util.logging.Level.WARNING;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
+import java.util.stream.Stream;
 
 import org.postgresql.pljava.Adapter.As;
+import org.postgresql.pljava.ResultSetProvider;
 import org.postgresql.pljava.TargetList.Cursor;
 import org.postgresql.pljava.TargetList.Projection;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.SQLAction;
+import org.postgresql.pljava.annotation.SQLType;
 
 import org.postgresql.pljava.model.CatalogObject;
 import org.postgresql.pljava.model.CatalogObject.Addressed;
@@ -349,5 +359,110 @@ public class CatalogObjects {
 				"and {2} could not be tested",
 				knownRegClasses.size(), passed, untested);
 		}
+	}
+
+	private static boolean engulfs(Class<?> a, Class<?> b)
+	{
+		return a.isAssignableFrom(b)  ||  a == b.getDeclaringClass();
+	}
+
+	static final Comparator<Class<?>>
+		partialByEngulfs = (a,b) -> engulfs(a,b) ? 1 : engulfs(b,a) ? -1 : 0;
+
+	/**
+	 * Given a PostgreSQL classid and objid, obtains the corresponding Java
+	 * CatalogObject, then finds the no-parameter, non-void-returning methods
+	 * of all the CatalogObject interfaces it implements, and returns a table
+	 * with the results of calling those methods.
+	 */
+	@Function(
+		schema="javatest",
+		out={ "interface text", "method text", "result text", "exception text" }
+	)
+	public static ResultSetProvider catalogIntrospect(
+		@SQLType("regclass") CatalogObject cls, CatalogObject obj)
+	throws SQLException
+	{
+		cls = cls.of(RegClass.CLASSID);
+		if ( ! ( cls instanceof Known<?> ) )
+			throw new SQLException(
+				"Not a supported known catalog class: " + cls);
+
+		Known<?> kcls = (Known<?>)cls;
+		Addressed<?> aobj = obj.of(kcls);
+
+		Class clazz = aobj.getClass();
+
+		Stream<Method> s =
+			Stream.iterate(
+				(new Class<?>[] { clazz }), (a -> 0 < a.length), a ->
+				(
+					Arrays.stream(a)
+					.flatMap(c ->
+						Stream.concat(
+							(c.isInterface() ?
+							Stream.of() : Stream.of(c.getSuperclass())),
+							Arrays.stream(c.getInterfaces())
+						)
+					)
+					.filter(Objects::nonNull)
+					.toArray(Class<?>[]::new)
+				)
+			)
+			.flatMap(Arrays::stream)
+			.filter(c -> c.isInterface() && engulfs(CatalogObject.class, c))
+			.sorted(partialByEngulfs.thenComparing(Class::getSimpleName))
+			.distinct()
+			.filter(i -> CatalogObject.class.getModule().equals(i.getModule()))
+			.filter(i -> isPublic(i.getModifiers()))
+			.flatMap(i ->
+			{
+				return Arrays.stream(i.getMethods())
+					.filter(m -> i == m.getDeclaringClass());
+			})
+			.filter(m -> void.class != m.getReturnType())
+			.filter(m -> 0 == m.getParameterCount())
+			.filter(m -> ! (m.isSynthetic()));
+
+		Iterator<Method> itr = s.iterator();
+
+		return new ResultSetProvider.Large()
+		{
+			@Override public boolean assignRowValues(ResultSet r, long rownum)
+			throws SQLException
+			{
+				if ( ! itr.hasNext() )
+					return false;
+
+				Method m = itr.next();
+				r.updateString(1, m.getDeclaringClass().getSimpleName());
+				r.updateString(2, m.getName());
+
+				try
+				{
+					Object v = m.invoke(aobj);
+					String text;
+					if ( v instanceof SQLXML )
+						text = ((SQLXML)v).getString();
+					else
+						text = Objects.toString(v);
+					r.updateString(3, text);
+				}
+				catch ( Throwable t )
+				{
+					String s =
+						Stream.iterate(t, Objects::nonNull, Throwable::getCause)
+						.dropWhile(
+							ReflectiveOperationException.class::isInstance)
+						.map(Object::toString)
+						.collect(joining("\n"));
+					r.updateString(4, s);
+				}
+
+				return true;
+			}
+
+			@Override public void close() { s.close(); }
+		};
 	}
 }
