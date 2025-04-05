@@ -181,6 +181,9 @@ public abstract class ModelConstants
 	@Native public static final int Anum_pg_extension_oid            = 1;
 	@Native public static final int ExtensionOidIndexId              = 3080;
 
+	@Native public static final int Anum_pg_trigger_oid              = 1;
+	@Native public static final int TriggerOidIndexId                = 2702;
+
 	@Native public static final int SIZEOF_ArrayType_ndim            = 4;
 	@Native public static final int SIZEOF_ArrayType_dataoffset      = 4;
 	@Native public static final int SIZEOF_ArrayType_elemtype        = 4;
@@ -320,6 +323,34 @@ public abstract class ModelConstants
 	@Native private static final int IDX_T_WindowObjectData   = 117;
 	@Native private static final int IDX_T_Bitmapset          = 118;
 	@Native private static final int IDX_T_ErrorSaveContext   = 119;
+
+
+
+	/*
+	 * Layout of the PostgreSQL Trigger structure that is supplied for a call
+	 * on a trigger. The content comes from pg_trigger but the layout differs,
+	 * so reading from it must be done without TupleTableSlot's help.
+	 */
+	@Native private static final int IDX_OFFSET_TRG_tgoid           = 150;
+	@Native private static final int IDX_OFFSET_TRG_tgname          = 151;
+	@Native private static final int IDX_OFFSET_TRG_tgfoid          = 152;
+	@Native private static final int IDX_OFFSET_TRG_tgtype          = 153;
+	@Native private static final int IDX_OFFSET_TRG_tgenabled       = 154;
+	@Native private static final int IDX_OFFSET_TRG_tgisinternal    = 155;
+	@Native private static final int IDX_OFFSET_TRG_tgisclone       = 156;
+	@Native private static final int IDX_OFFSET_TRG_tgconstrrelid   = 157;
+	@Native private static final int IDX_OFFSET_TRG_tgconstrindid   = 158;
+	@Native private static final int IDX_OFFSET_TRG_tgconstraint    = 159;
+	@Native private static final int IDX_OFFSET_TRG_tgdeferrable    = 160;
+	@Native private static final int IDX_OFFSET_TRG_tginitdeferred  = 161;
+	@Native private static final int IDX_OFFSET_TRG_tgnargs         = 162;
+	@Native private static final int IDX_OFFSET_TRG_tgnattr         = 163;
+	@Native private static final int IDX_OFFSET_TRG_tgattr          = 164;
+	@Native private static final int IDX_OFFSET_TRG_tgargs          = 165;
+	@Native private static final int IDX_OFFSET_TRG_tgqual          = 166;
+	@Native private static final int IDX_OFFSET_TRG_tgoldtable      = 167;
+	@Native private static final int IDX_OFFSET_TRG_tgnewtable      = 168;
+	@Native private static final int IDX_SIZEOF_Trigger             = 169;
 
 
 
@@ -465,6 +496,33 @@ public abstract class ModelConstants
 	public static final int T_WindowObjectData;
 	public static final int T_Bitmapset;
 	public static final int T_ErrorSaveContext;
+
+
+
+	/*
+	 * Layout of the PostgreSQL Trigger structure that is supplied for a call
+	 * on a trigger.
+	 */
+	public static final int OFFSET_TRG_tgoid;
+	public static final int OFFSET_TRG_tgname;
+	public static final int OFFSET_TRG_tgfoid;
+	public static final int OFFSET_TRG_tgtype;
+	public static final int OFFSET_TRG_tgenabled;
+	public static final int OFFSET_TRG_tgisinternal;
+	public static final int OFFSET_TRG_tgisclone;
+	public static final int OFFSET_TRG_tgconstrrelid;
+	public static final int OFFSET_TRG_tgconstrindid;
+	public static final int OFFSET_TRG_tgconstraint;
+	public static final int OFFSET_TRG_tgdeferrable;
+	public static final int OFFSET_TRG_tginitdeferred;
+	public static final int OFFSET_TRG_tgnargs;
+	public static final int OFFSET_TRG_tgnattr;
+	public static final int OFFSET_TRG_tgattr;
+	public static final int OFFSET_TRG_tgargs;
+	public static final int OFFSET_TRG_tgqual;
+	public static final int OFFSET_TRG_tgoldtable;
+	public static final int OFFSET_TRG_tgnewtable;
+	public static final int SIZEOF_Trigger;
 
 
 
@@ -618,6 +676,30 @@ public abstract class ModelConstants
 			T_WindowObjectData   = n.get(IDX_T_WindowObjectData);
 			T_Bitmapset          = n.get(IDX_T_Bitmapset);
 			T_ErrorSaveContext   = n.get(IDX_T_ErrorSaveContext);
+
+
+
+			n.gap(IDX_OFFSET_TRG_tgoid);
+			OFFSET_TRG_tgoid           = n.get(IDX_OFFSET_TRG_tgoid);
+			OFFSET_TRG_tgname          = n.get(IDX_OFFSET_TRG_tgname);
+			OFFSET_TRG_tgfoid          = n.get(IDX_OFFSET_TRG_tgfoid);
+			OFFSET_TRG_tgtype          = n.get(IDX_OFFSET_TRG_tgtype);
+			OFFSET_TRG_tgenabled       = n.get(IDX_OFFSET_TRG_tgenabled);
+			OFFSET_TRG_tgisinternal    = n.get(IDX_OFFSET_TRG_tgisinternal);
+			OFFSET_TRG_tgisclone       = n.get(IDX_OFFSET_TRG_tgisclone);
+			OFFSET_TRG_tgconstrrelid   = n.get(IDX_OFFSET_TRG_tgconstrrelid);
+			OFFSET_TRG_tgconstrindid   = n.get(IDX_OFFSET_TRG_tgconstrindid);
+			OFFSET_TRG_tgconstraint    = n.get(IDX_OFFSET_TRG_tgconstraint);
+			OFFSET_TRG_tgdeferrable    = n.get(IDX_OFFSET_TRG_tgdeferrable);
+			OFFSET_TRG_tginitdeferred  = n.get(IDX_OFFSET_TRG_tginitdeferred);
+			OFFSET_TRG_tgnargs         = n.get(IDX_OFFSET_TRG_tgnargs);
+			OFFSET_TRG_tgnattr         = n.get(IDX_OFFSET_TRG_tgnattr);
+			OFFSET_TRG_tgattr          = n.get(IDX_OFFSET_TRG_tgattr);
+			OFFSET_TRG_tgargs          = n.get(IDX_OFFSET_TRG_tgargs);
+			OFFSET_TRG_tgqual          = n.get(IDX_OFFSET_TRG_tgqual);
+			OFFSET_TRG_tgoldtable      = n.get(IDX_OFFSET_TRG_tgoldtable);
+			OFFSET_TRG_tgnewtable      = n.get(IDX_OFFSET_TRG_tgnewtable);
+			SIZEOF_Trigger             = n.get(IDX_SIZEOF_Trigger);
 
 
 

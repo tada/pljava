@@ -31,6 +31,8 @@
 #include <catalog/pg_constraint.h>
 #include <catalog/pg_trigger.h>
 
+#include <commands/trigger.h>
+
 #include <executor/tuptable.h>
 
 #include <mb/pg_wchar.h>
@@ -40,6 +42,7 @@
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
 #include "org_postgresql_pljava_pg_ModelConstants.h"
 #include "org_postgresql_pljava_pg_ModelConstants_Natives.h"
+#include "org_postgresql_pljava_pg_TriggerImpl.h"
 #include "org_postgresql_pljava_pg_TupleTableSlotImpl.h"
 
 #include <utils/acl.h>
@@ -207,6 +210,29 @@ static int32 constants[] = {
 
 
 
+	TYPEOFFSET(Trigger, TRG, tgoid),
+	TYPEOFFSET(Trigger, TRG, tgname),
+	TYPEOFFSET(Trigger, TRG, tgfoid),
+	TYPEOFFSET(Trigger, TRG, tgtype),
+	TYPEOFFSET(Trigger, TRG, tgenabled),
+	TYPEOFFSET(Trigger, TRG, tgisinternal),
+	TYPEOFFSET(Trigger, TRG, tgisclone),
+	TYPEOFFSET(Trigger, TRG, tgconstrrelid),
+	TYPEOFFSET(Trigger, TRG, tgconstrindid),
+	TYPEOFFSET(Trigger, TRG, tgconstraint),
+	TYPEOFFSET(Trigger, TRG, tgdeferrable),
+	TYPEOFFSET(Trigger, TRG, tginitdeferred),
+	TYPEOFFSET(Trigger, TRG, tgnargs),
+	TYPEOFFSET(Trigger, TRG, tgnattr),
+	TYPEOFFSET(Trigger, TRG, tgattr),
+	TYPEOFFSET(Trigger, TRG, tgargs),
+	TYPEOFFSET(Trigger, TRG, tgqual),
+	TYPEOFFSET(Trigger, TRG, tgoldtable),
+	TYPEOFFSET(Trigger, TRG, tgnewtable),
+	CONSTANTEXPR(SIZEOF_Trigger, sizeof (Trigger)),
+
+
+
 	CONSTANT(ATTNUM),
 	CONSTANT(AUTHMEMMEMROLE),
 	CONSTANT(AUTHMEMROLEMEM),
@@ -236,6 +262,10 @@ static void dummy(Bitmapset *bitmapset)
 		"PostgreSQL SIZEOF_DATUM and SIZEOF_VOID_P no longer equivalent?");
 
 	AssertVariableIsOfType(bitmapset->nwords, int); /* DatumUtils.java */
+
+/*
+ * BEGIN:CONFIRMCONST for CatalogObjectImpl.Factory constants
+ */
 
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
@@ -334,10 +364,22 @@ StaticAssertStmt((c) == \
 
 #undef CONFIRMCONST
 
+/*
+ * END:CONFIRMCONST for CatalogObjectImpl.Factory constants
+ *
+ * BEGIN:CONFIRMCONST  for AclItem constants
+ * BEGIN:CONFIRMOFFSET for AclItem constants
+ */
+
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
 (org_postgresql_pljava_pg_AclItem_##c), \
 	"Java/C value mismatch for " #c)
+
+#define CONFIRMOFFSET(typ,fld) \
+StaticAssertStmt(offsetof(typ,fld) == \
+(org_postgresql_pljava_pg_AclItem_OFFSET_##fld), \
+	"Java/C offset mismatch for " #fld)
 
 	CONFIRMCONST( ACL_INSERT       );
 	CONFIRMCONST( ACL_SELECT       );
@@ -360,11 +402,6 @@ StaticAssertStmt((c) == \
 #endif
 	CONFIRMCONST( ACL_ID_PUBLIC    );
 
-#define CONFIRMOFFSET(typ,fld) \
-StaticAssertStmt(offsetof(typ,fld) == \
-(org_postgresql_pljava_pg_AclItem_OFFSET_##fld), \
-	"Java/C offset mismatch for " #fld)
-
 	CONFIRMOFFSET( AclItem, ai_grantee );
 	CONFIRMOFFSET( AclItem, ai_grantor );
 	CONFIRMOFFSET( AclItem, ai_privs );
@@ -372,10 +409,27 @@ StaticAssertStmt(offsetof(typ,fld) == \
 #undef CONFIRMCONST
 #undef CONFIRMOFFSET
 
+/*
+ * END:CONFIRMCONST  for AclItem constants
+ * END:CONFIRMOFFSET for AclItem constants
+ *
+ * BEGIN:CONFIRMCONST for ModelConstants constants
+ * BEGIN:CONFIRMEXPR for ModelConstants constants
+ *
+ * BEGIN:CONFIRMSIZEOF for ModelConstants FormData_* structs
+ * BEGIN:CONFIRMOFFSET for ModelConstants FormData_* structs
+ * BEGIN:CONFIRMATTNUM for ModelConstants Anum_* constants
+ */
+
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
 (org_postgresql_pljava_pg_ModelConstants_##c), \
 	"Java/C value mismatch for " #c)
+#define CONFIRMEXPR(c,expr) \
+StaticAssertStmt((expr) == \
+(org_postgresql_pljava_pg_ModelConstants_##c), \
+	"Java/C value mismatch for " #c)
+
 #define CONFIRMSIZEOF(form,fld) \
 StaticAssertStmt((sizeof ((FormData_##form *)0)->fld) == \
 (org_postgresql_pljava_pg_ModelConstants_SIZEOF_##form##_##fld), \
@@ -388,10 +442,6 @@ StaticAssertStmt(offsetof(FormData_##form,fld) == \
 StaticAssertStmt(Anum_##form##_##fld == \
 (org_postgresql_pljava_pg_ModelConstants_Anum_##form##_##fld), \
 	"Java/C attribute number mismatch for " #form "." #fld)
-#define CONFIRMEXPR(c,expr) \
-StaticAssertStmt((expr) == \
-(org_postgresql_pljava_pg_ModelConstants_##c), \
-	"Java/C value mismatch for " #c)
 
 	CONFIRMCONST( PG_SQL_ASCII );
 	CONFIRMCONST( PG_UTF8 );
@@ -441,12 +491,38 @@ StaticAssertStmt((expr) == \
 	CONFIRMATTNUM( pg_extension, oid );
 	CONFIRMCONST( ExtensionOidIndexId );
 
+	CONFIRMATTNUM( pg_trigger, oid );
+	CONFIRMCONST( TriggerOidIndexId );
+
 #undef CONFIRMSIZEOF
 #undef CONFIRMOFFSET
+#undef CONFIRMATTNUM
+
+/*
+ * END:CONFIRMSIZEOF for ModelConstants FormData_* structs
+ * END:CONFIRMOFFSET for ModelConstants FormData_* structs
+ * END:CONFIRMATTNUM for ModelConstants Anum_* constants
+ *
+ * BEGIN:CONFIRMOFFSET for ModelConstants, arbitrary structs
+ * BEGIN:CONFIRMSIZEOF for ModelConstants, arbitrary structs
+ * BEGIN:CONFIRMSIZETAG lets the ModelConstants name use a shorter tag
+ *
+ * BEGIN:CONFIRMVLOFFSET for varlena offsets, which in Java don't count VARHDRSZ
+ */
+
+#define CONFIRMOFFSET(strct,fld) \
+StaticAssertStmt(offsetof(strct,fld) == \
+(org_postgresql_pljava_pg_ModelConstants_OFFSET_##strct##_##fld), \
+	"Java/C offset mismatch for " #strct "." #fld)
 #define CONFIRMSIZEOF(strct,fld) \
 StaticAssertStmt((sizeof ((strct *)0)->fld) == \
 (org_postgresql_pljava_pg_ModelConstants_SIZEOF_##strct##_##fld), \
 	"Java/C sizeof mismatch for " #strct "." #fld)
+#define CONFIRMSIZETAG(strct,tag,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_ModelConstants_SIZEOF_##tag##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+
 #define CONFIRMVLOFFSET(strct,fld) \
 StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 (org_postgresql_pljava_pg_ModelConstants_OFFSET_##strct##_##fld), \
@@ -478,36 +554,34 @@ StaticAssertStmt(offsetof(strct,fld) - VARHDRSZ == \
 	CONFIRMEXPR( SIZEOF_NodeTag, sizeof (NodeTag) );
 	CONFIRMEXPR( SIZEOF_Oid,     sizeof (Oid) );
 
-#undef CONFIRMSIZEOF
-#define CONFIRMSIZEOF(strct,tag,fld) \
-StaticAssertStmt((sizeof ((strct *)0)->fld) == \
-(org_postgresql_pljava_pg_ModelConstants_SIZEOF_##tag##_##fld), \
-	"Java/C sizeof mismatch for " #strct "." #fld)
-
-	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, fncollation );
-	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, isnull );
-	CONFIRMSIZEOF( FunctionCallInfoBaseData, fcinfo, nargs );
-
-#undef CONFIRMSIZEOF
-#undef CONFIRMVLOFFSET
-#undef CONFIRMCONST
-#undef CONFIRMATTNUM
-#undef CONFIRMEXPR
-
-#define CONFIRMSIZEOF(strct,fld) \
-StaticAssertStmt((sizeof ((strct *)0)->fld) == \
-(org_postgresql_pljava_pg_ModelConstants_SIZEOF_##strct##_##fld), \
-	"Java/C sizeof mismatch for " #strct "." #fld)
-#define CONFIRMOFFSET(strct,fld) \
-StaticAssertStmt(offsetof(strct,fld) == \
-(org_postgresql_pljava_pg_ModelConstants_OFFSET_##strct##_##fld), \
-	"Java/C offset mismatch for " #strct "." #fld)
+	CONFIRMSIZETAG( FunctionCallInfoBaseData, fcinfo, fncollation );
+	CONFIRMSIZETAG( FunctionCallInfoBaseData, fcinfo, isnull );
+	CONFIRMSIZETAG( FunctionCallInfoBaseData, fcinfo, nargs );
 
 	CONFIRMOFFSET( CallContext, atomic );
 	CONFIRMSIZEOF( CallContext, atomic );
 
-#undef CONFIRMOFFSET
+#undef CONFIRMVLOFFSET
+#undef CONFIRMSIZETAG
 #undef CONFIRMSIZEOF
+#undef CONFIRMOFFSET
+
+#undef CONFIRMCONST
+#undef CONFIRMEXPR
+
+/*
+ * END:CONFIRMOFFSET for ModelConstants, arbitrary structs
+ * END:CONFIRMSIZEOF for ModelConstants, arbitrary structs
+ * END:CONFIRMSIZETAG lets the ModelConstants name use a shorter tag
+ * END:CONFIRMVLOFFSET for varlena offsets, which in Java don't count VARHDRSZ
+ *
+ * END:CONFIRMCONST for ModelConstants constants
+ * END:CONFIRMEXPR for ModelConstants constants
+ *
+ * BEGIN:CONFIRMCONST for TupleTableSlotImpl constants
+ * BEGIN:CONFIRMSIZEOF for TupleTableSlotImpl FormData_* structs
+ * BEGIN:CONFIRMOFFSET for TupleTableSlotImpl FormData_* structs
+ */
 
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == \
@@ -547,6 +621,51 @@ StaticAssertStmt(offsetof(form,fld) == \
 #undef CONFIRMSIZEOF
 #undef CONFIRMOFFSET
 
+/*
+ * END:CONFIRMCONST for TupleTableSlotImpl constants
+ * END:CONFIRMSIZEOF for TupleTableSlotImpl FormData_* structs
+ * END:CONFIRMOFFSET for TupleTableSlotImpl FormData_* structs
+ *
+ * BEGIN:CONFIRMCONST for TriggerImpl constants
+ * BEGIN:CONFIRMSIZEOF for TriggerImpl constants
+ */
+
+#define CONFIRMCONST(c) \
+StaticAssertStmt((c) == \
+(org_postgresql_pljava_pg_TriggerImpl_##c), \
+	"Java/C value mismatch for " #c)
+#define CONFIRMSIZETAG(strct,tag,fld) \
+StaticAssertStmt((sizeof ((strct *)0)->fld) == \
+(org_postgresql_pljava_pg_TriggerImpl_SIZEOF_##tag##_##fld), \
+	"Java/C sizeof mismatch for " #strct "." #fld)
+
+	CONFIRMCONST( TRIGGER_FIRES_ON_ORIGIN );
+	CONFIRMCONST( TRIGGER_FIRES_ALWAYS );
+	CONFIRMCONST( TRIGGER_FIRES_ON_REPLICA );
+	CONFIRMCONST( TRIGGER_DISABLED );
+
+	CONFIRMCONST( TRIGGER_TYPE_ROW );
+	CONFIRMCONST( TRIGGER_TYPE_BEFORE );
+	CONFIRMCONST( TRIGGER_TYPE_INSERT );
+	CONFIRMCONST( TRIGGER_TYPE_DELETE );
+	CONFIRMCONST( TRIGGER_TYPE_UPDATE );
+	CONFIRMCONST( TRIGGER_TYPE_TRUNCATE );
+	CONFIRMCONST( TRIGGER_TYPE_INSTEAD );
+
+	CONFIRMCONST( TRIGGER_TYPE_LEVEL_MASK );
+	CONFIRMCONST( TRIGGER_TYPE_STATEMENT );
+
+	CONFIRMCONST( TRIGGER_TYPE_TIMING_MASK );
+	CONFIRMCONST( TRIGGER_TYPE_AFTER );
+	CONFIRMCONST( TRIGGER_TYPE_EVENT_MASK );
+
+#undef CONFIRMCONST
+#undef CONFIRMSIZETAG
+
+/*
+ * END:CONFIRMCONST for TriggerImpl constants
+ * END:CONFIRMSIZETAG for TriggerImpl constants
+ */
 }
 
 void pljava_ModelConstants_initialize(void)

@@ -60,6 +60,7 @@ import org.postgresql.pljava.model.RegClass.Known;
 import org.postgresql.pljava.model.RegProcedure;
 import org.postgresql.pljava.model.RegType;
 import org.postgresql.pljava.model.SlotTester;
+import org.postgresql.pljava.model.Trigger;
 import org.postgresql.pljava.model.TupleTableSlot;
 
 /**
@@ -326,7 +327,10 @@ public class CatalogObjects {
 
 					if ( aobj instanceof Named )
 					{
-						((Named)aobj).name();
+						if ( aobj instanceof Trigger ) // name() won't work here
+							aobj.exists();
+						else
+							((Named)aobj).name();
 						++ passed;
 						continue;
 					}

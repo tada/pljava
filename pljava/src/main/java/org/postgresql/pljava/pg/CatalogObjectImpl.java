@@ -111,7 +111,7 @@ public class CatalogObjectImpl implements CatalogObject
 	private static final ThreadLocal<ByteBuffer>
 		s_address = new ThreadLocal<>();
 
-	private CatalogObjectImpl()
+	protected CatalogObjectImpl() // only TriggerImpl outside this file
 	{
 		ByteBuffer b = s_address.get();
 
@@ -545,6 +545,9 @@ public class CatalogObjectImpl implements CatalogObject
 				case CollationRelationId:
 					fieldRead = RegCollation.CLASSID;
 					return RegCollationImpl::new;
+				case TriggerRelationId:
+					fieldRead = Trigger.CLASSID;
+					return TriggerImpl::new;
 				case TSDictionaryRelationId:
 					fieldRead = RegDictionary.CLASSID;
 					return RegDictionaryImpl::new;
@@ -1061,7 +1064,7 @@ public class CatalogObjectImpl implements CatalogObject
 		 * {@code PG_VERSION_NUM}).
 		 *<p>
 		 * {@code alsoIf} adds strings to the list, if the condition is true, or
-		 * the same number of nulls of the condition is false.
+		 * the same number of nulls if the condition is false.
 		 *<p>
 		 * {@code project} filters the list to only the non-null values, using
 		 * those to form a {@code Projection} and obtain its iterator of
