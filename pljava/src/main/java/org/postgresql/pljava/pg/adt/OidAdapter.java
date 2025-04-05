@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -41,6 +41,7 @@ extends Adapter.As<T,Void>
 	public static final Procedure                     REGPROCEDURE_INSTANCE;
 	public static final Addressed<RegRole>            REGROLE_INSTANCE;
 	public static final Addressed<RegType>            REGTYPE_INSTANCE;
+	public static final Addressed<Constraint>         CONSTRAINT_INSTANCE;
 	public static final Addressed<Database>           DATABASE_INSTANCE;
 	public static final Addressed<Extension>          EXTENSION_INSTANCE;
 	public static final Addressed<ProceduralLanguage> PLANG_INSTANCE;
@@ -87,6 +88,9 @@ extends Adapter.As<T,Void>
 
 		REGTYPE_INSTANCE       = new  Addressed<>(configs[2],
 			RegType.CLASSID, RegType.class, RegType.REGTYPE);
+
+		CONSTRAINT_INSTANCE    = new  Addressed<>(configs[2],
+			Constraint.CLASSID, Constraint.class);
 
 		DATABASE_INSTANCE      = new  Addressed<>(configs[2],
 			Database.CLASSID, Database.class);

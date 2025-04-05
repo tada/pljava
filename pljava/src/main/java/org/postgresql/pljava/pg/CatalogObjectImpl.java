@@ -527,6 +527,9 @@ public class CatalogObjectImpl implements CatalogObject
 				case DatabaseRelationId:
 					fieldRead = Database.CLASSID;
 					return DatabaseImpl::new;
+				case ConstraintRelationId:
+					fieldRead = Constraint.CLASSID;
+					return ConstraintImpl::new;
 				case LanguageRelationId:
 					fieldRead = ProceduralLanguage.CLASSID;
 					return ProceduralLanguageImpl::new;
@@ -914,8 +917,8 @@ public class CatalogObjectImpl implements CatalogObject
 		 * the invalidation of this catalog object's metadata.
 		 *<p>
 		 * Adds this object's {@code SwitchPoint} to the caller's list so that,
-		 * if more than one is to be invalidated, that can be done in bulk. Adds to
-		 * <var>postOps</var> any operations the caller should conclude with
+		 * if more than one is to be invalidated, that can be done in bulk. Adds
+		 * to <var>postOps</var> any operations the caller should conclude with
 		 * after invalidating the {@code SwitchPoint}.
 		 *<p>
 		 * This implementation does nothing (other than to assert false, when

@@ -342,6 +342,7 @@ public abstract class ModelConstants
 	@Native private static final int IDX_TSCONFIGOID    = 511;
 	@Native private static final int IDX_TSDICTOID      = 512;
 	@Native private static final int IDX_TYPEOID        = 513;
+	@Native private static final int IDX_CONSTROID      = 514;
 
 
 
@@ -485,6 +486,7 @@ public abstract class ModelConstants
 	public static final int TSCONFIGOID;     // RegConfigImpl
 	public static final int TSDICTOID;       // RegDictionaryImpl
 	public static final int TYPEOID;         // RegTypeImpl
+	public static final int CONSTROID;       // ConstraintImpl
 
 
 
@@ -634,6 +636,7 @@ public abstract class ModelConstants
 			TSCONFIGOID    = n.get(IDX_TSCONFIGOID);
 			TSDICTOID      = n.get(IDX_TSDICTOID);
 			TYPEOID        = n.get(IDX_TYPEOID);
+			CONSTROID      = n.get(IDX_CONSTROID);
 
 
 
