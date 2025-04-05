@@ -532,6 +532,7 @@ public interface CatalogObject
 		protected static final int     LanguageRelationId = 2612;
 		protected static final int    NamespaceRelationId = 2615;
 		protected static final int     OperatorRelationId = 2617;
+		protected static final int      TriggerRelationId = 2620;
 		protected static final int    ExtensionRelationId = 3079;
 		protected static final int    CollationRelationId = 3456;
 		protected static final int TSDictionaryRelationId = 3600;

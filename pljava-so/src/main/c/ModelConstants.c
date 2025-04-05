@@ -29,6 +29,7 @@
 #include <catalog/pg_ts_dict.h>
 #include <catalog/pg_ts_config.h>
 #include <catalog/pg_constraint.h>
+#include <catalog/pg_trigger.h>
 
 #include <executor/tuptable.h>
 
@@ -253,6 +254,7 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST(     LanguageRelationId );
 	CONFIRMCONST(    NamespaceRelationId );
 	CONFIRMCONST(     OperatorRelationId );
+	CONFIRMCONST(      TriggerRelationId );
 	CONFIRMCONST(    ExtensionRelationId );
 	CONFIRMCONST(    CollationRelationId );
 	CONFIRMCONST( TSDictionaryRelationId );
