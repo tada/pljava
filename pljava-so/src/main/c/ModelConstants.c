@@ -49,6 +49,8 @@
 #include <utils/acl.h>
 #include "org_postgresql_pljava_pg_AclItem.h"
 
+#include <utils/rel.h>
+
 #include "pljava/PgObject.h"
 #include "pljava/ModelConstants.h"
 
