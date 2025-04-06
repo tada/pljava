@@ -36,6 +36,9 @@ import org.postgresql.pljava.PLJavaBasedLanguage.InlineBlocks;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routines;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
+import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;
+import org.postgresql.pljava.PLJavaBasedLanguage.Triggers;
+import org.postgresql.pljava.PLJavaBasedLanguage.TriggerTemplate;
 
 import org.postgresql.pljava.TargetList.Projection;
 
@@ -60,6 +63,7 @@ import org.postgresql.pljava.model.RegProcedure.Call.Context;
 import org.postgresql.pljava.model.RegProcedure.Call.ResultInfo;
 import static org.postgresql.pljava.model.RegProcedure.Kind.PROCEDURE;
 import org.postgresql.pljava.model.RegType;
+import static org.postgresql.pljava.model.RegType.TRIGGER;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -708,8 +712,9 @@ class LookupImpl implements RegProcedure.Lookup
 	{
 		return fcinfo ->
 		{
-			impl.essentialChecks(target, true);
-			Template template = requireNonNull(impl.prepare(target));
+			validate(impl, target, true/*checkBody*/, false/*additional*/);
+
+			Template template = prepare(impl, target);
 
 			doInPG(() ->
 			{
@@ -938,8 +943,7 @@ class LookupImpl implements RegProcedure.Lookup
 		@SuppressWarnings("unchecked")
 		RegProcedure<PLJavaBased> narrowed = (RegProcedure<PLJavaBased>)subject;
 
-		impl.essentialChecks(narrowed, checkBody);
-		impl.additionalChecks(narrowed, checkBody);
+		validate(impl, narrowed, checkBody, true);
 
 		/*
 		 * On the way to invoking this method, nearly all of the linkages
@@ -978,6 +982,127 @@ class LookupImpl implements RegProcedure.Lookup
 	}
 
 	/**
+	 * Calls the implementation's essential (and additional, if requested)
+	 * checks, following general checks common to all languages.
+	 *<p>
+	 * If <var>subject</var>'s return type is {@link RegType#TRIGGER TRIGGER},
+	 * this method will also check that <var>impl</var> implements
+	 * {@link Triggers Triggers} and that <var>subject</var> declares no
+	 * parameters and is not declared {@code SETOF}, throwing appropriate
+	 * exceptions if those conditions do not hold, and will then call
+	 * <var>impl</var>'s {@code essentialTriggerChecks} (and, if requested,
+	 * {@code additionalTriggerChecks}) methods.
+	 *<p>
+	 * Otherwise, calls <var>impl</var>'s {@code essentialChecks} (and, if
+	 * requested, {@code additionalChecks}) methods.
+	 */
+	private static void validate(
+		Routines impl, RegProcedure<PLJavaBased> subject,
+		boolean checkBody, boolean additionalChecks)
+	throws SQLException
+	{
+		if ( TRIGGER == subject.returnType() )
+		{
+			if ( ! (impl instanceof Triggers) )
+				throw new SQLSyntaxErrorException(String.format(
+					"%s of %s does not support triggers",
+					subject.language(), subject), "42P13");
+
+			if ( 0 < subject.argTypes().size()
+				|| null != subject.allArgTypes() )
+				throw new SQLSyntaxErrorException(String.format(
+					"%s declares arguments, but a trigger function may not",
+					subject), "42P13");
+
+			if ( subject.returnsSet() )
+				throw new SQLSyntaxErrorException(String.format(
+					"%s returns SETOF, but a trigger function may not",
+					subject), "42P13");
+
+			Triggers timpl = (Triggers)impl;
+
+			timpl.essentialTriggerChecks(subject, checkBody);
+
+			if ( ! additionalChecks )
+				return;
+
+			timpl.additionalTriggerChecks(subject, checkBody);
+			return;
+		}
+
+		impl.essentialChecks(subject, checkBody);
+
+		if ( ! additionalChecks )
+			return;
+
+		impl.additionalChecks(subject, checkBody);
+	}
+
+	/**
+	 * Calls the appropriate method on <var>impl</var> to prepare and return
+	 * a {@code Template}.
+	 *<p>
+	 * If <var>target</var>'s return type is not
+	 * {@link RegType#TRIGGER TRIGGER}, simply calls {@code impl.prepare}.
+	 *<p>
+	 * Otherwise, validation has already established that <var>impl</var>
+	 * implements {@link Triggers Triggers} and <var>target</var> has proper
+	 * form. This method calls {@code prepareTrigger} and wraps the returned
+	 * {@code TriggerTemplate} in a {@code Template} whose {@code specialize}
+	 * method will pass the appropriate {@link Trigger Trigger} instance to
+	 * the {@code TriggerTemplate}'s {@code specialize} method, and wrap the
+	 * returned {@code TriggerFunction} in a {@code Routine} that will pass
+	 * a caller's {@link Context.TriggerData TriggerData} to the
+	 * {@code TriggerFunction}'s {@code apply} method.
+	 */
+	private static Template prepare(
+		Routines impl, RegProcedure<PLJavaBased> target)
+	throws SQLException
+	{
+		if ( TRIGGER != target.returnType() )
+			return requireNonNull(impl.prepare(target));
+
+		/*
+		 * It's a trigger (and validated before we got here).
+		 */
+
+		TriggerTemplate ttpl =
+			requireNonNull(((Triggers)impl).prepareTrigger(target));
+
+		return flinfo ->
+		{
+			TriggerFunction tf;
+
+			// block, so these variable names don't collide with lambda below
+			{
+				Context c = ((LookupImpl)flinfo).m_savedCall.context();
+
+				if ( ! ( c instanceof Context.TriggerData ) )
+					throw new SQLNonTransientException(String.format(
+						"%s was not called by trigger manager", target),
+						"39P01");
+
+				CallImpl.TriggerDataImpl tdi = (CallImpl.TriggerDataImpl)c;
+				TriggerImpl trgi = (TriggerImpl)tdi.trigger();
+
+				tf = trgi.withTriggerData(tdi, () -> ttpl.specialize(trgi));
+			}
+
+			TriggerFunction final_tf = requireNonNull(tf);
+
+			return fcinfo ->
+			{
+				CallImpl.TriggerDataImpl tdi =
+					(CallImpl.TriggerDataImpl)fcinfo.context();
+				TriggerImpl trgi = (TriggerImpl)tdi.trigger();
+				TupleTableSlot tts =
+					trgi.withTriggerData(tdi, () -> final_tf.apply(tdi));
+				// XXX when result-returning implemented, do the right stuff
+			};
+		};
+	}
+
+	/**
 	 * Returns a placeholder {@code Template} whose {@code specialize} method
 	 * will first generate and memoize the real {@code Template} and then call
 	 * its {@code specialize} method and return the result.
@@ -995,7 +1120,7 @@ class LookupImpl implements RegProcedure.Lookup
 			 * This Template, however, is only present after successful full
 			 * validation, so a repeated call of essentialChecks isn't needed.
 			 */
-			Template t = impl.prepare(subject);
+			Template t = prepare(impl, subject);
 
 			doInPG(() ->
 			{
