@@ -125,7 +125,9 @@ import org.postgresql.pljava.model.TupleTableSlot;
 
 "SELECT javatest.hello(42)",
 
-"SELECT javatest.hello(n) FROM generate_series(1,3) AS t(n)",
+"SELECT javatest.hello(i), javatest.hello(r)" +
+" FROM (VALUES (CAST (1 AS INTEGER), CAST (1.0 AS REAL)), (2, 2.0), (3, 3.0))" +
+" AS t(i, r)",
 
 "CALL javatest.say_hello()",
 
@@ -409,14 +411,21 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 			BitSet maybeStable = new BitSet(nargs);
 			maybeStable.set(0, nargs);
 
+			/*
+			 * Precompute something specific to this call site
+			 * that can be baked into the returned Routine.
+			 */
+			int id = System.identityHashCode(flinfo);
+
 			System.out.printf(
 				"%s Template.specialize():\n" +
+				"precomputed id   : %x\n" +
 				"inputsDescriptor : %s\n" +
 				"inputsAreSpread  : %s\n" +
 				"stableInputs     : %s\n" +
 				"outputsDescriptor: %s\n",
 
-				target,
+				target, id,
 
 				inDescriptor.stream().map(Attribute::type).collect(toList()),
 
@@ -464,10 +473,11 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 
 				System.out.printf(
 					"%s Routine.call():\n" +
+					"precomputed id: %x\n" +
 					"collation: %s\n" +
 					"context: %s\n%s" +
 					"result:\n%s",
-					target,
+					target, id,
 					fcinfo.collation(),
 					subifc, maybeAtomic,
 					compiled // here we 'execute' the 'compiled' routine :)
@@ -554,10 +564,18 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 				trigger.constraintRelation(), trigger.constraintIndex()
 			);
 
+			/*
+			 * Precompute something specific to this trigger
+			 * that can be baked into the returned TriggerFunction.
+			 */
+			String triggerName =
+				trigger.name() + " on " + trigger.relation().qualifiedName();
+
 			return triggerData ->
 			{
 				System.out.printf(
 					"%s TriggerFunction.apply():\n" +
+					"precomputed name: %s\n" +
 					"called       : %s\n" +
 					"event        : %s\n" +
 					"scope        : %s\n" +
@@ -567,7 +585,7 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 					"newTuple     : %s\n" +
 					"updatedCols  : %s\n" +
 					"result:\n%s",
-					target,
+					target, triggerName,
 					triggerData.called(), triggerData.event(),
 					triggerData.scope(), triggerData.relation(),
 					triggerData.trigger(),
