@@ -18,7 +18,6 @@ import java.lang.invoke.SwitchPoint;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 
-import java.util.Iterator;
 import java.util.List;
 
 import java.util.function.UnaryOperator;
