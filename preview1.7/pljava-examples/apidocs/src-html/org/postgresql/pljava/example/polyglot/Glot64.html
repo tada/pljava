@@ -43,455 +43,613 @@
 <span class="source-line-no">030</span><span id="line-30">import org.postgresql.pljava.PLJavaBasedLanguage.Routines;</span>
 <span class="source-line-no">031</span><span id="line-31">import org.postgresql.pljava.PLJavaBasedLanguage.Routine;</span>
 <span class="source-line-no">032</span><span id="line-32">import org.postgresql.pljava.PLJavaBasedLanguage.Template;</span>
-<span class="source-line-no">033</span><span id="line-33"></span>
-<span class="source-line-no">034</span><span id="line-34">import org.postgresql.pljava.annotation.SQLAction;</span>
-<span class="source-line-no">035</span><span id="line-35"></span>
-<span class="source-line-no">036</span><span id="line-36">import org.postgresql.pljava.model.Attribute;</span>
-<span class="source-line-no">037</span><span id="line-37">import org.postgresql.pljava.model.ProceduralLanguage;</span>
-<span class="source-line-no">038</span><span id="line-38">import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;</span>
-<span class="source-line-no">039</span><span id="line-39">import org.postgresql.pljava.model.RegProcedure;</span>
-<span class="source-line-no">040</span><span id="line-40">import org.postgresql.pljava.model.RegProcedure.Call;</span>
-<span class="source-line-no">041</span><span id="line-41">import org.postgresql.pljava.model.RegProcedure.Lookup;</span>
-<span class="source-line-no">042</span><span id="line-42">import org.postgresql.pljava.model.TupleDescriptor;</span>
-<span class="source-line-no">043</span><span id="line-43">import org.postgresql.pljava.model.TupleTableSlot;</span>
-<span class="source-line-no">044</span><span id="line-44"></span>
-<span class="source-line-no">045</span><span id="line-45">/**</span>
-<span class="source-line-no">046</span><span id="line-46"> * Example of a procedural language implemented atop PL/Java.</span>
-<span class="source-line-no">047</span><span id="line-47"> *&lt;p&gt;</span>
-<span class="source-line-no">048</span><span id="line-48"> * Glot64 has a couple of features rarely found in a PostgreSQL PL. First, you</span>
-<span class="source-line-no">049</span><span id="line-49"> * can't use it to do anything, other than print some text to standard output.</span>
-<span class="source-line-no">050</span><span id="line-50"> * That's the server's standard output, which you probably won't even see unless</span>
-<span class="source-line-no">051</span><span id="line-51"> * running the server with standard output to your terminal, as you might run a</span>
-<span class="source-line-no">052</span><span id="line-52"> * test instance under PL/Java's test harness. On a production server, what is</span>
-<span class="source-line-no">053</span><span id="line-53"> * written to standard output may well go nowhere at all, and then it may truly</span>
-<span class="source-line-no">054</span><span id="line-54"> * be said your Glot64 routines do nothing at all.</span>
-<span class="source-line-no">055</span><span id="line-55"> *&lt;p&gt;</span>
-<span class="source-line-no">056</span><span id="line-56"> * Second, Glot64 has the rare property that the compiled form of its code is</span>
-<span class="source-line-no">057</span><span id="line-57"> * easier to read than the source. That's because when you</span>
-<span class="source-line-no">058</span><span id="line-58"> * {@code CREATE FUNCTION} or {@code CREATE PROCEDURE} in Glot64, you write</span>
-<span class="source-line-no">059</span><span id="line-59"> * the {@code AS} part in Base64. It gets 'compiled' by decoding it to ASCII.</span>
-<span class="source-line-no">060</span><span id="line-60"> * (Unless it is malformed Base64 or doesn't decode to ASCII. Then your routine</span>
-<span class="source-line-no">061</span><span id="line-61"> * gets rejected by the validator. Better luck next time.) Then, when you call</span>
-<span class="source-line-no">062</span><span id="line-62"> * the function or procedure, the 'compiled' code is written to standard output.</span>
-<span class="source-line-no">063</span><span id="line-63"> * Therefore,</span>
-<span class="source-line-no">064</span><span id="line-64"> *&lt;pre&gt;&lt;code&gt;</span>
-<span class="source-line-no">065</span><span id="line-65"> * CREATE FUNCTION hello() RETURNS void</span>
-<span class="source-line-no">066</span><span id="line-66"> *   LANGUAGE glot64</span>
-<span class="source-line-no">067</span><span id="line-67"> *   AS 'SGVsbG8sIHdvcmxkIQo=';</span>
-<span class="source-line-no">068</span><span id="line-68"> *&lt;/code&gt;&lt;/pre&gt;</span>
-<span class="source-line-no">069</span><span id="line-69"> * defines a function that writes "Hello, world!" when you call it.</span>
-<span class="source-line-no">070</span><span id="line-70"> *&lt;p&gt;</span>
-<span class="source-line-no">071</span><span id="line-71"> * However, Glot64 writes several other things to standard output ahead of the</span>
-<span class="source-line-no">072</span><span id="line-72"> * output of the routine itself. That is the real purpose: to illustrate how</span>
-<span class="source-line-no">073</span><span id="line-73"> * PL/Java's language handler API is arranged, and how the information about the</span>
-<span class="source-line-no">074</span><span id="line-74"> * parameters and result type (or types) will be presented to your code.</span>
-<span class="source-line-no">075</span><span id="line-75"> *&lt;p&gt;</span>
-<span class="source-line-no">076</span><span id="line-76"> * You can declare a Glot64 function or procedure with any number and types of</span>
-<span class="source-line-no">077</span><span id="line-77"> * parameters and return type (or {@code OUT} parameters). Because your routine</span>
-<span class="source-line-no">078</span><span id="line-78"> * will not use any of the arguments or produce any result, it doesn't care how</span>
-<span class="source-line-no">079</span><span id="line-79"> * they are declared. By declaring Glot64 functions in several different ways,</span>
-<span class="source-line-no">080</span><span id="line-80"> * you can see, in the output messages, how the API presents that information.</span>
-<span class="source-line-no">081</span><span id="line-81"> */</span>
-<span class="source-line-no">082</span><span id="line-82">@SQLAction(requires = "pljavahandler language", install = {</span>
-<span class="source-line-no">083</span><span id="line-83">"CREATE OR REPLACE FUNCTION javatest.glot64_validator(oid)" +</span>
-<span class="source-line-no">084</span><span id="line-84">" RETURNS void" +</span>
-<span class="source-line-no">085</span><span id="line-85">" LANGUAGE pljavahandler AS 'org.postgresql.pljava.example.polyglot.Glot64'",</span>
-<span class="source-line-no">086</span><span id="line-86"></span>
-<span class="source-line-no">087</span><span id="line-87">"COMMENT ON FUNCTION javatest.glot64_validator(oid) IS " +</span>
-<span class="source-line-no">088</span><span id="line-88">"'Validator function for the glot64 procedural language'",</span>
-<span class="source-line-no">089</span><span id="line-89"></span>
-<span class="source-line-no">090</span><span id="line-90">"CREATE LANGUAGE glot64" +</span>
-<span class="source-line-no">091</span><span id="line-91">" HANDLER sqlj.pljavaDispatchRoutine" +</span>
-<span class="source-line-no">092</span><span id="line-92">" INLINE  sqlj.pljavaDispatchInline" +</span>
-<span class="source-line-no">093</span><span id="line-93">" VALIDATOR javatest.glot64_validator",</span>
-<span class="source-line-no">094</span><span id="line-94"></span>
-<span class="source-line-no">095</span><span id="line-95">"COMMENT ON LANGUAGE glot64 IS " +</span>
-<span class="source-line-no">096</span><span id="line-96">"'The glot64 procedural language, which is implemented atop PL/Java, " +</span>
-<span class="source-line-no">097</span><span id="line-97">"and supports functions, procedures, and inline code blocks'",</span>
-<span class="source-line-no">098</span><span id="line-98"></span>
-<span class="source-line-no">099</span><span id="line-99">"CREATE FUNCTION javatest.hello() RETURNS void" +</span>
-<span class="source-line-no">100</span><span id="line-100">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
-<span class="source-line-no">101</span><span id="line-101"></span>
-<span class="source-line-no">102</span><span id="line-102">"CREATE FUNCTION javatest.hello(anyelement) RETURNS anyelement" +</span>
-<span class="source-line-no">103</span><span id="line-103">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
+<span class="source-line-no">033</span><span id="line-33">import org.postgresql.pljava.PLJavaBasedLanguage.Triggers;</span>
+<span class="source-line-no">034</span><span id="line-34">import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;</span>
+<span class="source-line-no">035</span><span id="line-35">import org.postgresql.pljava.PLJavaBasedLanguage.TriggerTemplate;</span>
+<span class="source-line-no">036</span><span id="line-36"></span>
+<span class="source-line-no">037</span><span id="line-37">import org.postgresql.pljava.TargetList.Projection;</span>
+<span class="source-line-no">038</span><span id="line-38"></span>
+<span class="source-line-no">039</span><span id="line-39">import org.postgresql.pljava.annotation.SQLAction;</span>
+<span class="source-line-no">040</span><span id="line-40"></span>
+<span class="source-line-no">041</span><span id="line-41">import org.postgresql.pljava.model.Attribute;</span>
+<span class="source-line-no">042</span><span id="line-42">import org.postgresql.pljava.model.ProceduralLanguage;</span>
+<span class="source-line-no">043</span><span id="line-43">import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;</span>
+<span class="source-line-no">044</span><span id="line-44">import org.postgresql.pljava.model.RegProcedure;</span>
+<span class="source-line-no">045</span><span id="line-45">import org.postgresql.pljava.model.RegProcedure.Call;</span>
+<span class="source-line-no">046</span><span id="line-46">import org.postgresql.pljava.model.RegProcedure.Lookup;</span>
+<span class="source-line-no">047</span><span id="line-47">import org.postgresql.pljava.model.Trigger;</span>
+<span class="source-line-no">048</span><span id="line-48">import org.postgresql.pljava.model.TupleDescriptor;</span>
+<span class="source-line-no">049</span><span id="line-49">import org.postgresql.pljava.model.TupleTableSlot;</span>
+<span class="source-line-no">050</span><span id="line-50"></span>
+<span class="source-line-no">051</span><span id="line-51">/**</span>
+<span class="source-line-no">052</span><span id="line-52"> * Example of a procedural language implemented atop PL/Java.</span>
+<span class="source-line-no">053</span><span id="line-53"> *&lt;p&gt;</span>
+<span class="source-line-no">054</span><span id="line-54"> * Glot64 has a couple of features rarely found in a PostgreSQL PL. First, you</span>
+<span class="source-line-no">055</span><span id="line-55"> * can't use it to do anything, other than print some text to standard output.</span>
+<span class="source-line-no">056</span><span id="line-56"> * That's the server's standard output, which you probably won't even see unless</span>
+<span class="source-line-no">057</span><span id="line-57"> * running the server with standard output to your terminal, as you might run a</span>
+<span class="source-line-no">058</span><span id="line-58"> * test instance under PL/Java's test harness. On a production server, what is</span>
+<span class="source-line-no">059</span><span id="line-59"> * written to standard output may well go nowhere at all, and then it may truly</span>
+<span class="source-line-no">060</span><span id="line-60"> * be said your Glot64 routines do nothing at all.</span>
+<span class="source-line-no">061</span><span id="line-61"> *&lt;p&gt;</span>
+<span class="source-line-no">062</span><span id="line-62"> * Second, Glot64 has the rare property that the compiled form of its code is</span>
+<span class="source-line-no">063</span><span id="line-63"> * easier to read than the source. That's because when you</span>
+<span class="source-line-no">064</span><span id="line-64"> * {@code CREATE FUNCTION} or {@code CREATE PROCEDURE} in Glot64, you write</span>
+<span class="source-line-no">065</span><span id="line-65"> * the {@code AS} part in Base64. It gets 'compiled' by decoding it to ASCII.</span>
+<span class="source-line-no">066</span><span id="line-66"> * (Unless it is malformed Base64 or doesn't decode to ASCII. Then your routine</span>
+<span class="source-line-no">067</span><span id="line-67"> * gets rejected by the validator. Better luck next time.) Then, when you call</span>
+<span class="source-line-no">068</span><span id="line-68"> * the function or procedure, the 'compiled' code is written to standard output.</span>
+<span class="source-line-no">069</span><span id="line-69"> * Therefore,</span>
+<span class="source-line-no">070</span><span id="line-70"> *&lt;pre&gt;&lt;code&gt;</span>
+<span class="source-line-no">071</span><span id="line-71"> * CREATE FUNCTION hello() RETURNS void</span>
+<span class="source-line-no">072</span><span id="line-72"> *   LANGUAGE glot64</span>
+<span class="source-line-no">073</span><span id="line-73"> *   AS 'SGVsbG8sIHdvcmxkIQo=';</span>
+<span class="source-line-no">074</span><span id="line-74"> *&lt;/code&gt;&lt;/pre&gt;</span>
+<span class="source-line-no">075</span><span id="line-75"> * defines a function that writes "Hello, world!" when you call it.</span>
+<span class="source-line-no">076</span><span id="line-76"> *&lt;p&gt;</span>
+<span class="source-line-no">077</span><span id="line-77"> * However, Glot64 writes several other things to standard output ahead of the</span>
+<span class="source-line-no">078</span><span id="line-78"> * output of the routine itself. That is the real purpose: to illustrate how</span>
+<span class="source-line-no">079</span><span id="line-79"> * PL/Java's language handler API is arranged, and how the information about the</span>
+<span class="source-line-no">080</span><span id="line-80"> * parameters and result type (or types) will be presented to your code.</span>
+<span class="source-line-no">081</span><span id="line-81"> *&lt;p&gt;</span>
+<span class="source-line-no">082</span><span id="line-82"> * You can declare a Glot64 function or procedure with any number and types of</span>
+<span class="source-line-no">083</span><span id="line-83"> * parameters and return type (or {@code OUT} parameters). Because your routine</span>
+<span class="source-line-no">084</span><span id="line-84"> * will not use any of the arguments or produce any result, it doesn't care how</span>
+<span class="source-line-no">085</span><span id="line-85"> * they are declared. By declaring Glot64 functions in several different ways,</span>
+<span class="source-line-no">086</span><span id="line-86"> * you can see, in the output messages, how the API presents that information.</span>
+<span class="source-line-no">087</span><span id="line-87"> */</span>
+<span class="source-line-no">088</span><span id="line-88">@SQLAction(requires = "pljavahandler language", install = {</span>
+<span class="source-line-no">089</span><span id="line-89">"CREATE OR REPLACE FUNCTION javatest.glot64_validator(oid)" +</span>
+<span class="source-line-no">090</span><span id="line-90">" RETURNS void" +</span>
+<span class="source-line-no">091</span><span id="line-91">" LANGUAGE pljavahandler AS 'org.postgresql.pljava.example.polyglot.Glot64'",</span>
+<span class="source-line-no">092</span><span id="line-92"></span>
+<span class="source-line-no">093</span><span id="line-93">"COMMENT ON FUNCTION javatest.glot64_validator(oid) IS " +</span>
+<span class="source-line-no">094</span><span id="line-94">"'Validator function for the glot64 procedural language'",</span>
+<span class="source-line-no">095</span><span id="line-95"></span>
+<span class="source-line-no">096</span><span id="line-96">"CREATE LANGUAGE glot64" +</span>
+<span class="source-line-no">097</span><span id="line-97">" HANDLER sqlj.pljavaDispatchRoutine" +</span>
+<span class="source-line-no">098</span><span id="line-98">" INLINE  sqlj.pljavaDispatchInline" +</span>
+<span class="source-line-no">099</span><span id="line-99">" VALIDATOR javatest.glot64_validator",</span>
+<span class="source-line-no">100</span><span id="line-100"></span>
+<span class="source-line-no">101</span><span id="line-101">"COMMENT ON LANGUAGE glot64 IS " +</span>
+<span class="source-line-no">102</span><span id="line-102">"'The glot64 procedural language, which is implemented atop PL/Java, " +</span>
+<span class="source-line-no">103</span><span id="line-103">"and supports functions, procedures, and inline code blocks'",</span>
 <span class="source-line-no">104</span><span id="line-104"></span>
-<span class="source-line-no">105</span><span id="line-105">"CREATE FUNCTION javatest.hello(a int4, b int4, OUT c int2, OUT d int2)" +</span>
+<span class="source-line-no">105</span><span id="line-105">"CREATE FUNCTION javatest.hello() RETURNS void" +</span>
 <span class="source-line-no">106</span><span id="line-106">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
 <span class="source-line-no">107</span><span id="line-107"></span>
-<span class="source-line-no">108</span><span id="line-108">"CREATE FUNCTION javatest.hello(text, VARIADIC \"any\") RETURNS text[]" +</span>
+<span class="source-line-no">108</span><span id="line-108">"CREATE FUNCTION javatest.hello(anyelement) RETURNS anyelement" +</span>
 <span class="source-line-no">109</span><span id="line-109">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
 <span class="source-line-no">110</span><span id="line-110"></span>
-<span class="source-line-no">111</span><span id="line-111">"CREATE PROCEDURE javatest.say_hello()" +</span>
+<span class="source-line-no">111</span><span id="line-111">"CREATE FUNCTION javatest.hello(a int4, b int4, OUT c int2, OUT d int2)" +</span>
 <span class="source-line-no">112</span><span id="line-112">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
 <span class="source-line-no">113</span><span id="line-113"></span>
-<span class="source-line-no">114</span><span id="line-114">"DO LANGUAGE glot64 'SGVsbG8sIHdvcmxkIQo='",</span>
-<span class="source-line-no">115</span><span id="line-115"></span>
-<span class="source-line-no">116</span><span id="line-116">"SELECT javatest.hello()",</span>
-<span class="source-line-no">117</span><span id="line-117"></span>
-<span class="source-line-no">118</span><span id="line-118">"SELECT javatest.hello()",</span>
+<span class="source-line-no">114</span><span id="line-114">"CREATE FUNCTION javatest.hello(text, VARIADIC \"any\") RETURNS text[]" +</span>
+<span class="source-line-no">115</span><span id="line-115">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
+<span class="source-line-no">116</span><span id="line-116"></span>
+<span class="source-line-no">117</span><span id="line-117">"CREATE PROCEDURE javatest.say_hello()" +</span>
+<span class="source-line-no">118</span><span id="line-118">" LANGUAGE glot64 AS 'SGVsbG8sIHdvcmxkIQo='",</span>
 <span class="source-line-no">119</span><span id="line-119"></span>
-<span class="source-line-no">120</span><span id="line-120">"SELECT javatest.hello(42)",</span>
+<span class="source-line-no">120</span><span id="line-120">"DO LANGUAGE glot64 'SGVsbG8sIHdvcmxkIQo='",</span>
 <span class="source-line-no">121</span><span id="line-121"></span>
-<span class="source-line-no">122</span><span id="line-122">"SELECT javatest.hello(n) FROM generate_series(1,3) AS t(n)",</span>
+<span class="source-line-no">122</span><span id="line-122">"SELECT javatest.hello()",</span>
 <span class="source-line-no">123</span><span id="line-123"></span>
-<span class="source-line-no">124</span><span id="line-124">"CALL javatest.say_hello()"</span>
-<span class="source-line-no">125</span><span id="line-125">}, remove = {</span>
-<span class="source-line-no">126</span><span id="line-126">"DROP PROCEDURE javatest.say_hello()",</span>
-<span class="source-line-no">127</span><span id="line-127">"DROP FUNCTION javatest.hello(text,VARIADIC \"any\")",</span>
-<span class="source-line-no">128</span><span id="line-128">"DROP FUNCTION javatest.hello(int4,int4)",</span>
-<span class="source-line-no">129</span><span id="line-129">"DROP FUNCTION javatest.hello(anyelement)",</span>
-<span class="source-line-no">130</span><span id="line-130">"DROP FUNCTION javatest.hello()",</span>
-<span class="source-line-no">131</span><span id="line-131">"DO LANGUAGE glot64 'QnllIGJ5ZSEK'",</span>
-<span class="source-line-no">132</span><span id="line-132">"DROP LANGUAGE glot64",</span>
-<span class="source-line-no">133</span><span id="line-133">"DROP FUNCTION javatest.glot64_validator(oid)"</span>
-<span class="source-line-no">134</span><span id="line-134">})</span>
-<span class="source-line-no">135</span><span id="line-135">public class Glot64 implements InlineBlocks, Routines</span>
-<span class="source-line-no">136</span><span id="line-136">{</span>
-<span class="source-line-no">137</span><span id="line-137">    private final ProceduralLanguage pl;</span>
+<span class="source-line-no">124</span><span id="line-124">"SELECT javatest.hello()",</span>
+<span class="source-line-no">125</span><span id="line-125"></span>
+<span class="source-line-no">126</span><span id="line-126">"SELECT javatest.hello(42)",</span>
+<span class="source-line-no">127</span><span id="line-127"></span>
+<span class="source-line-no">128</span><span id="line-128">"SELECT javatest.hello(n) FROM generate_series(1,3) AS t(n)",</span>
+<span class="source-line-no">129</span><span id="line-129"></span>
+<span class="source-line-no">130</span><span id="line-130">"CALL javatest.say_hello()",</span>
+<span class="source-line-no">131</span><span id="line-131"></span>
+<span class="source-line-no">132</span><span id="line-132">"CREATE FUNCTION javatest.glot64_trigger() RETURNS trigger" +</span>
+<span class="source-line-no">133</span><span id="line-133">" LANGUAGE glot64 AS 'dHJpZ2dlciBkZW1vCg=='",</span>
+<span class="source-line-no">134</span><span id="line-134"></span>
+<span class="source-line-no">135</span><span id="line-135">"CREATE TRIGGER g64_as_d AFTER DELETE ON javatest.username_test" +</span>
+<span class="source-line-no">136</span><span id="line-136">" REFERENCING OLD TABLE AS oldone FOR EACH STATEMENT" +</span>
+<span class="source-line-no">137</span><span id="line-137">" EXECUTE FUNCTION javatest.glot64_trigger('ab', 'cd')",</span>
 <span class="source-line-no">138</span><span id="line-138"></span>
-<span class="source-line-no">139</span><span id="line-139">    /**</span>
-<span class="source-line-no">140</span><span id="line-140">     * There must be a public constructor with a {@code ProceduralLanguage}</span>
-<span class="source-line-no">141</span><span id="line-141">     * parameter.</span>
-<span class="source-line-no">142</span><span id="line-142">     *&lt;p&gt;</span>
-<span class="source-line-no">143</span><span id="line-143">     * The parameter can be ignored, or used to determine the name, oid,</span>
-<span class="source-line-no">144</span><span id="line-144">     * accessibility, or other details of the declared PostgreSQL language</span>
-<span class="source-line-no">145</span><span id="line-145">     * your handler class has been instantiated for.</span>
-<span class="source-line-no">146</span><span id="line-146">     */</span>
-<span class="source-line-no">147</span><span id="line-147">    public Glot64(ProceduralLanguage pl)</span>
-<span class="source-line-no">148</span><span id="line-148">    {</span>
-<span class="source-line-no">149</span><span id="line-149">        this.pl = pl;</span>
-<span class="source-line-no">150</span><span id="line-150">    }</span>
-<span class="source-line-no">151</span><span id="line-151"></span>
-<span class="source-line-no">152</span><span id="line-152">    /**</span>
-<span class="source-line-no">153</span><span id="line-153">     * The sole method needed to implement inline code blocks.</span>
-<span class="source-line-no">154</span><span id="line-154">     *&lt;p&gt;</span>
-<span class="source-line-no">155</span><span id="line-155">     * This one merely writes the 'compiled' source text to standard output.</span>
-<span class="source-line-no">156</span><span id="line-156">     * @param inlineSource the source text to be executed as the inline code</span>
-<span class="source-line-no">157</span><span id="line-157">     * block.</span>
-<span class="source-line-no">158</span><span id="line-158">     * @param atomic true if top-level transaction control must be disallowed</span>
-<span class="source-line-no">159</span><span id="line-159">     * within the block. PL/Java will already handle propagating this value to</span>
-<span class="source-line-no">160</span><span id="line-160">     * underlying PostgreSQL SPI calls your code might make, but it is also</span>
-<span class="source-line-no">161</span><span id="line-161">     * available here in case your language has compilation choices it can make</span>
-<span class="source-line-no">162</span><span id="line-162">     * based on that information.</span>
-<span class="source-line-no">163</span><span id="line-163">     */</span>
-<span class="source-line-no">164</span><span id="line-164">    @Override</span>
-<span class="source-line-no">165</span><span id="line-165">    public void execute(String inlineSource, boolean atomic) throws SQLException</span>
-<span class="source-line-no">166</span><span id="line-166">    {</span>
-<span class="source-line-no">167</span><span id="line-167">        System.out.printf("%s inline code block (atomic: %s):\n", pl, atomic)</span>
-<span class="source-line-no">168</span><span id="line-168">            .print(compile(inlineSource));</span>
-<span class="source-line-no">169</span><span id="line-169">    }</span>
-<span class="source-line-no">170</span><span id="line-170"></span>
-<span class="source-line-no">171</span><span id="line-171">    /**</span>
-<span class="source-line-no">172</span><span id="line-172">     * This and {@link #additionalChecks additionalChecks} are the two methods</span>
-<span class="source-line-no">173</span><span id="line-173">     * involved in implementing a validator for the language.</span>
-<span class="source-line-no">174</span><span id="line-174">     *&lt;p&gt;</span>
-<span class="source-line-no">175</span><span id="line-175">     * Each method should simply return normally if its checks pass, or throw</span>
-<span class="source-line-no">176</span><span id="line-176">     * an (ideally informative) exception if not. The work is split into two</span>
-<span class="source-line-no">177</span><span id="line-177">     * methods (which need not both be supplied) because PostgreSQL does not</span>
-<span class="source-line-no">178</span><span id="line-178">     * guarantee that the validator fully ran at the time of creating any</span>
-<span class="source-line-no">179</span><span id="line-179">     * routine. Therefore, while PL/Java will normally call both methods during</span>
-<span class="source-line-no">180</span><span id="line-180">     * validation when a function or procedure is being created, it also will</span>
-<span class="source-line-no">181</span><span id="line-181">     * call {@link #essentialChecks essentialChecks} at runtime, in advance of</span>
-<span class="source-line-no">182</span><span id="line-182">     * calling {@link #prepare prepare}, so this is the place to put checks that</span>
-<span class="source-line-no">183</span><span id="line-183">     * are necessary to support assumptions {@code prepare} relies on.</span>
-<span class="source-line-no">184</span><span id="line-184">     *&lt;p&gt;</span>
-<span class="source-line-no">185</span><span id="line-185">     * For Glot64, this method does nothing. The only check needed at validation</span>
-<span class="source-line-no">186</span><span id="line-186">     * time is whether the source text successfully 'compiles', and the</span>
-<span class="source-line-no">187</span><span id="line-187">     * {@code prepare} method will have to compile the code anyway, so including</span>
-<span class="source-line-no">188</span><span id="line-188">     * that check here would be redundant. It can be included in</span>
-<span class="source-line-no">189</span><span id="line-189">     * {@code additionalChecks}, so a user has useful feedback at create time.</span>
-<span class="source-line-no">190</span><span id="line-190">     * @param subject the proposed Glot64 routine to be validated</span>
-<span class="source-line-no">191</span><span id="line-191">     * @param checkBody whether to perform all checks. When false, depending on</span>
-<span class="source-line-no">192</span><span id="line-192">     * details of the language being implemented, some checks may need to be</span>
-<span class="source-line-no">193</span><span id="line-193">     * skipped. PostgreSQL can call validators with {@code checkBody} false at</span>
-<span class="source-line-no">194</span><span id="line-194">     * odd times, such as during {@code pg_restore} or {@code pg_upgrade}, when</span>
-<span class="source-line-no">195</span><span id="line-195">     * not everything in the database may be as the full suite of checks would</span>
-<span class="source-line-no">196</span><span id="line-196">     * expect.</span>
-<span class="source-line-no">197</span><span id="line-197">     */</span>
-<span class="source-line-no">198</span><span id="line-198">    @Override</span>
-<span class="source-line-no">199</span><span id="line-199">    public void essentialChecks(</span>
-<span class="source-line-no">200</span><span id="line-200">        RegProcedure&lt;PLJavaBased&gt; subject, boolean checkBody)</span>
-<span class="source-line-no">201</span><span id="line-201">    throws SQLException</span>
-<span class="source-line-no">202</span><span id="line-202">    {</span>
-<span class="source-line-no">203</span><span id="line-203">        System.out.printf("%s essentialChecks: checkBody %s\n",</span>
-<span class="source-line-no">204</span><span id="line-204">            subject, checkBody);</span>
-<span class="source-line-no">205</span><span id="line-205">    }</span>
-<span class="source-line-no">206</span><span id="line-206"></span>
-<span class="source-line-no">207</span><span id="line-207">    /**</span>
-<span class="source-line-no">208</span><span id="line-208">     * This and {@link #essentialChecks essentialChecks} are the two methods</span>
-<span class="source-line-no">209</span><span id="line-209">     * involved in implementing a validator for the language.</span>
-<span class="source-line-no">210</span><span id="line-210">     *&lt;p&gt;</span>
-<span class="source-line-no">211</span><span id="line-211">     * Each method should simply return normally if its checks pass, or throw</span>
-<span class="source-line-no">212</span><span id="line-212">     * an (ideally informative) exception if not. See</span>
-<span class="source-line-no">213</span><span id="line-213">     * {@link #essentialChecks essentialChecks} for more on why there are two</span>
-<span class="source-line-no">214</span><span id="line-214">     * methods.</span>
-<span class="source-line-no">215</span><span id="line-215">     *&lt;p&gt;</span>
-<span class="source-line-no">216</span><span id="line-216">     * For Glot64, this is the only method that really checks anything, namely,</span>
-<span class="source-line-no">217</span><span id="line-217">     * that the source text can be 'compiled'. That is work the {@code prepare}</span>
-<span class="source-line-no">218</span><span id="line-218">     * method must do when it is called anyway, so there is nothing to gain by</span>
-<span class="source-line-no">219</span><span id="line-219">     * having it redundantly done in {@code essentialChecks}. Doing it here at</span>
-<span class="source-line-no">220</span><span id="line-220">     * {@code CREATE} time, though, gives helpful feedback to a user.</span>
-<span class="source-line-no">221</span><span id="line-221">     * @param subject the proposed Glot64 routine to be validated</span>
-<span class="source-line-no">222</span><span id="line-222">     * @param checkBody whether to perform all checks. When false, depending on</span>
-<span class="source-line-no">223</span><span id="line-223">     * details of the language being implemented, some checks may need to be</span>
-<span class="source-line-no">224</span><span id="line-224">     * skipped. PostgreSQL can call validators with {@code checkBody} false at</span>
-<span class="source-line-no">225</span><span id="line-225">     * odd times, such as during {@code pg_restore} or {@code pg_upgrade}, when</span>
-<span class="source-line-no">226</span><span id="line-226">     * not everything in the database may be as the full suite of checks would</span>
-<span class="source-line-no">227</span><span id="line-227">     * expect.</span>
-<span class="source-line-no">228</span><span id="line-228">     */</span>
-<span class="source-line-no">229</span><span id="line-229">    @Override</span>
-<span class="source-line-no">230</span><span id="line-230">    public void additionalChecks(</span>
-<span class="source-line-no">231</span><span id="line-231">        RegProcedure&lt;PLJavaBased&gt; subject, boolean checkBody)</span>
-<span class="source-line-no">232</span><span id="line-232">    throws SQLException</span>
-<span class="source-line-no">233</span><span id="line-233">    {</span>
-<span class="source-line-no">234</span><span id="line-234">        System.out.printf("%s additionalChecks: checkBody %s: ",</span>
-<span class="source-line-no">235</span><span id="line-235">            subject, checkBody);</span>
-<span class="source-line-no">236</span><span id="line-236"></span>
-<span class="source-line-no">237</span><span id="line-237">        /*</span>
-<span class="source-line-no">238</span><span id="line-238">         * For Glot64, 'compiling' is purely a matter of string transformation</span>
-<span class="source-line-no">239</span><span id="line-239">         * and has no interaction with database state, so the judgment call can</span>
-<span class="source-line-no">240</span><span id="line-240">         * be made (as here) to include this check even when checkBody is false.</span>
-<span class="source-line-no">241</span><span id="line-241">         */</span>
-<span class="source-line-no">242</span><span id="line-242">        compile(subject.src());</span>
-<span class="source-line-no">243</span><span id="line-243"></span>
-<span class="source-line-no">244</span><span id="line-244">        System.out.printf("ok\n");</span>
-<span class="source-line-no">245</span><span id="line-245">    }</span>
-<span class="source-line-no">246</span><span id="line-246"></span>
-<span class="source-line-no">247</span><span id="line-247">    /**</span>
-<span class="source-line-no">248</span><span id="line-248">     * Prepares an executable template for a routine (a function or procedure).</span>
-<span class="source-line-no">249</span><span id="line-249">     *&lt;p&gt;</span>
-<span class="source-line-no">250</span><span id="line-250">     * The parameter to this method is a {@link RegProcedure}, carrying a</span>
-<span class="source-line-no">251</span><span id="line-251">     * {@link PLJavaBased PLJavaBased} memo. The {@code RegProcedure} exposes</span>
-<span class="source-line-no">252</span><span id="line-252">     * the PostgreSQL catalog information for the routine, and the memo provides</span>
-<span class="source-line-no">253</span><span id="line-253">     * some more information computed and cached by PL/Java. However, at this</span>
-<span class="source-line-no">254</span><span id="line-254">     * stage, no information from any specific call site is presented.</span>
-<span class="source-line-no">255</span><span id="line-255">     *&lt;p&gt;</span>
-<span class="source-line-no">256</span><span id="line-256">     * For example, the memo describes the number, names,  and types of the</span>
-<span class="source-line-no">257</span><span id="line-257">     * routine's inputs (all of its declared parameters that have mode</span>
-<span class="source-line-no">258</span><span id="line-258">     * {@code IN}, {@code INOUT}, or {@code VARIADIC}) and outputs (the ones</span>
-<span class="source-line-no">259</span><span id="line-259">     * with mode {@code INOUT}, {@code OUT}, or {@code TABLE}), each set</span>
-<span class="source-line-no">260</span><span id="line-260">     * presented in the simple form of a {@link TupleDescriptor}.</span>
-<span class="source-line-no">261</span><span id="line-261">     *&lt;p&gt;</span>
-<span class="source-line-no">262</span><span id="line-262">     * Because this information is based only on the routine's declaration,</span>
-<span class="source-line-no">263</span><span id="line-263">     * these tuple descriptors are called {@code inputsTemplate} and</span>
-<span class="source-line-no">264</span><span id="line-264">     * {@code outputsTemplate}. They may contain entries with polymorphic types</span>
-<span class="source-line-no">265</span><span id="line-265">     * that will be resolved to concrete types at a given call site (and</span>
-<span class="source-line-no">266</span><span id="line-266">     * possibly to different concrete types at a different call site). The</span>
-<span class="source-line-no">267</span><span id="line-267">     * {@link BitSet BitSet}s {@code unresolvedInputs} and</span>
-<span class="source-line-no">268</span><span id="line-268">     * {@code unresolvedOutputs} indicate which positions must be resolved</span>
-<span class="source-line-no">269</span><span id="line-269">     * later. If the bit sets are empty, the template {@code TupleDescriptor}s</span>
-<span class="source-line-no">270</span><span id="line-270">     * are already complete descriptors of the inputs and outputs that will be</span>
-<span class="source-line-no">271</span><span id="line-271">     * seen at call sites.</span>
-<span class="source-line-no">272</span><span id="line-272">     *&lt;p&gt;</span>
-<span class="source-line-no">273</span><span id="line-273">     * This method should precompute whatever it can based on the routine's</span>
-<span class="source-line-no">274</span><span id="line-274">     * catalog declaration and the template tuple descriptors only, and return</span>
-<span class="source-line-no">275</span><span id="line-275">     * a {@link Template} instance, which must depend only on this information,</span>
-<span class="source-line-no">276</span><span id="line-276">     * as it will be cached with the {@code RegProcedure} itself, independently</span>
-<span class="source-line-no">277</span><span id="line-277">     * of any call site.</span>
-<span class="source-line-no">278</span><span id="line-278">     *&lt;p&gt;</span>
-<span class="source-line-no">279</span><span id="line-279">     * At a call site, the {@code Template} instance's {@code specialize} method</span>
-<span class="source-line-no">280</span><span id="line-280">     * will be called on a {@link Lookup Lookup} object (conventionally called</span>
-<span class="source-line-no">281</span><span id="line-281">     * {@code flinfo}) representing the call site. At that stage, more specific</span>
-<span class="source-line-no">282</span><span id="line-282">     * information is available, such as fully-resolved {@code TupleDescriptor}s</span>
-<span class="source-line-no">283</span><span id="line-283">     * for the inputs and outputs, and which argument expressions at that call</span>
-<span class="source-line-no">284</span><span id="line-284">     * site have stable values that will not vary in succesive calls made at</span>
-<span class="source-line-no">285</span><span id="line-285">     * that site. The {@code specialize} method should use that information to</span>
-<span class="source-line-no">286</span><span id="line-286">     * generate and return a {@link Routine Routine}, a fully-resolved object</span>
-<span class="source-line-no">287</span><span id="line-287">     * with a {@code call} method ready to be cached at that call site and used</span>
-<span class="source-line-no">288</span><span id="line-288">     * for (possibly many) calls made there.</span>
-<span class="source-line-no">289</span><span id="line-289">     *&lt;p&gt;</span>
-<span class="source-line-no">290</span><span id="line-290">     * When the routine has no polymorphic inputs or outputs, as reported by</span>
-<span class="source-line-no">291</span><span id="line-291">     * empty {@code unresolvedInputs} and {@code unresolvedOutputs} bit sets</span>
-<span class="source-line-no">292</span><span id="line-292">     * at the {@code prepare} stage, a final {@code Routine} can be generated</span>
-<span class="source-line-no">293</span><span id="line-293">     * at that stage, and the {@code Template} returned by {@code prepare} can</span>
-<span class="source-line-no">294</span><span id="line-294">     * simply return it unconditionally (unless it wants to look at which</span>
-<span class="source-line-no">295</span><span id="line-295">     * input expressions can be treated as stable).</span>
-<span class="source-line-no">296</span><span id="line-296">     *&lt;p&gt;</span>
-<span class="source-line-no">297</span><span id="line-297">     * For each call at a given call site, a {@link Call Call} instance will be</span>
-<span class="source-line-no">298</span><span id="line-298">     * passed (conventionally as {@code fcinfo}) to the generated</span>
-<span class="source-line-no">299</span><span id="line-299">     * {@code Routine}'s {@code call} method. The {@code Call} object bears the</span>
-<span class="source-line-no">300</span><span id="line-300">     * actual {@link TupleTableSlot}s from which the routine will fetch its</span>
-<span class="source-line-no">301</span><span id="line-301">     * arguments and to which it will (XXX when implemented) store its</span>
-<span class="source-line-no">302</span><span id="line-302">     * result(s).</span>
-<span class="source-line-no">303</span><span id="line-303">     */</span>
-<span class="source-line-no">304</span><span id="line-304">    @Override</span>
-<span class="source-line-no">305</span><span id="line-305">    public Template prepare(RegProcedure&lt;PLJavaBased&gt; target)</span>
-<span class="source-line-no">306</span><span id="line-306">    throws SQLException</span>
-<span class="source-line-no">307</span><span id="line-307">    {</span>
-<span class="source-line-no">308</span><span id="line-308">        PLJavaBased memo = target.memo();</span>
-<span class="source-line-no">309</span><span id="line-309"></span>
-<span class="source-line-no">310</span><span id="line-310">        BitSet unresolvedIn  = memo.unresolvedInputs();</span>
-<span class="source-line-no">311</span><span id="line-311">        BitSet unresolvedOut = memo.unresolvedOutputs();</span>
-<span class="source-line-no">312</span><span id="line-312"></span>
-<span class="source-line-no">313</span><span id="line-313">        System.out.printf(</span>
-<span class="source-line-no">314</span><span id="line-314">            "%s prepare():\n" +</span>
-<span class="source-line-no">315</span><span id="line-315">            "inputsTemplate   : %s\n" +</span>
-<span class="source-line-no">316</span><span id="line-316">            "unresolvedInputs : %s\n" +</span>
-<span class="source-line-no">317</span><span id="line-317">            "outputsTemplate  : %s\n" +</span>
-<span class="source-line-no">318</span><span id="line-318">            "unresolvedOutputs: %s\n",</span>
-<span class="source-line-no">319</span><span id="line-319"></span>
-<span class="source-line-no">320</span><span id="line-320">            target,</span>
-<span class="source-line-no">321</span><span id="line-321"></span>
-<span class="source-line-no">322</span><span id="line-322">            memo.inputsTemplate()</span>
-<span class="source-line-no">323</span><span id="line-323">                .stream().map(Attribute::type).collect(toList()),</span>
-<span class="source-line-no">324</span><span id="line-324"></span>
-<span class="source-line-no">325</span><span id="line-325">            unresolvedIn,</span>
-<span class="source-line-no">326</span><span id="line-326"></span>
-<span class="source-line-no">327</span><span id="line-327">            /*</span>
-<span class="source-line-no">328</span><span id="line-328">             * Unlike inputsTemplate, outputsTemplate can return null. That can</span>
-<span class="source-line-no">329</span><span id="line-329">             * happen for two reasons: (1) the routine is declared VOID and no</span>
-<span class="source-line-no">330</span><span id="line-330">             * outputs are needed, or (2) it is declared RECORD and will rely on</span>
-<span class="source-line-no">331</span><span id="line-331">             * an output column definition list at every call site, so there is</span>
-<span class="source-line-no">332</span><span id="line-332">             * no outputsTemplate to examine in advance.</span>
-<span class="source-line-no">333</span><span id="line-333">             */</span>
-<span class="source-line-no">334</span><span id="line-334">            ofNullable(memo.outputsTemplate())</span>
-<span class="source-line-no">335</span><span id="line-335">                .map(t -&gt;</span>
-<span class="source-line-no">336</span><span id="line-336">                    t.stream()</span>
-<span class="source-line-no">337</span><span id="line-337">                    .map(Attribute::type)</span>
-<span class="source-line-no">338</span><span id="line-338">                    .map(Object::toString)</span>
-<span class="source-line-no">339</span><span id="line-339">                    .collect(toList())</span>
-<span class="source-line-no">340</span><span id="line-340">                    .toString())</span>
-<span class="source-line-no">341</span><span id="line-341">                .orElse("null"),</span>
-<span class="source-line-no">342</span><span id="line-342"></span>
-<span class="source-line-no">343</span><span id="line-343">            /*</span>
-<span class="source-line-no">344</span><span id="line-344">             * It's also possible for unresolvedOutputs to be null, in the</span>
-<span class="source-line-no">345</span><span id="line-345">             * declared-RECORD-so-nothing-is-known-yet case. (In the VOID case,</span>
-<span class="source-line-no">346</span><span id="line-346">             * it will just be an empty BitSet, meaning no outputs need to be</span>
-<span class="source-line-no">347</span><span id="line-347">             * resolved, just as an empty BitSet would mean any other time. That</span>
-<span class="source-line-no">348</span><span id="line-348">             * makes it simple to test for canSkipResolution, as shown below.)</span>
-<span class="source-line-no">349</span><span id="line-349">             */</span>
-<span class="source-line-no">350</span><span id="line-350">            Objects.toString(unresolvedOut)</span>
-<span class="source-line-no">351</span><span id="line-351">        );</span>
-<span class="source-line-no">352</span><span id="line-352"></span>
-<span class="source-line-no">353</span><span id="line-353">        boolean canSkipResolution =</span>
-<span class="source-line-no">354</span><span id="line-354">            unresolvedIn.isEmpty()</span>
-<span class="source-line-no">355</span><span id="line-355">                &amp;&amp;  null != unresolvedOut  &amp;&amp;  unresolvedOut.isEmpty();</span>
-<span class="source-line-no">356</span><span id="line-356"></span>
-<span class="source-line-no">357</span><span id="line-357">        /*</span>
-<span class="source-line-no">358</span><span id="line-358">         * For this 'language', all compilation can be done early; it does not</span>
-<span class="source-line-no">359</span><span id="line-359">         * need to see resolved type descriptors from flinfo at a call site.</span>
-<span class="source-line-no">360</span><span id="line-360">         */</span>
-<span class="source-line-no">361</span><span id="line-361">        String compiled = compile(target.src());</span>
-<span class="source-line-no">362</span><span id="line-362"></span>
-<span class="source-line-no">363</span><span id="line-363">        /*</span>
-<span class="source-line-no">364</span><span id="line-364">         * This will be the Template object, cached with the RegProcedure.</span>
-<span class="source-line-no">365</span><span id="line-365">         */</span>
-<span class="source-line-no">366</span><span id="line-366">        return flinfo -&gt;</span>
-<span class="source-line-no">367</span><span id="line-367">        {</span>
-<span class="source-line-no">368</span><span id="line-368">            /*</span>
-<span class="source-line-no">369</span><span id="line-369">             * It might be interesting to know which arguments are 'stable' at</span>
-<span class="source-line-no">370</span><span id="line-370">             * this 'flinfo' call site, meaning they will have the same values</span>
-<span class="source-line-no">371</span><span id="line-371">             * in any number of upcoming calls at this site. In a realistic</span>
-<span class="source-line-no">372</span><span id="line-372">             * case, there might be certain arguments we'd be interested in</span>
-<span class="source-line-no">373</span><span id="line-373">             * precomputing values from, and we can use a BitSet to indicate</span>
-<span class="source-line-no">374</span><span id="line-374">             * which arguments we'd like to know the stability of, and the set</span>
-<span class="source-line-no">375</span><span id="line-375">             * returned from inputsStable will show the subset of those</span>
-<span class="source-line-no">376</span><span id="line-376">             * positions where stable expressions have been passed. For this</span>
-<span class="source-line-no">377</span><span id="line-377">             * example, we'll start by setting all bits [0,nargs) and thus ask</span>
-<span class="source-line-no">378</span><span id="line-378">             * about all the arguments.</span>
-<span class="source-line-no">379</span><span id="line-379">             */</span>
-<span class="source-line-no">380</span><span id="line-380">            TupleDescriptor inDescriptor = flinfo.inputsDescriptor();</span>
-<span class="source-line-no">381</span><span id="line-381">            int nargs = inDescriptor.size();</span>
-<span class="source-line-no">382</span><span id="line-382">            BitSet maybeStable = new BitSet(nargs);</span>
-<span class="source-line-no">383</span><span id="line-383">            maybeStable.set(0, nargs);</span>
-<span class="source-line-no">384</span><span id="line-384"></span>
-<span class="source-line-no">385</span><span id="line-385">            System.out.printf(</span>
-<span class="source-line-no">386</span><span id="line-386">                "%s Template.specialize():\n" +</span>
-<span class="source-line-no">387</span><span id="line-387">                "inputsDescriptor : %s\n" +</span>
-<span class="source-line-no">388</span><span id="line-388">                "inputsAreSpread  : %s\n" +</span>
-<span class="source-line-no">389</span><span id="line-389">                "stableInputs     : %s\n" +</span>
-<span class="source-line-no">390</span><span id="line-390">                "outputsDescriptor: %s\n",</span>
-<span class="source-line-no">391</span><span id="line-391"></span>
-<span class="source-line-no">392</span><span id="line-392">                target,</span>
-<span class="source-line-no">393</span><span id="line-393"></span>
-<span class="source-line-no">394</span><span id="line-394">                inDescriptor.stream().map(Attribute::type).collect(toList()),</span>
-<span class="source-line-no">395</span><span id="line-395"></span>
-<span class="source-line-no">396</span><span id="line-396">                flinfo.inputsAreSpread(),</span>
-<span class="source-line-no">397</span><span id="line-397"></span>
-<span class="source-line-no">398</span><span id="line-398">                flinfo.stableInputs(maybeStable),</span>
-<span class="source-line-no">399</span><span id="line-399"></span>
-<span class="source-line-no">400</span><span id="line-400">                /*</span>
-<span class="source-line-no">401</span><span id="line-401">                 * Above, outputsTemplate could return null for two reasons.</span>
-<span class="source-line-no">402</span><span id="line-402">                 * The second reason no longer applies; if the routine is</span>
-<span class="source-line-no">403</span><span id="line-403">                 * declared RECORD and this call site has no column definition</span>
-<span class="source-line-no">404</span><span id="line-404">                 * list, outputsDescriptor throws an exception. But a null</span>
-<span class="source-line-no">405</span><span id="line-405">                 * return is still possible in the VOID case.</span>
-<span class="source-line-no">406</span><span id="line-406">                 *</span>
-<span class="source-line-no">407</span><span id="line-407">                 * Why not an empty descriptor for VOID? An empty descriptor</span>
-<span class="source-line-no">408</span><span id="line-408">                 * really occurs if a function returns t where t is a</span>
-<span class="source-line-no">409</span><span id="line-409">                 * zero-column composite type. Odd thing to do, but allowed.</span>
-<span class="source-line-no">410</span><span id="line-410">                 */</span>
-<span class="source-line-no">411</span><span id="line-411">                ofNullable(flinfo.outputsDescriptor())</span>
-<span class="source-line-no">412</span><span id="line-412">                    .map(d -&gt;</span>
-<span class="source-line-no">413</span><span id="line-413">                        d.stream()</span>
-<span class="source-line-no">414</span><span id="line-414">                        .map(Attribute::type)</span>
-<span class="source-line-no">415</span><span id="line-415">                        .map(Object::toString)</span>
-<span class="source-line-no">416</span><span id="line-416">                        .collect(toList())</span>
-<span class="source-line-no">417</span><span id="line-417">                        .toString())</span>
-<span class="source-line-no">418</span><span id="line-418">                    .orElse("null")</span>
-<span class="source-line-no">419</span><span id="line-419">            );</span>
+<span class="source-line-no">139</span><span id="line-139">"CREATE CONSTRAINT TRIGGER g64_ar_iu AFTER INSERT OR UPDATE" +</span>
+<span class="source-line-no">140</span><span id="line-140">" ON javatest.username_test FOR EACH ROW" +</span>
+<span class="source-line-no">141</span><span id="line-141">" EXECUTE FUNCTION javatest.glot64_trigger('ef', 'gh')",</span>
+<span class="source-line-no">142</span><span id="line-142"></span>
+<span class="source-line-no">143</span><span id="line-143">"INSERT INTO javatest.username_test VALUES ('Wilhelm Glot', '64')",</span>
+<span class="source-line-no">144</span><span id="line-144"></span>
+<span class="source-line-no">145</span><span id="line-145">"UPDATE javatest.username_test SET name = 'Glot, Wilhelm'" +</span>
+<span class="source-line-no">146</span><span id="line-146">" WHERE username = '64'",</span>
+<span class="source-line-no">147</span><span id="line-147"></span>
+<span class="source-line-no">148</span><span id="line-148">"DELETE FROM javatest.username_test WHERE username = '64'"</span>
+<span class="source-line-no">149</span><span id="line-149">}, remove = {</span>
+<span class="source-line-no">150</span><span id="line-150">"DROP TRIGGER g64_ar_iu ON javatest.username_test",</span>
+<span class="source-line-no">151</span><span id="line-151">"DROP TRIGGER g64_as_d ON javatest.username_test",</span>
+<span class="source-line-no">152</span><span id="line-152">"DROP FUNCTION javatest.glot64_trigger()",</span>
+<span class="source-line-no">153</span><span id="line-153">"DROP PROCEDURE javatest.say_hello()",</span>
+<span class="source-line-no">154</span><span id="line-154">"DROP FUNCTION javatest.hello(text,VARIADIC \"any\")",</span>
+<span class="source-line-no">155</span><span id="line-155">"DROP FUNCTION javatest.hello(int4,int4)",</span>
+<span class="source-line-no">156</span><span id="line-156">"DROP FUNCTION javatest.hello(anyelement)",</span>
+<span class="source-line-no">157</span><span id="line-157">"DROP FUNCTION javatest.hello()",</span>
+<span class="source-line-no">158</span><span id="line-158">"DO LANGUAGE glot64 'QnllIGJ5ZSEK'",</span>
+<span class="source-line-no">159</span><span id="line-159">"DROP LANGUAGE glot64",</span>
+<span class="source-line-no">160</span><span id="line-160">"DROP FUNCTION javatest.glot64_validator(oid)"</span>
+<span class="source-line-no">161</span><span id="line-161">})</span>
+<span class="source-line-no">162</span><span id="line-162">public class Glot64 implements InlineBlocks, Routines, Triggers</span>
+<span class="source-line-no">163</span><span id="line-163">{</span>
+<span class="source-line-no">164</span><span id="line-164">    private final ProceduralLanguage pl;</span>
+<span class="source-line-no">165</span><span id="line-165"></span>
+<span class="source-line-no">166</span><span id="line-166">    /**</span>
+<span class="source-line-no">167</span><span id="line-167">     * There must be a public constructor with a {@code ProceduralLanguage}</span>
+<span class="source-line-no">168</span><span id="line-168">     * parameter.</span>
+<span class="source-line-no">169</span><span id="line-169">     *&lt;p&gt;</span>
+<span class="source-line-no">170</span><span id="line-170">     * The parameter can be ignored, or used to determine the name, oid,</span>
+<span class="source-line-no">171</span><span id="line-171">     * accessibility, or other details of the declared PostgreSQL language</span>
+<span class="source-line-no">172</span><span id="line-172">     * your handler class has been instantiated for.</span>
+<span class="source-line-no">173</span><span id="line-173">     */</span>
+<span class="source-line-no">174</span><span id="line-174">    public Glot64(ProceduralLanguage pl)</span>
+<span class="source-line-no">175</span><span id="line-175">    {</span>
+<span class="source-line-no">176</span><span id="line-176">        this.pl = pl;</span>
+<span class="source-line-no">177</span><span id="line-177">    }</span>
+<span class="source-line-no">178</span><span id="line-178"></span>
+<span class="source-line-no">179</span><span id="line-179">    /**</span>
+<span class="source-line-no">180</span><span id="line-180">     * The sole method needed to implement inline code blocks.</span>
+<span class="source-line-no">181</span><span id="line-181">     *&lt;p&gt;</span>
+<span class="source-line-no">182</span><span id="line-182">     * This one merely writes the 'compiled' source text to standard output.</span>
+<span class="source-line-no">183</span><span id="line-183">     * @param inlineSource the source text to be executed as the inline code</span>
+<span class="source-line-no">184</span><span id="line-184">     * block.</span>
+<span class="source-line-no">185</span><span id="line-185">     * @param atomic true if top-level transaction control must be disallowed</span>
+<span class="source-line-no">186</span><span id="line-186">     * within the block. PL/Java will already handle propagating this value to</span>
+<span class="source-line-no">187</span><span id="line-187">     * underlying PostgreSQL SPI calls your code might make, but it is also</span>
+<span class="source-line-no">188</span><span id="line-188">     * available here in case your language has compilation choices it can make</span>
+<span class="source-line-no">189</span><span id="line-189">     * based on that information.</span>
+<span class="source-line-no">190</span><span id="line-190">     */</span>
+<span class="source-line-no">191</span><span id="line-191">    @Override</span>
+<span class="source-line-no">192</span><span id="line-192">    public void execute(String inlineSource, boolean atomic) throws SQLException</span>
+<span class="source-line-no">193</span><span id="line-193">    {</span>
+<span class="source-line-no">194</span><span id="line-194">        System.out.printf("%s inline code block (atomic: %s):\n", pl, atomic)</span>
+<span class="source-line-no">195</span><span id="line-195">            .print(compile(inlineSource));</span>
+<span class="source-line-no">196</span><span id="line-196">    }</span>
+<span class="source-line-no">197</span><span id="line-197"></span>
+<span class="source-line-no">198</span><span id="line-198">    /**</span>
+<span class="source-line-no">199</span><span id="line-199">     * This and {@link #additionalChecks additionalChecks} are the two methods</span>
+<span class="source-line-no">200</span><span id="line-200">     * involved in implementing a validator for the language.</span>
+<span class="source-line-no">201</span><span id="line-201">     *&lt;p&gt;</span>
+<span class="source-line-no">202</span><span id="line-202">     * Each method should simply return normally if its checks pass, or throw</span>
+<span class="source-line-no">203</span><span id="line-203">     * an (ideally informative) exception if not. The work is split into two</span>
+<span class="source-line-no">204</span><span id="line-204">     * methods (which need not both be supplied) because PostgreSQL does not</span>
+<span class="source-line-no">205</span><span id="line-205">     * guarantee that the validator fully ran at the time of creating any</span>
+<span class="source-line-no">206</span><span id="line-206">     * routine. Therefore, while PL/Java will normally call both methods during</span>
+<span class="source-line-no">207</span><span id="line-207">     * validation when a function or procedure is being created, it also will</span>
+<span class="source-line-no">208</span><span id="line-208">     * call {@link #essentialChecks essentialChecks} at runtime, in advance of</span>
+<span class="source-line-no">209</span><span id="line-209">     * calling {@link #prepare prepare}, so this is the place to put checks that</span>
+<span class="source-line-no">210</span><span id="line-210">     * are necessary to support assumptions {@code prepare} relies on.</span>
+<span class="source-line-no">211</span><span id="line-211">     *&lt;p&gt;</span>
+<span class="source-line-no">212</span><span id="line-212">     * For Glot64, this method does nothing. The only check needed at validation</span>
+<span class="source-line-no">213</span><span id="line-213">     * time is whether the source text successfully 'compiles', and the</span>
+<span class="source-line-no">214</span><span id="line-214">     * {@code prepare} method will have to compile the code anyway, so including</span>
+<span class="source-line-no">215</span><span id="line-215">     * that check here would be redundant. It can be included in</span>
+<span class="source-line-no">216</span><span id="line-216">     * {@code additionalChecks}, so a user has useful feedback at create time.</span>
+<span class="source-line-no">217</span><span id="line-217">     * @param subject the proposed Glot64 routine to be validated</span>
+<span class="source-line-no">218</span><span id="line-218">     * @param checkBody whether to perform all checks. When false, depending on</span>
+<span class="source-line-no">219</span><span id="line-219">     * details of the language being implemented, some checks may need to be</span>
+<span class="source-line-no">220</span><span id="line-220">     * skipped. PostgreSQL can call validators with {@code checkBody} false at</span>
+<span class="source-line-no">221</span><span id="line-221">     * odd times, such as during {@code pg_restore} or {@code pg_upgrade}, when</span>
+<span class="source-line-no">222</span><span id="line-222">     * not everything in the database may be as the full suite of checks would</span>
+<span class="source-line-no">223</span><span id="line-223">     * expect.</span>
+<span class="source-line-no">224</span><span id="line-224">     */</span>
+<span class="source-line-no">225</span><span id="line-225">    @Override</span>
+<span class="source-line-no">226</span><span id="line-226">    public void essentialChecks(</span>
+<span class="source-line-no">227</span><span id="line-227">        RegProcedure&lt;PLJavaBased&gt; subject, boolean checkBody)</span>
+<span class="source-line-no">228</span><span id="line-228">    throws SQLException</span>
+<span class="source-line-no">229</span><span id="line-229">    {</span>
+<span class="source-line-no">230</span><span id="line-230">        System.out.printf("%s essentialChecks: checkBody %s\n",</span>
+<span class="source-line-no">231</span><span id="line-231">            subject, checkBody);</span>
+<span class="source-line-no">232</span><span id="line-232">    }</span>
+<span class="source-line-no">233</span><span id="line-233"></span>
+<span class="source-line-no">234</span><span id="line-234">    /**</span>
+<span class="source-line-no">235</span><span id="line-235">     * This and {@link #essentialChecks essentialChecks} are the two methods</span>
+<span class="source-line-no">236</span><span id="line-236">     * involved in implementing a validator for the language.</span>
+<span class="source-line-no">237</span><span id="line-237">     *&lt;p&gt;</span>
+<span class="source-line-no">238</span><span id="line-238">     * Each method should simply return normally if its checks pass, or throw</span>
+<span class="source-line-no">239</span><span id="line-239">     * an (ideally informative) exception if not. See</span>
+<span class="source-line-no">240</span><span id="line-240">     * {@link #essentialChecks essentialChecks} for more on why there are two</span>
+<span class="source-line-no">241</span><span id="line-241">     * methods.</span>
+<span class="source-line-no">242</span><span id="line-242">     *&lt;p&gt;</span>
+<span class="source-line-no">243</span><span id="line-243">     * For Glot64, this is the only method that really checks anything, namely,</span>
+<span class="source-line-no">244</span><span id="line-244">     * that the source text can be 'compiled'. That is work the {@code prepare}</span>
+<span class="source-line-no">245</span><span id="line-245">     * method must do when it is called anyway, so there is nothing to gain by</span>
+<span class="source-line-no">246</span><span id="line-246">     * having it redundantly done in {@code essentialChecks}. Doing it here at</span>
+<span class="source-line-no">247</span><span id="line-247">     * {@code CREATE} time, though, gives helpful feedback to a user.</span>
+<span class="source-line-no">248</span><span id="line-248">     * @param subject the proposed Glot64 routine to be validated</span>
+<span class="source-line-no">249</span><span id="line-249">     * @param checkBody whether to perform all checks. When false, depending on</span>
+<span class="source-line-no">250</span><span id="line-250">     * details of the language being implemented, some checks may need to be</span>
+<span class="source-line-no">251</span><span id="line-251">     * skipped. PostgreSQL can call validators with {@code checkBody} false at</span>
+<span class="source-line-no">252</span><span id="line-252">     * odd times, such as during {@code pg_restore} or {@code pg_upgrade}, when</span>
+<span class="source-line-no">253</span><span id="line-253">     * not everything in the database may be as the full suite of checks would</span>
+<span class="source-line-no">254</span><span id="line-254">     * expect.</span>
+<span class="source-line-no">255</span><span id="line-255">     */</span>
+<span class="source-line-no">256</span><span id="line-256">    @Override</span>
+<span class="source-line-no">257</span><span id="line-257">    public void additionalChecks(</span>
+<span class="source-line-no">258</span><span id="line-258">        RegProcedure&lt;PLJavaBased&gt; subject, boolean checkBody)</span>
+<span class="source-line-no">259</span><span id="line-259">    throws SQLException</span>
+<span class="source-line-no">260</span><span id="line-260">    {</span>
+<span class="source-line-no">261</span><span id="line-261">        System.out.printf("%s additionalChecks: checkBody %s: ",</span>
+<span class="source-line-no">262</span><span id="line-262">            subject, checkBody);</span>
+<span class="source-line-no">263</span><span id="line-263"></span>
+<span class="source-line-no">264</span><span id="line-264">        /*</span>
+<span class="source-line-no">265</span><span id="line-265">         * For Glot64, 'compiling' is purely a matter of string transformation</span>
+<span class="source-line-no">266</span><span id="line-266">         * and has no interaction with database state, so the judgment call can</span>
+<span class="source-line-no">267</span><span id="line-267">         * be made (as here) to include this check even when checkBody is false.</span>
+<span class="source-line-no">268</span><span id="line-268">         */</span>
+<span class="source-line-no">269</span><span id="line-269">        compile(subject.src());</span>
+<span class="source-line-no">270</span><span id="line-270"></span>
+<span class="source-line-no">271</span><span id="line-271">        System.out.printf("ok\n");</span>
+<span class="source-line-no">272</span><span id="line-272">    }</span>
+<span class="source-line-no">273</span><span id="line-273"></span>
+<span class="source-line-no">274</span><span id="line-274">    /**</span>
+<span class="source-line-no">275</span><span id="line-275">     * Prepares an executable template for a routine (a function or procedure).</span>
+<span class="source-line-no">276</span><span id="line-276">     *&lt;p&gt;</span>
+<span class="source-line-no">277</span><span id="line-277">     * The parameter to this method is a {@link RegProcedure}, carrying a</span>
+<span class="source-line-no">278</span><span id="line-278">     * {@link PLJavaBased PLJavaBased} memo. The {@code RegProcedure} exposes</span>
+<span class="source-line-no">279</span><span id="line-279">     * the PostgreSQL catalog information for the routine, and the memo provides</span>
+<span class="source-line-no">280</span><span id="line-280">     * some more information computed and cached by PL/Java. However, at this</span>
+<span class="source-line-no">281</span><span id="line-281">     * stage, no information from any specific call site is presented.</span>
+<span class="source-line-no">282</span><span id="line-282">     *&lt;p&gt;</span>
+<span class="source-line-no">283</span><span id="line-283">     * For example, the memo describes the number, names,  and types of the</span>
+<span class="source-line-no">284</span><span id="line-284">     * routine's inputs (all of its declared parameters that have mode</span>
+<span class="source-line-no">285</span><span id="line-285">     * {@code IN}, {@code INOUT}, or {@code VARIADIC}) and outputs (the ones</span>
+<span class="source-line-no">286</span><span id="line-286">     * with mode {@code INOUT}, {@code OUT}, or {@code TABLE}), each set</span>
+<span class="source-line-no">287</span><span id="line-287">     * presented in the simple form of a {@link TupleDescriptor}.</span>
+<span class="source-line-no">288</span><span id="line-288">     *&lt;p&gt;</span>
+<span class="source-line-no">289</span><span id="line-289">     * Because this information is based only on the routine's declaration,</span>
+<span class="source-line-no">290</span><span id="line-290">     * these tuple descriptors are called {@code inputsTemplate} and</span>
+<span class="source-line-no">291</span><span id="line-291">     * {@code outputsTemplate}. They may contain entries with polymorphic types</span>
+<span class="source-line-no">292</span><span id="line-292">     * that will be resolved to concrete types at a given call site (and</span>
+<span class="source-line-no">293</span><span id="line-293">     * possibly to different concrete types at a different call site). The</span>
+<span class="source-line-no">294</span><span id="line-294">     * {@link BitSet BitSet}s {@code unresolvedInputs} and</span>
+<span class="source-line-no">295</span><span id="line-295">     * {@code unresolvedOutputs} indicate which positions must be resolved</span>
+<span class="source-line-no">296</span><span id="line-296">     * later. If the bit sets are empty, the template {@code TupleDescriptor}s</span>
+<span class="source-line-no">297</span><span id="line-297">     * are already complete descriptors of the inputs and outputs that will be</span>
+<span class="source-line-no">298</span><span id="line-298">     * seen at call sites.</span>
+<span class="source-line-no">299</span><span id="line-299">     *&lt;p&gt;</span>
+<span class="source-line-no">300</span><span id="line-300">     * This method should precompute whatever it can based on the routine's</span>
+<span class="source-line-no">301</span><span id="line-301">     * catalog declaration and the template tuple descriptors only, and return</span>
+<span class="source-line-no">302</span><span id="line-302">     * a {@link Template} instance, which must depend only on this information,</span>
+<span class="source-line-no">303</span><span id="line-303">     * as it will be cached with the {@code RegProcedure} itself, independently</span>
+<span class="source-line-no">304</span><span id="line-304">     * of any call site.</span>
+<span class="source-line-no">305</span><span id="line-305">     *&lt;p&gt;</span>
+<span class="source-line-no">306</span><span id="line-306">     * At a call site, the {@code Template} instance's {@code specialize} method</span>
+<span class="source-line-no">307</span><span id="line-307">     * will be called on a {@link Lookup Lookup} object (conventionally called</span>
+<span class="source-line-no">308</span><span id="line-308">     * {@code flinfo}) representing the call site. At that stage, more specific</span>
+<span class="source-line-no">309</span><span id="line-309">     * information is available, such as fully-resolved {@code TupleDescriptor}s</span>
+<span class="source-line-no">310</span><span id="line-310">     * for the inputs and outputs, and which argument expressions at that call</span>
+<span class="source-line-no">311</span><span id="line-311">     * site have stable values that will not vary in succesive calls made at</span>
+<span class="source-line-no">312</span><span id="line-312">     * that site. The {@code specialize} method should use that information to</span>
+<span class="source-line-no">313</span><span id="line-313">     * generate and return a {@link Routine Routine}, a fully-resolved object</span>
+<span class="source-line-no">314</span><span id="line-314">     * with a {@code call} method ready to be cached at that call site and used</span>
+<span class="source-line-no">315</span><span id="line-315">     * for (possibly many) calls made there.</span>
+<span class="source-line-no">316</span><span id="line-316">     *&lt;p&gt;</span>
+<span class="source-line-no">317</span><span id="line-317">     * When the routine has no polymorphic inputs or outputs, as reported by</span>
+<span class="source-line-no">318</span><span id="line-318">     * empty {@code unresolvedInputs} and {@code unresolvedOutputs} bit sets</span>
+<span class="source-line-no">319</span><span id="line-319">     * at the {@code prepare} stage, a final {@code Routine} can be generated</span>
+<span class="source-line-no">320</span><span id="line-320">     * at that stage, and the {@code Template} returned by {@code prepare} can</span>
+<span class="source-line-no">321</span><span id="line-321">     * simply return it unconditionally (unless it wants to look at which</span>
+<span class="source-line-no">322</span><span id="line-322">     * input expressions can be treated as stable).</span>
+<span class="source-line-no">323</span><span id="line-323">     *&lt;p&gt;</span>
+<span class="source-line-no">324</span><span id="line-324">     * For each call at a given call site, a {@link Call Call} instance will be</span>
+<span class="source-line-no">325</span><span id="line-325">     * passed (conventionally as {@code fcinfo}) to the generated</span>
+<span class="source-line-no">326</span><span id="line-326">     * {@code Routine}'s {@code call} method. The {@code Call} object bears the</span>
+<span class="source-line-no">327</span><span id="line-327">     * actual {@link TupleTableSlot}s from which the routine will fetch its</span>
+<span class="source-line-no">328</span><span id="line-328">     * arguments and to which it will (XXX when implemented) store its</span>
+<span class="source-line-no">329</span><span id="line-329">     * result(s).</span>
+<span class="source-line-no">330</span><span id="line-330">     */</span>
+<span class="source-line-no">331</span><span id="line-331">    @Override</span>
+<span class="source-line-no">332</span><span id="line-332">    public Template prepare(RegProcedure&lt;PLJavaBased&gt; target)</span>
+<span class="source-line-no">333</span><span id="line-333">    throws SQLException</span>
+<span class="source-line-no">334</span><span id="line-334">    {</span>
+<span class="source-line-no">335</span><span id="line-335">        PLJavaBased memo = target.memo();</span>
+<span class="source-line-no">336</span><span id="line-336"></span>
+<span class="source-line-no">337</span><span id="line-337">        BitSet unresolvedIn  = memo.unresolvedInputs();</span>
+<span class="source-line-no">338</span><span id="line-338">        BitSet unresolvedOut = memo.unresolvedOutputs();</span>
+<span class="source-line-no">339</span><span id="line-339"></span>
+<span class="source-line-no">340</span><span id="line-340">        System.out.printf(</span>
+<span class="source-line-no">341</span><span id="line-341">            "%s prepare():\n" +</span>
+<span class="source-line-no">342</span><span id="line-342">            "inputsTemplate   : %s\n" +</span>
+<span class="source-line-no">343</span><span id="line-343">            "unresolvedInputs : %s\n" +</span>
+<span class="source-line-no">344</span><span id="line-344">            "outputsTemplate  : %s\n" +</span>
+<span class="source-line-no">345</span><span id="line-345">            "unresolvedOutputs: %s\n",</span>
+<span class="source-line-no">346</span><span id="line-346"></span>
+<span class="source-line-no">347</span><span id="line-347">            target,</span>
+<span class="source-line-no">348</span><span id="line-348"></span>
+<span class="source-line-no">349</span><span id="line-349">            memo.inputsTemplate()</span>
+<span class="source-line-no">350</span><span id="line-350">                .stream().map(Attribute::type).collect(toList()),</span>
+<span class="source-line-no">351</span><span id="line-351"></span>
+<span class="source-line-no">352</span><span id="line-352">            unresolvedIn,</span>
+<span class="source-line-no">353</span><span id="line-353"></span>
+<span class="source-line-no">354</span><span id="line-354">            /*</span>
+<span class="source-line-no">355</span><span id="line-355">             * Unlike inputsTemplate, outputsTemplate can return null. That can</span>
+<span class="source-line-no">356</span><span id="line-356">             * happen for two reasons: (1) the routine is declared VOID and no</span>
+<span class="source-line-no">357</span><span id="line-357">             * outputs are needed, or (2) it is declared RECORD and will rely on</span>
+<span class="source-line-no">358</span><span id="line-358">             * an output column definition list at every call site, so there is</span>
+<span class="source-line-no">359</span><span id="line-359">             * no outputsTemplate to examine in advance.</span>
+<span class="source-line-no">360</span><span id="line-360">             */</span>
+<span class="source-line-no">361</span><span id="line-361">            ofNullable(memo.outputsTemplate())</span>
+<span class="source-line-no">362</span><span id="line-362">                .map(t -&gt;</span>
+<span class="source-line-no">363</span><span id="line-363">                    t.stream()</span>
+<span class="source-line-no">364</span><span id="line-364">                    .map(Attribute::type)</span>
+<span class="source-line-no">365</span><span id="line-365">                    .map(Object::toString)</span>
+<span class="source-line-no">366</span><span id="line-366">                    .collect(toList())</span>
+<span class="source-line-no">367</span><span id="line-367">                    .toString())</span>
+<span class="source-line-no">368</span><span id="line-368">                .orElse("null"),</span>
+<span class="source-line-no">369</span><span id="line-369"></span>
+<span class="source-line-no">370</span><span id="line-370">            /*</span>
+<span class="source-line-no">371</span><span id="line-371">             * It's also possible for unresolvedOutputs to be null, in the</span>
+<span class="source-line-no">372</span><span id="line-372">             * declared-RECORD-so-nothing-is-known-yet case. (In the VOID case,</span>
+<span class="source-line-no">373</span><span id="line-373">             * it will just be an empty BitSet, meaning no outputs need to be</span>
+<span class="source-line-no">374</span><span id="line-374">             * resolved, just as an empty BitSet would mean any other time. That</span>
+<span class="source-line-no">375</span><span id="line-375">             * makes it simple to test for canSkipResolution, as shown below.)</span>
+<span class="source-line-no">376</span><span id="line-376">             */</span>
+<span class="source-line-no">377</span><span id="line-377">            Objects.toString(unresolvedOut)</span>
+<span class="source-line-no">378</span><span id="line-378">        );</span>
+<span class="source-line-no">379</span><span id="line-379"></span>
+<span class="source-line-no">380</span><span id="line-380">        boolean canSkipResolution =</span>
+<span class="source-line-no">381</span><span id="line-381">            unresolvedIn.isEmpty()</span>
+<span class="source-line-no">382</span><span id="line-382">                &amp;&amp;  null != unresolvedOut  &amp;&amp;  unresolvedOut.isEmpty();</span>
+<span class="source-line-no">383</span><span id="line-383"></span>
+<span class="source-line-no">384</span><span id="line-384">        /*</span>
+<span class="source-line-no">385</span><span id="line-385">         * For this 'language', all compilation can be done early; it does not</span>
+<span class="source-line-no">386</span><span id="line-386">         * need to see resolved type descriptors from flinfo at a call site.</span>
+<span class="source-line-no">387</span><span id="line-387">         */</span>
+<span class="source-line-no">388</span><span id="line-388">        String compiled = compile(target.src());</span>
+<span class="source-line-no">389</span><span id="line-389"></span>
+<span class="source-line-no">390</span><span id="line-390">        /*</span>
+<span class="source-line-no">391</span><span id="line-391">         * This will be the Template object, cached with the RegProcedure.</span>
+<span class="source-line-no">392</span><span id="line-392">         */</span>
+<span class="source-line-no">393</span><span id="line-393">        return flinfo -&gt;</span>
+<span class="source-line-no">394</span><span id="line-394">        {</span>
+<span class="source-line-no">395</span><span id="line-395">            /*</span>
+<span class="source-line-no">396</span><span id="line-396">             * It might be interesting to know which arguments are 'stable' at</span>
+<span class="source-line-no">397</span><span id="line-397">             * this 'flinfo' call site, meaning they will have the same values</span>
+<span class="source-line-no">398</span><span id="line-398">             * in any number of upcoming calls at this site. In a realistic</span>
+<span class="source-line-no">399</span><span id="line-399">             * case, there might be certain arguments we'd be interested in</span>
+<span class="source-line-no">400</span><span id="line-400">             * precomputing values from, and we can use a BitSet to indicate</span>
+<span class="source-line-no">401</span><span id="line-401">             * which arguments we'd like to know the stability of, and the set</span>
+<span class="source-line-no">402</span><span id="line-402">             * returned from inputsStable will show the subset of those</span>
+<span class="source-line-no">403</span><span id="line-403">             * positions where stable expressions have been passed. For this</span>
+<span class="source-line-no">404</span><span id="line-404">             * example, we'll start by setting all bits [0,nargs) and thus ask</span>
+<span class="source-line-no">405</span><span id="line-405">             * about all the arguments.</span>
+<span class="source-line-no">406</span><span id="line-406">             */</span>
+<span class="source-line-no">407</span><span id="line-407">            TupleDescriptor inDescriptor = flinfo.inputsDescriptor();</span>
+<span class="source-line-no">408</span><span id="line-408">            int nargs = inDescriptor.size();</span>
+<span class="source-line-no">409</span><span id="line-409">            BitSet maybeStable = new BitSet(nargs);</span>
+<span class="source-line-no">410</span><span id="line-410">            maybeStable.set(0, nargs);</span>
+<span class="source-line-no">411</span><span id="line-411"></span>
+<span class="source-line-no">412</span><span id="line-412">            System.out.printf(</span>
+<span class="source-line-no">413</span><span id="line-413">                "%s Template.specialize():\n" +</span>
+<span class="source-line-no">414</span><span id="line-414">                "inputsDescriptor : %s\n" +</span>
+<span class="source-line-no">415</span><span id="line-415">                "inputsAreSpread  : %s\n" +</span>
+<span class="source-line-no">416</span><span id="line-416">                "stableInputs     : %s\n" +</span>
+<span class="source-line-no">417</span><span id="line-417">                "outputsDescriptor: %s\n",</span>
+<span class="source-line-no">418</span><span id="line-418"></span>
+<span class="source-line-no">419</span><span id="line-419">                target,</span>
 <span class="source-line-no">420</span><span id="line-420"></span>
-<span class="source-line-no">421</span><span id="line-421">            /*</span>
-<span class="source-line-no">422</span><span id="line-422">             * This will be the Routine object, cached with the call site.</span>
-<span class="source-line-no">423</span><span id="line-423">             */</span>
-<span class="source-line-no">424</span><span id="line-424">            return fcinfo -&gt;</span>
-<span class="source-line-no">425</span><span id="line-425">            {</span>
-<span class="source-line-no">426</span><span id="line-426">                Call.Context cx = fcinfo.context();</span>
-<span class="source-line-no">427</span><span id="line-427"></span>
-<span class="source-line-no">428</span><span id="line-428">                String subifc = ofNullable(cx)</span>
-<span class="source-line-no">429</span><span id="line-429">                    .map(c -&gt; c.getClass().getInterfaces()[0].getSimpleName())</span>
-<span class="source-line-no">430</span><span id="line-430">                    .orElse("null");</span>
-<span class="source-line-no">431</span><span id="line-431"></span>
-<span class="source-line-no">432</span><span id="line-432">                String maybeAtomic =</span>
-<span class="source-line-no">433</span><span id="line-433">                    (cx instanceof Call.Context.CallContext)</span>
-<span class="source-line-no">434</span><span id="line-434">                    ? String.format("atomic: %s\n",</span>
-<span class="source-line-no">435</span><span id="line-435">                        ((Call.Context.CallContext)cx).atomic())</span>
-<span class="source-line-no">436</span><span id="line-436">                    : "";</span>
-<span class="source-line-no">437</span><span id="line-437"></span>
-<span class="source-line-no">438</span><span id="line-438">                System.out.printf(</span>
-<span class="source-line-no">439</span><span id="line-439">                    "%s Routine.call():\n" +</span>
-<span class="source-line-no">440</span><span id="line-440">                    "collation: %s\n" +</span>
-<span class="source-line-no">441</span><span id="line-441">                    "context: %s\n%s" +</span>
-<span class="source-line-no">442</span><span id="line-442">                    "result:\n%s",</span>
-<span class="source-line-no">443</span><span id="line-443">                    target,</span>
-<span class="source-line-no">444</span><span id="line-444">                    fcinfo.collation(),</span>
-<span class="source-line-no">445</span><span id="line-445">                    subifc, maybeAtomic,</span>
-<span class="source-line-no">446</span><span id="line-446">                    compiled // here we 'execute' the 'compiled' routine :)</span>
-<span class="source-line-no">447</span><span id="line-447">                );</span>
-<span class="source-line-no">448</span><span id="line-448">            };</span>
-<span class="source-line-no">449</span><span id="line-449">        };</span>
-<span class="source-line-no">450</span><span id="line-450">    }</span>
-<span class="source-line-no">451</span><span id="line-451"></span>
-<span class="source-line-no">452</span><span id="line-452">    /**</span>
-<span class="source-line-no">453</span><span id="line-453">     * This method handles 'compiling' Glot64 source code (which is Base64)</span>
-<span class="source-line-no">454</span><span id="line-454">     * into its 'compiled' form, which is ASCII and easier to read than the</span>
-<span class="source-line-no">455</span><span id="line-455">     * source.</span>
-<span class="source-line-no">456</span><span id="line-456">     *&lt;p&gt;</span>
-<span class="source-line-no">457</span><span id="line-457">     * It is factored out here so it can also be conveniently used at validation</span>
-<span class="source-line-no">458</span><span id="line-458">     * time.</span>
-<span class="source-line-no">459</span><span id="line-459">     *&lt;p&gt;</span>
-<span class="source-line-no">460</span><span id="line-460">     * The longwinded style with explicit {@code newEncoder}/{@code newDecoder}</span>
-<span class="source-line-no">461</span><span id="line-461">     * calls is used to get strict checking (instead of lax character</span>
-<span class="source-line-no">462</span><span id="line-462">     * substitution) from the encoder/decoder, to give the most, shall we say,</span>
-<span class="source-line-no">463</span><span id="line-463">     * thorough feedback to the user.</span>
-<span class="source-line-no">464</span><span id="line-464">     */</span>
-<span class="source-line-no">465</span><span id="line-465">    public static String compile(String sourceText) throws SQLException</span>
-<span class="source-line-no">466</span><span id="line-466">    {</span>
-<span class="source-line-no">467</span><span id="line-467">        try</span>
-<span class="source-line-no">468</span><span id="line-468">        {</span>
-<span class="source-line-no">469</span><span id="line-469">            CharBuffer cb = CharBuffer.wrap(sourceText);</span>
-<span class="source-line-no">470</span><span id="line-470">            ByteBuffer bb = US_ASCII.newEncoder().encode(cb);</span>
-<span class="source-line-no">471</span><span id="line-471">            bb = Base64.getDecoder().decode(bb);</span>
-<span class="source-line-no">472</span><span id="line-472">            cb = US_ASCII.newDecoder().decode(bb);</span>
-<span class="source-line-no">473</span><span id="line-473">            return cb.toString();</span>
-<span class="source-line-no">474</span><span id="line-474">        }</span>
-<span class="source-line-no">475</span><span id="line-475">        catch ( CharacterCodingException | IllegalArgumentException e )</span>
-<span class="source-line-no">476</span><span id="line-476">        {</span>
-<span class="source-line-no">477</span><span id="line-477">            throw new SQLSyntaxErrorException(</span>
-<span class="source-line-no">478</span><span id="line-478">                "compiling glot64 code: " + e, "42601", e);</span>
-<span class="source-line-no">479</span><span id="line-479">        }</span>
-<span class="source-line-no">480</span><span id="line-480">    }</span>
-<span class="source-line-no">481</span><span id="line-481">}</span>
+<span class="source-line-no">421</span><span id="line-421">                inDescriptor.stream().map(Attribute::type).collect(toList()),</span>
+<span class="source-line-no">422</span><span id="line-422"></span>
+<span class="source-line-no">423</span><span id="line-423">                flinfo.inputsAreSpread(),</span>
+<span class="source-line-no">424</span><span id="line-424"></span>
+<span class="source-line-no">425</span><span id="line-425">                flinfo.stableInputs(maybeStable),</span>
+<span class="source-line-no">426</span><span id="line-426"></span>
+<span class="source-line-no">427</span><span id="line-427">                /*</span>
+<span class="source-line-no">428</span><span id="line-428">                 * Above, outputsTemplate could return null for two reasons.</span>
+<span class="source-line-no">429</span><span id="line-429">                 * The second reason no longer applies; if the routine is</span>
+<span class="source-line-no">430</span><span id="line-430">                 * declared RECORD and this call site has no column definition</span>
+<span class="source-line-no">431</span><span id="line-431">                 * list, outputsDescriptor throws an exception. But a null</span>
+<span class="source-line-no">432</span><span id="line-432">                 * return is still possible in the VOID case.</span>
+<span class="source-line-no">433</span><span id="line-433">                 *</span>
+<span class="source-line-no">434</span><span id="line-434">                 * Why not an empty descriptor for VOID? An empty descriptor</span>
+<span class="source-line-no">435</span><span id="line-435">                 * really occurs if a function returns t where t is a</span>
+<span class="source-line-no">436</span><span id="line-436">                 * zero-column composite type. Odd thing to do, but allowed.</span>
+<span class="source-line-no">437</span><span id="line-437">                 */</span>
+<span class="source-line-no">438</span><span id="line-438">                ofNullable(flinfo.outputsDescriptor())</span>
+<span class="source-line-no">439</span><span id="line-439">                    .map(d -&gt;</span>
+<span class="source-line-no">440</span><span id="line-440">                        d.stream()</span>
+<span class="source-line-no">441</span><span id="line-441">                        .map(Attribute::type)</span>
+<span class="source-line-no">442</span><span id="line-442">                        .map(Object::toString)</span>
+<span class="source-line-no">443</span><span id="line-443">                        .collect(toList())</span>
+<span class="source-line-no">444</span><span id="line-444">                        .toString())</span>
+<span class="source-line-no">445</span><span id="line-445">                    .orElse("null")</span>
+<span class="source-line-no">446</span><span id="line-446">            );</span>
+<span class="source-line-no">447</span><span id="line-447"></span>
+<span class="source-line-no">448</span><span id="line-448">            /*</span>
+<span class="source-line-no">449</span><span id="line-449">             * This will be the Routine object, cached with the call site.</span>
+<span class="source-line-no">450</span><span id="line-450">             */</span>
+<span class="source-line-no">451</span><span id="line-451">            return fcinfo -&gt;</span>
+<span class="source-line-no">452</span><span id="line-452">            {</span>
+<span class="source-line-no">453</span><span id="line-453">                Call.Context cx = fcinfo.context();</span>
+<span class="source-line-no">454</span><span id="line-454"></span>
+<span class="source-line-no">455</span><span id="line-455">                String subifc = ofNullable(cx)</span>
+<span class="source-line-no">456</span><span id="line-456">                    .map(c -&gt; c.getClass().getInterfaces()[0].getSimpleName())</span>
+<span class="source-line-no">457</span><span id="line-457">                    .orElse("null");</span>
+<span class="source-line-no">458</span><span id="line-458"></span>
+<span class="source-line-no">459</span><span id="line-459">                String maybeAtomic =</span>
+<span class="source-line-no">460</span><span id="line-460">                    (cx instanceof Call.Context.CallContext)</span>
+<span class="source-line-no">461</span><span id="line-461">                    ? String.format("atomic: %s\n",</span>
+<span class="source-line-no">462</span><span id="line-462">                        ((Call.Context.CallContext)cx).atomic())</span>
+<span class="source-line-no">463</span><span id="line-463">                    : "";</span>
+<span class="source-line-no">464</span><span id="line-464"></span>
+<span class="source-line-no">465</span><span id="line-465">                System.out.printf(</span>
+<span class="source-line-no">466</span><span id="line-466">                    "%s Routine.call():\n" +</span>
+<span class="source-line-no">467</span><span id="line-467">                    "collation: %s\n" +</span>
+<span class="source-line-no">468</span><span id="line-468">                    "context: %s\n%s" +</span>
+<span class="source-line-no">469</span><span id="line-469">                    "result:\n%s",</span>
+<span class="source-line-no">470</span><span id="line-470">                    target,</span>
+<span class="source-line-no">471</span><span id="line-471">                    fcinfo.collation(),</span>
+<span class="source-line-no">472</span><span id="line-472">                    subifc, maybeAtomic,</span>
+<span class="source-line-no">473</span><span id="line-473">                    compiled // here we 'execute' the 'compiled' routine :)</span>
+<span class="source-line-no">474</span><span id="line-474">                );</span>
+<span class="source-line-no">475</span><span id="line-475">            };</span>
+<span class="source-line-no">476</span><span id="line-476">        };</span>
+<span class="source-line-no">477</span><span id="line-477">    }</span>
+<span class="source-line-no">478</span><span id="line-478"></span>
+<span class="source-line-no">479</span><span id="line-479">    @Override</span>
+<span class="source-line-no">480</span><span id="line-480">    public void essentialTriggerChecks(</span>
+<span class="source-line-no">481</span><span id="line-481">        RegProcedure&lt;PLJavaBased&gt; subject, boolean checkBody)</span>
+<span class="source-line-no">482</span><span id="line-482">    throws SQLException</span>
+<span class="source-line-no">483</span><span id="line-483">    {</span>
+<span class="source-line-no">484</span><span id="line-484">        System.out.printf("essentialTriggerChecks: ");</span>
+<span class="source-line-no">485</span><span id="line-485">        essentialChecks(subject, checkBody);</span>
+<span class="source-line-no">486</span><span id="line-486">    }</span>
+<span class="source-line-no">487</span><span id="line-487"></span>
+<span class="source-line-no">488</span><span id="line-488">    @Override</span>
+<span class="source-line-no">489</span><span id="line-489">    public void additionalTriggerChecks(</span>
+<span class="source-line-no">490</span><span id="line-490">        RegProcedure&lt;PLJavaBased&gt; subject, boolean checkBody)</span>
+<span class="source-line-no">491</span><span id="line-491">    throws SQLException</span>
+<span class="source-line-no">492</span><span id="line-492">    {</span>
+<span class="source-line-no">493</span><span id="line-493">        System.out.printf("additionalTriggerChecks: ");</span>
+<span class="source-line-no">494</span><span id="line-494">        additionalChecks(subject, checkBody);</span>
+<span class="source-line-no">495</span><span id="line-495">    }</span>
+<span class="source-line-no">496</span><span id="line-496"></span>
+<span class="source-line-no">497</span><span id="line-497">    @Override</span>
+<span class="source-line-no">498</span><span id="line-498">    public TriggerTemplate prepareTrigger(RegProcedure&lt;PLJavaBased&gt; target)</span>
+<span class="source-line-no">499</span><span id="line-499">    throws SQLException</span>
+<span class="source-line-no">500</span><span id="line-500">    {</span>
+<span class="source-line-no">501</span><span id="line-501">        System.out.printf(</span>
+<span class="source-line-no">502</span><span id="line-502">            "%s prepareTrigger():\n",</span>
+<span class="source-line-no">503</span><span id="line-503">            target</span>
+<span class="source-line-no">504</span><span id="line-504">        );</span>
+<span class="source-line-no">505</span><span id="line-505"></span>
+<span class="source-line-no">506</span><span id="line-506">        String compiled = compile(target.src());</span>
+<span class="source-line-no">507</span><span id="line-507"></span>
+<span class="source-line-no">508</span><span id="line-508">        return trigger -&gt;</span>
+<span class="source-line-no">509</span><span id="line-509">        {</span>
+<span class="source-line-no">510</span><span id="line-510">            System.out.printf(</span>
+<span class="source-line-no">511</span><span id="line-511">                "%s TriggerTemplate.specialize():\n" +</span>
+<span class="source-line-no">512</span><span id="line-512">                "name      : %s\n" +</span>
+<span class="source-line-no">513</span><span id="line-513">                "relation  : %s\n" +</span>
+<span class="source-line-no">514</span><span id="line-514">                "function  : %s\n" +</span>
+<span class="source-line-no">515</span><span id="line-515">                "called    : %s\n" +</span>
+<span class="source-line-no">516</span><span id="line-516">                "events    : %s\n" +</span>
+<span class="source-line-no">517</span><span id="line-517">                "scope     : %s\n" +</span>
+<span class="source-line-no">518</span><span id="line-518">                "enabled   : %s\n" +</span>
+<span class="source-line-no">519</span><span id="line-519">                "internal  : %s\n" +</span>
+<span class="source-line-no">520</span><span id="line-520">                "arguments : %s\n" +</span>
+<span class="source-line-no">521</span><span id="line-521">                "columns   : %s\n" +</span>
+<span class="source-line-no">522</span><span id="line-522">                "when      : %s\n" +</span>
+<span class="source-line-no">523</span><span id="line-523">                "tableOld  : %s\n" +</span>
+<span class="source-line-no">524</span><span id="line-524">                "tableNew  : %s\n" +</span>
+<span class="source-line-no">525</span><span id="line-525">                "isClone   : %s\n" +</span>
+<span class="source-line-no">526</span><span id="line-526">                "constraint: %s\n" +</span>
+<span class="source-line-no">527</span><span id="line-527">                "deferrable: %s\n" +</span>
+<span class="source-line-no">528</span><span id="line-528">                "initiallyDeferred: %s\n" +</span>
+<span class="source-line-no">529</span><span id="line-529">                "constraintTable  : %s\n" +</span>
+<span class="source-line-no">530</span><span id="line-530">                "constraintIndex  : %s\n",</span>
+<span class="source-line-no">531</span><span id="line-531">                target,</span>
+<span class="source-line-no">532</span><span id="line-532">                trigger.name(), trigger.relation(), trigger.function(),</span>
+<span class="source-line-no">533</span><span id="line-533">                trigger.called(), trigger.events(), trigger.scope(),</span>
+<span class="source-line-no">534</span><span id="line-534">                trigger.enabled(), trigger.internal(),</span>
+<span class="source-line-no">535</span><span id="line-535">                trigger.arguments(),</span>
+<span class="source-line-no">536</span><span id="line-536">                projectionListNames(trigger.columns()),</span>
+<span class="source-line-no">537</span><span id="line-537">                ofNullable(trigger.when())</span>
+<span class="source-line-no">538</span><span id="line-538">                    .map(xml -&gt;</span>
+<span class="source-line-no">539</span><span id="line-539">                    {</span>
+<span class="source-line-no">540</span><span id="line-540">                        try</span>
+<span class="source-line-no">541</span><span id="line-541">                        {</span>
+<span class="source-line-no">542</span><span id="line-542">                            return xml.getString();</span>
+<span class="source-line-no">543</span><span id="line-543">                        }</span>
+<span class="source-line-no">544</span><span id="line-544">                        catch ( SQLException e )</span>
+<span class="source-line-no">545</span><span id="line-545">                        {</span>
+<span class="source-line-no">546</span><span id="line-546">                            return e.toString();</span>
+<span class="source-line-no">547</span><span id="line-547">                        }</span>
+<span class="source-line-no">548</span><span id="line-548">                    }).orElse("null"),</span>
+<span class="source-line-no">549</span><span id="line-549">                trigger.tableOld(),</span>
+<span class="source-line-no">550</span><span id="line-550">                trigger.tableNew(),</span>
+<span class="source-line-no">551</span><span id="line-551">                trigger.isClone(),</span>
+<span class="source-line-no">552</span><span id="line-552">                trigger.constraint(),</span>
+<span class="source-line-no">553</span><span id="line-553">                trigger.deferrable(), trigger.initiallyDeferred(),</span>
+<span class="source-line-no">554</span><span id="line-554">                trigger.constraintRelation(), trigger.constraintIndex()</span>
+<span class="source-line-no">555</span><span id="line-555">            );</span>
+<span class="source-line-no">556</span><span id="line-556"></span>
+<span class="source-line-no">557</span><span id="line-557">            return triggerData -&gt;</span>
+<span class="source-line-no">558</span><span id="line-558">            {</span>
+<span class="source-line-no">559</span><span id="line-559">                System.out.printf(</span>
+<span class="source-line-no">560</span><span id="line-560">                    "%s TriggerFunction.apply():\n" +</span>
+<span class="source-line-no">561</span><span id="line-561">                    "called       : %s\n" +</span>
+<span class="source-line-no">562</span><span id="line-562">                    "event        : %s\n" +</span>
+<span class="source-line-no">563</span><span id="line-563">                    "scope        : %s\n" +</span>
+<span class="source-line-no">564</span><span id="line-564">                    "relation     : %s\n" +</span>
+<span class="source-line-no">565</span><span id="line-565">                    "trigger      : %s\n" +</span>
+<span class="source-line-no">566</span><span id="line-566">                    "triggerTuple : %s\n" +</span>
+<span class="source-line-no">567</span><span id="line-567">                    "newTuple     : %s\n" +</span>
+<span class="source-line-no">568</span><span id="line-568">                    "updatedCols  : %s\n" +</span>
+<span class="source-line-no">569</span><span id="line-569">                    "result:\n%s",</span>
+<span class="source-line-no">570</span><span id="line-570">                    target,</span>
+<span class="source-line-no">571</span><span id="line-571">                    triggerData.called(), triggerData.event(),</span>
+<span class="source-line-no">572</span><span id="line-572">                    triggerData.scope(), triggerData.relation(),</span>
+<span class="source-line-no">573</span><span id="line-573">                    triggerData.trigger(),</span>
+<span class="source-line-no">574</span><span id="line-574">                    slotListNamesTypes(triggerData.triggerTuple()),</span>
+<span class="source-line-no">575</span><span id="line-575">                    slotListNamesTypes(triggerData.newTuple()),</span>
+<span class="source-line-no">576</span><span id="line-576">                    projectionListNames(triggerData.updatedColumns()),</span>
+<span class="source-line-no">577</span><span id="line-577">                    compiled // here we 'execute' the 'compiled' routine :)</span>
+<span class="source-line-no">578</span><span id="line-578">                );</span>
+<span class="source-line-no">579</span><span id="line-579"></span>
+<span class="source-line-no">580</span><span id="line-580">                return null; // in real life this suppresses triggering event</span>
+<span class="source-line-no">581</span><span id="line-581">            };</span>
+<span class="source-line-no">582</span><span id="line-582">        };</span>
+<span class="source-line-no">583</span><span id="line-583">    }</span>
+<span class="source-line-no">584</span><span id="line-584"></span>
+<span class="source-line-no">585</span><span id="line-585">    /**</span>
+<span class="source-line-no">586</span><span id="line-586">     * This method handles 'compiling' Glot64 source code (which is Base64)</span>
+<span class="source-line-no">587</span><span id="line-587">     * into its 'compiled' form, which is ASCII and easier to read than the</span>
+<span class="source-line-no">588</span><span id="line-588">     * source.</span>
+<span class="source-line-no">589</span><span id="line-589">     *&lt;p&gt;</span>
+<span class="source-line-no">590</span><span id="line-590">     * It is factored out here so it can also be conveniently used at validation</span>
+<span class="source-line-no">591</span><span id="line-591">     * time.</span>
+<span class="source-line-no">592</span><span id="line-592">     *&lt;p&gt;</span>
+<span class="source-line-no">593</span><span id="line-593">     * The longwinded style with explicit {@code newEncoder}/{@code newDecoder}</span>
+<span class="source-line-no">594</span><span id="line-594">     * calls is used to get strict checking (instead of lax character</span>
+<span class="source-line-no">595</span><span id="line-595">     * substitution) from the encoder/decoder, to give the most, shall we say,</span>
+<span class="source-line-no">596</span><span id="line-596">     * thorough feedback to the user.</span>
+<span class="source-line-no">597</span><span id="line-597">     */</span>
+<span class="source-line-no">598</span><span id="line-598">    public static String compile(String sourceText) throws SQLException</span>
+<span class="source-line-no">599</span><span id="line-599">    {</span>
+<span class="source-line-no">600</span><span id="line-600">        try</span>
+<span class="source-line-no">601</span><span id="line-601">        {</span>
+<span class="source-line-no">602</span><span id="line-602">            CharBuffer cb = CharBuffer.wrap(sourceText);</span>
+<span class="source-line-no">603</span><span id="line-603">            ByteBuffer bb = US_ASCII.newEncoder().encode(cb);</span>
+<span class="source-line-no">604</span><span id="line-604">            bb = Base64.getDecoder().decode(bb);</span>
+<span class="source-line-no">605</span><span id="line-605">            cb = US_ASCII.newDecoder().decode(bb);</span>
+<span class="source-line-no">606</span><span id="line-606">            return cb.toString();</span>
+<span class="source-line-no">607</span><span id="line-607">        }</span>
+<span class="source-line-no">608</span><span id="line-608">        catch ( CharacterCodingException | IllegalArgumentException e )</span>
+<span class="source-line-no">609</span><span id="line-609">        {</span>
+<span class="source-line-no">610</span><span id="line-610">            throw new SQLSyntaxErrorException(</span>
+<span class="source-line-no">611</span><span id="line-611">                "compiling glot64 code: " + e, "42601", e);</span>
+<span class="source-line-no">612</span><span id="line-612">        }</span>
+<span class="source-line-no">613</span><span id="line-613">    }</span>
+<span class="source-line-no">614</span><span id="line-614"></span>
+<span class="source-line-no">615</span><span id="line-615">    private static String projectionListNames(Projection td)</span>
+<span class="source-line-no">616</span><span id="line-616">    {</span>
+<span class="source-line-no">617</span><span id="line-617">        return</span>
+<span class="source-line-no">618</span><span id="line-618">            ofNullable(td)</span>
+<span class="source-line-no">619</span><span id="line-619">                .map(d -&gt;</span>
+<span class="source-line-no">620</span><span id="line-620">                    d.stream()</span>
+<span class="source-line-no">621</span><span id="line-621">                    .map(Attribute::name)</span>
+<span class="source-line-no">622</span><span id="line-622">                    .map(Object::toString)</span>
+<span class="source-line-no">623</span><span id="line-623">                    .collect(toList())</span>
+<span class="source-line-no">624</span><span id="line-624">                    .toString())</span>
+<span class="source-line-no">625</span><span id="line-625">                .orElse("null");</span>
+<span class="source-line-no">626</span><span id="line-626">    }</span>
+<span class="source-line-no">627</span><span id="line-627"></span>
+<span class="source-line-no">628</span><span id="line-628">    private static String slotListNamesTypes(TupleTableSlot tts)</span>
+<span class="source-line-no">629</span><span id="line-629">    {</span>
+<span class="source-line-no">630</span><span id="line-630">        return</span>
+<span class="source-line-no">631</span><span id="line-631">            ofNullable(tts)</span>
+<span class="source-line-no">632</span><span id="line-632">                .map(s -&gt;</span>
+<span class="source-line-no">633</span><span id="line-633">                    s.descriptor().stream()</span>
+<span class="source-line-no">634</span><span id="line-634">                    .map(a-&gt;a.name() + ":" + a.type().qualifiedName())</span>
+<span class="source-line-no">635</span><span id="line-635">                    .collect(toList())</span>
+<span class="source-line-no">636</span><span id="line-636">                    .toString())</span>
+<span class="source-line-no">637</span><span id="line-637">                .orElse("null");</span>
+<span class="source-line-no">638</span><span id="line-638">    }</span>
+<span class="source-line-no">639</span><span id="line-639">}</span>
 
 
 
