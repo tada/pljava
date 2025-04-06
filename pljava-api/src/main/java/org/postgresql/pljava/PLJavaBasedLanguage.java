@@ -85,12 +85,12 @@ public interface PLJavaBasedLanguage
 		 * PL/Java-based routine.
 		 *<p>
 		 * This method should check (when <var>checkBody</var> is true) all the
-		 * essential conditions that {@link #prepare prepare} will assume have
+		 * essential conditions that {@link #prepare prepare} may assume have
 		 * been checked. Because there is no guarantee that validation at
-		 * routine-creation time always occurred, PL/Java's dispatcher will call
-		 * this method not only at validation time, but also just before
-		 * {@code prepare} is first called at run time (always passing true for
-		 * <var>checkBody</var> in that case).
+		 * routine-creation time always occurred, PL/Java's dispatcher will not
+		 * only call this method at validation time, but also will never call
+		 * {@code prepare} without making sure this method (passing true for
+		 * <var>checkBody</var>) has been called first.
 		 *<p>
 		 * This method should throw an informative exception for any check that
 		 * fails, otherwise returning normally. Unless there is a more-specific
@@ -113,7 +113,7 @@ public interface PLJavaBasedLanguage
 		 *<p>
 		 * This method is invoked with <var>checkBody</var> false only if the
 		 * JVM has been started and PL/Java has already loaded and instantiated
-		 * the implementing class, or succeeds in doing so. If not, and
+		 * this language-handler class, or succeeds in doing so. If not, and
 		 * <var>checkBody</var> is false, PL/Java simply treats the validation
 		 * as successful.
 		 *<p>
@@ -163,6 +163,10 @@ public interface PLJavaBasedLanguage
 
 		/**
 		 * Prepares a template for a call of the routine <var>target</var>.
+		 *<p>
+		 * This method is never called without
+		 * {@link #essentialChecks essentialChecks} having been called
+		 * immediately prior and completing normally.
 		 *<p>
 		 * The information available at this stage comes from the system
 		 * catalogs, reflecting the static declaration of the target routine.
@@ -250,6 +254,10 @@ public interface PLJavaBasedLanguage
 		/**
 		 * Prepares a template for a call of the trigger function
 		 * <var>target</var>.
+		 *<p>
+		 * This method is never called without
+		 * {@link #essentialTriggerChecks essentialTriggerChecks} having
+		 * been called immediately prior and completing normally.
 		 *<p>
 		 * See {@link Routines#prepare Routines.prepare} for background on
 		 * what to do here.
