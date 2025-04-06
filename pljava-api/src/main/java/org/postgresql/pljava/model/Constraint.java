@@ -23,7 +23,7 @@ import java.sql.SQLXML;
 import java.util.List;
 
 /**
- * Model of the PostgreSQL {@code pg_constraing} system catalog.
+ * Model of the PostgreSQL {@code pg_constraint} system catalog.
  */
 public interface Constraint
 extends Addressed<Constraint>, Namespaced<Simple>
@@ -73,6 +73,12 @@ extends Addressed<Constraint>, Namespaced<Simple>
 	List<RegOperator> pfEqOp();
 	List<RegOperator> ppEqOp();
 	List<RegOperator> ffEqOp();
+	/**
+	 * Which columns are to be set null in a referential action; all referencing
+	 * columns if this value is null.
+	 *<p>
+	 * Returns null always on PostgreSQL versions earlier than 15.
+	 */
 	Projection fdelSetColumns();
 	List<RegOperator> exclOp();
 	SQLXML bin();

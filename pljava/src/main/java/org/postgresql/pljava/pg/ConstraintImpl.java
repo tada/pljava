@@ -204,7 +204,7 @@ implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 
 		static
 		{
-			Iterator<Attribute> itr = CLASSID.tupleDescriptor().project(
+			AttNames itr = attNames(
 				"conname",
 				"connamespace",
 				"contype",
@@ -227,10 +227,11 @@ implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 				"conpfeqop",
 				"conppeqop",
 				"conffeqop",
-				"confdelsetcols",
 				"conexclop",
 				"conbin"
-			).iterator();
+			).alsoIf(PG_VERSION_NUM >= 150000,
+				"confdelsetcols"
+			).project(CLASSID.tupleDescriptor());
 
 			CONNAME        = itr.next();
 			CONNAMESPACE   = itr.next();
@@ -254,9 +255,9 @@ implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 			CONPFEQOP      = itr.next();
 			CONPPEQOP      = itr.next();
 			CONFFEQOP      = itr.next();
-			CONFDELSETCOLS = itr.next();
 			CONEXCLOP      = itr.next();
 			CONBIN         = itr.next();
+			CONFDELSETCOLS = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
 		}
@@ -702,6 +703,8 @@ implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 		/*
 		 * See key() above for notes.
 		 */
+		if ( null == Att.CONFDELSETCOLS ) // missing in this PG version
+			return null;
 		TupleTableSlot s = cacheTuple();
 		short[] indices = s.get(Att.CONFDELSETCOLS, I2ARRAY_INSTANCE);
 		if ( null == indices )
