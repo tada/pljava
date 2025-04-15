@@ -455,10 +455,6 @@ implements
 	 * Indicates whether this instance represents the (or possibly a)
 	 * "PL/Java handler" language, and can serve as the language for the
 	 * validator function of a PL/Java-based language.
-	 * @param dependentRoutine a {@code RegProcedure} that has named this
-	 * instance as its {@code language} and is the occasion for this query.
-	 * It will be remembered in {@code m_dependentRoutines} in the affirmative
-	 * case.
 	 *<p>
 	 * A <em>"PL/Java handler" language</em> is one that:
 	 *<ul>
@@ -497,39 +493,33 @@ implements
 		if ( null != m_dependents )
 			return false;
 
-		do // while ( false ): break to mark notPLJavaBased and return false
-		{
-			if ( INTERNAL == this  ||  C == this  ||  SQL == this )
-				break;
+		if ( INTERNAL == this  ||  C == this  ||  SQL == this )
+			return false;
 
-			RegProcedure<Handler> hp = handler();
-			RegProcedure<InlineHandler> ip = inlineHandler();
-			RegProcedure<Validator> vp = validator();
+		RegProcedure<Handler> hp = handler();
+		RegProcedure<InlineHandler> ip = inlineHandler();
+		RegProcedure<Validator> vp = validator();
 
-			if ( ! vp.exists()  ||  ! hp.exists()  ||  ip.isValid() )
-				break;
+		if ( ip.isValid()  ||  ! hp.exists()  ||  ! vp.exists() )
+			return false;
 
-			String hbin = binFromCWithSrc(hp, "pljavaDispatchValidator");
-			String vbin = binFromCWithSrc(vp, "pljavaDispatchValidator");
+		String hbin = binFromCWithSrc(hp, "pljavaDispatchValidator");
+		String vbin = binFromCWithSrc(vp, "pljavaDispatchValidator");
 
-			if ( ! Objects.equals(hbin, vbin)  ||  null == hbin )
-				break;
+		if ( ! Objects.equals(hbin, vbin)  ||  null == hbin )
+			return false;
 
-			if ( null != expectedBinOrNull && ! expectedBinOrNull.equals(hbin) )
-				break;
+		if ( null != expectedBinOrNull && ! expectedBinOrNull.equals(hbin) )
+			return false;
 
-			s_plJavaHandlers.add(this);
+		s_plJavaHandlers.add(this);
 
-			m_dependents = new LanguageSet();
+		m_dependents = new LanguageSet();
 
-			RegProcedureImpl<Validator> vpi = (RegProcedureImpl<Validator>)vp;
-			new ValidatorMemo(vpi, this).apply();
+		RegProcedureImpl<Validator> vpi = (RegProcedureImpl<Validator>)vp;
+		new ValidatorMemo(vpi, this).apply();
 
-			return true;
-		}
-		while ( false );
-
-		return false;
+		return true;
 	}
 
 	/**
@@ -698,7 +688,7 @@ implements
 		 */
 		void discardIncomplete()
 		{
-			assert null == m_routineTemplate; // discarding because null
+			assert null == m_routineTemplate : "discard memo Template non-null";
 			List<SwitchPoint> sps = new ArrayList<>();
 			List<Runnable> postOps = new ArrayList<>();
 			invalidate(sps, postOps);

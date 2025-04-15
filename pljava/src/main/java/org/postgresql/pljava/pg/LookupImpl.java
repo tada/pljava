@@ -661,13 +661,8 @@ class LookupImpl implements RegProcedure.Lookup
 				pl.memoizeImplementingClass(s_placeholderInstance, null);
 				/* FALLTHROUGH */
 			case 2:
-				/*
-				 * Passing nulls here is arguably a case of knowing too much
-				 * about how PLJavaMemo.invalidate happens to work, and will
-				 * need fixing if that method ever is changed to make use of
-				 * the arguments.
-				 */
-				((PLJavaMemo)memo).invalidate(null, null);
+				memo.m_routineTemplate = null;
+				((PLJavaMemo)memo).discardIncomplete();
 				/* FALLTHROUGH */
 			case 1:
 				m_routine = null;
@@ -686,17 +681,24 @@ class LookupImpl implements RegProcedure.Lookup
 		return fcinfo ->
 		{
 			LookupImpl flinfo = (LookupImpl)fcinfo.lookup();
+			Routine outer_r = null;
 
-			Routine r = requireNonNull(template.specialize(flinfo));
-
-			doInPG(() ->
+			try
 			{
-				assert s_placeholderRoutine == flinfo.m_routine
-					: "routine updated by reentrant call?";
-				flinfo.m_routine = r;
-			});
+				outer_r = requireNonNull(template.specialize(flinfo));
+			}
+			finally
+			{
+				Routine r = outer_r;
+				doInPG(() ->
+				{
+					assert s_placeholderRoutine == flinfo.m_routine
+						: "routine updated by reentrant call?";
+					flinfo.m_routine = r;
+				});
+			}
 
-			r.call(fcinfo);
+			outer_r.call(fcinfo);
 		};
 	}
 
@@ -712,18 +714,27 @@ class LookupImpl implements RegProcedure.Lookup
 	{
 		return fcinfo ->
 		{
-			validate(impl, target, true/*checkBody*/, false/*additional*/);
+			Template outer_template = null;
 
-			Template template = prepare(impl, target);
-
-			doInPG(() ->
+			try
 			{
-				assert s_placeholderTemplate == memo.m_routineTemplate
-					: "template updated by reentrant call?";
-				memo.m_routineTemplate = template;
-			});
+				validate(impl, target, true/*checkBody*/, false/*additional*/);
+				outer_template = prepare(impl, target);
+			}
+			finally
+			{
+				Template template = outer_template;
+				doInPG(() ->
+				{
+					assert s_placeholderTemplate == memo.m_routineTemplate
+						: "template updated by reentrant call?";
+					memo.m_routineTemplate = template;
+					if ( null == template )
+						memo.discardIncomplete();
+				});
+			}
 
-			specializingRoutine(template).call(fcinfo);
+			specializingRoutine(outer_template).call(fcinfo);
 		};
 	}
 
@@ -909,7 +920,8 @@ class LookupImpl implements RegProcedure.Lookup
 							/*
 							 * See note above where this is also done:
 							 */
-							pl.addDependentRoutine(subject);
+							if ( null != f_impl )
+								pl.addDependentRoutine(subject);
 						});
 					}
 
