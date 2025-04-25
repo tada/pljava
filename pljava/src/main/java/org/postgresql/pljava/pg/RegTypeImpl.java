@@ -13,7 +13,6 @@ package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import java.nio.ByteBuffer;
 import static java.nio.ByteOrder.nativeOrder;
@@ -32,6 +31,7 @@ import org.postgresql.pljava.TargetList.Projection;
 
 import static org.postgresql.pljava.internal.SwitchPointCache.doNotCache;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 
 import org.postgresql.pljava.model.*;
 
@@ -242,7 +242,7 @@ implements
 			{
 				RegClassImpl c = (RegClassImpl)o.relation();
 				if ( c.isValid() )
-					return c.m_cacheSwitchPoint;
+					return c.cacheSwitchPoint();
 				return o.cacheSwitchPoint();
 			})
 			.withDependent(
@@ -1180,7 +1180,10 @@ implements
 		@Override
 		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
 		{
-			sps.add(m_sp[0]);
+			SwitchPoint sp = m_sp[0];
+			if ( sp.unused() )
+				return;
+			sps.add(sp);
 			m_sp[0] = new SwitchPoint();
 		}
 

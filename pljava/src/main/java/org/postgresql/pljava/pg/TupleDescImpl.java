@@ -20,6 +20,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.DualState;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.pg.TargetListImpl;
@@ -32,7 +33,7 @@ import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.constant;
 import static java.lang.invoke.MethodHandles.lookup;
 import static java.lang.invoke.MethodType.methodType;
-import java.lang.invoke.SwitchPoint;
+
 import static java.lang.Math.ceil;
 
 import java.nio.ByteBuffer;
@@ -545,7 +546,7 @@ implements TupleDescriptor
 			 * true is passed for useState.
 			 */
 			super(
-				td, c.m_cacheSwitchPoint, true,
+				td, c.cacheSwitchPoint(), true,
 				(o, i) -> CatalogObjectImpl.Factory.formAttribute(
 					c.oid(), i, () -> new AttributeImpl.Cataloged(c))
 			);

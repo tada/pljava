@@ -22,6 +22,7 @@ import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.DualState; // for javadoc
 import org.postgresql.pljava.internal.Invocation;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.SwitchPointCache.setConstant;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
@@ -54,7 +55,6 @@ import java.lang.annotation.Native;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import static java.lang.ref.Reference.reachabilityFence;
 

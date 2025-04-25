@@ -13,7 +13,6 @@ package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 import java.sql.SQLXML;
@@ -28,6 +27,7 @@ import org.postgresql.pljava.TargetList.Projection;
 import org.postgresql.pljava.adt.Array.AsFlatList;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.model.*;
@@ -54,7 +54,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 class ConstraintImpl extends Addressed<Constraint>
 implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 {
-	private static UnaryOperator<MethodHandle[]> s_initializer;
+	private static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 

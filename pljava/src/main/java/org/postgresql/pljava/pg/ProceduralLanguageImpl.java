@@ -13,7 +13,6 @@ package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
@@ -45,6 +44,7 @@ import org.postgresql.pljava.annotation.Function.Trust;
 
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
@@ -65,7 +65,7 @@ implements
 	Nonshared<ProceduralLanguage>, Named<Simple>, Owned,
 	AccessControlled<CatalogObject.USAGE>, ProceduralLanguage
 {
-	private static UnaryOperator<MethodHandle[]> s_initializer;
+	private static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	private final SwitchPoint[] m_sp;
 
@@ -121,7 +121,7 @@ implements
 	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
 	{
 		SwitchPoint oldSP = m_sp[0];
-		if ( null == oldSP )
+		if ( null == oldSP  ||  oldSP.unused() )
 			return; // reentrant call
 
 		try

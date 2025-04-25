@@ -13,7 +13,6 @@ package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import java.nio.ByteBuffer;
 
@@ -27,6 +26,7 @@ import java.util.function.UnaryOperator;
 
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.SwitchPointCache.setConstant;
 
 import org.postgresql.pljava.model.*;
@@ -62,7 +62,7 @@ implements
 
 	abstract SwitchPoint cacheSwitchPoint();
 
-	private static UnaryOperator<MethodHandle[]> s_initializer;
+	private static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	/* Implementation of CatalogObject */
 
@@ -723,7 +723,7 @@ implements
 		@Override
 		SwitchPoint cacheSwitchPoint()
 		{
-			return m_relation.m_cacheSwitchPoint;
+			return m_relation.cacheSwitchPoint();
 		}
 
 		@Override

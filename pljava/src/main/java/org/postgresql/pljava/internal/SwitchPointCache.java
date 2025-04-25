@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -24,7 +24,6 @@ import static java.lang.invoke.MethodHandles.lookup;
 import static java.lang.invoke.MethodHandles.permuteArguments;
 import java.lang.invoke.MethodType;
 import static java.lang.invoke.MethodType.methodType;
-import java.lang.invoke.SwitchPoint;
 import java.lang.invoke.VarHandle;
 import static java.lang.invoke.VarHandle.AccessMode.GET;
 import static java.lang.invoke.VarHandle.AccessMode.SET;
@@ -70,6 +69,65 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  */
 public class SwitchPointCache
 {
+	/**
+	 * A subclass of Java's {@link java.lang.invoke.SwitchPoint SwitchPoint}
+	 * that tracks whether it has been used yet
+	 * ({@link #guardWithTest guardWithTest} has been called).
+	 *<p>
+	 * The unused flag is accessed with no special concurrency measures: it is
+	 * expected that all calls of {@code guardWithTest} and all calls of
+	 * {@link #unused unused()} will be made "on the PG thread".
+	 *<p>
+	 * A subclass may override {@link #onFirstUse() onFirstUse()} to have
+	 * something happen (on the PG thread) the first time {@code guardWithTest}
+	 * is called.
+	 */
+	public static class SwitchPoint extends java.lang.invoke.SwitchPoint
+	{
+		private boolean unused = true;
+
+		/**
+		 * Returns a method handle which always delegates either to the target
+		 * or the fallback.
+		 *<p>
+		 * This method clears the {@link #unused() unused} flag and
+		 * calls the {@link #onFirstUse() onFirstUse} method the first time
+		 * it is called after construction of this {@code SwitchPoint}.
+		 *<p>
+		 * This implementation is only to be called on the PG thread.
+		 */
+		@Override
+		public MethodHandle guardWithTest(MethodHandle tgt, MethodHandle fbk)
+		{
+			if ( unused )
+			{
+				unused = false;
+				onFirstUse();
+			}
+			return super.guardWithTest(tgt, fbk);
+		}
+
+		/**
+		 * Returns (reliably if all calls of this method and of
+		 * {@link #guardWithTest guardWithTest} are made "on the PG thread")
+		 * whether this {@code SwitchPoint} remains unused (no call of
+		 * {@code guardWithTest} has been made since its allocation).
+		 */
+		public boolean unused()
+		{
+			return unused;
+		}
+
+		/**
+		 * May be overridden to take some action ("on the PG thread") on
+		 * the first call of {@link #guardWithTest guardWithTest} since
+		 * allocation of this {@code SwitchPoint}.
+		 */
+		protected void onFirstUse()
+		{
+		}
+	}
+
 	private SwitchPointCache() // not to be instantiated
 	{
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,7 +13,6 @@ package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import java.sql.SQLException;
 
@@ -22,6 +21,7 @@ import java.util.Iterator;
 import java.util.function.UnaryOperator;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 
 import org.postgresql.pljava.model.*;
 
@@ -38,7 +38,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 class RegDictionaryImpl extends Addressed<RegDictionary>
 implements Nonshared<RegDictionary>, Namespaced<Simple>, Owned, RegDictionary
 {
-	private static UnaryOperator<MethodHandle[]> s_initializer;
+	private static final UnaryOperator<MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 

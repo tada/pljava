@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,7 +13,6 @@ package org.postgresql.pljava.pg;
 
 import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
-import java.lang.invoke.SwitchPoint;
 
 import java.nio.ByteBuffer;
 import static java.nio.ByteOrder.nativeOrder;
@@ -26,6 +25,7 @@ import java.util.List;
 import java.util.function.UnaryOperator;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 
 import org.postgresql.pljava.model.*;
 
@@ -66,13 +66,18 @@ implements
 	{
 	}
 
+	private static final UnaryOperator<MethodHandle[]> s_initializer;
+
 	/**
 	 * Per-instance switch point, to be invalidated selectively
 	 * by a relcache callback.
 	 */
-	SwitchPoint m_cacheSwitchPoint;
+	private final SwitchPoint[] m_cacheSwitchPoint;
 
-	private static UnaryOperator<MethodHandle[]> s_initializer;
+	final SwitchPoint cacheSwitchPoint()
+	{
+		return m_cacheSwitchPoint[0];
+	}
 
 	/* Implementation of Addressed */
 
@@ -121,7 +126,7 @@ implements
 	RegClassImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
-		m_cacheSwitchPoint = new SwitchPoint();
+		m_cacheSwitchPoint = new SwitchPoint[] { new SwitchPoint() };
 	}
 
 	/**
@@ -135,15 +140,18 @@ implements
 	 */
 	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
 	{
+		SwitchPoint sp = m_cacheSwitchPoint[0];
+		if ( sp.unused() )
+			return;
 		TupleDescriptor.Interned[] oldTDH = m_tupDescHolder;
-		sps.add(m_cacheSwitchPoint);
+		sps.add(sp);
 
 		/*
 		 * Before invalidating the SwitchPoint, line up a new one (and a newly
 		 * nulled tupDescHolder) for value-computing methods to find once the
 		 * old SwitchPoint is invalidated.
 		 */
-		m_cacheSwitchPoint = new SwitchPoint();
+		m_cacheSwitchPoint[0] = new SwitchPoint();
 		m_tupDescHolder = null;
 
 		/*
@@ -233,7 +241,7 @@ implements
 		s_initializer =
 			new Builder<>(RegClassImpl.class)
 			.withLookup(lookup())
-			.withSwitchPoint(o -> o.m_cacheSwitchPoint)
+			.withSwitchPoint(o -> o.m_cacheSwitchPoint[0])
 			.withSlots(o -> o.m_slots)
 
 			.withCandidates(
