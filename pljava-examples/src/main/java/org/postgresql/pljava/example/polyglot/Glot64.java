@@ -33,6 +33,7 @@ import org.postgresql.pljava.PLJavaBasedLanguage.Template;
 import org.postgresql.pljava.PLJavaBasedLanguage.Triggers;
 import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;
 import org.postgresql.pljava.PLJavaBasedLanguage.TriggerTemplate;
+import org.postgresql.pljava.PLJavaBasedLanguage.UsingTransforms;
 
 import org.postgresql.pljava.TargetList.Projection;
 
@@ -44,6 +45,9 @@ import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 import org.postgresql.pljava.model.RegProcedure;
 import org.postgresql.pljava.model.RegProcedure.Call;
 import org.postgresql.pljava.model.RegProcedure.Lookup;
+import org.postgresql.pljava.model.Transform;
+import org.postgresql.pljava.model.Transform.FromSQL;
+import org.postgresql.pljava.model.Transform.ToSQL;
 import org.postgresql.pljava.model.Trigger;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
@@ -147,8 +151,44 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "UPDATE javatest.username_test SET name = 'Glot, Wilhelm'" +
 " WHERE username = '64'",
 
-"DELETE FROM javatest.username_test WHERE username = '64'"
+"DELETE FROM javatest.username_test WHERE username = '64'",
+
+"CREATE FUNCTION javatest.fromline(internal) RETURNS internal" +
+" IMMUTABLE LANGUAGE glot64 AS 'ZnJvbVNRTA=='",
+
+"CREATE FUNCTION javatest.toline(internal) RETURNS line" +
+" IMMUTABLE LANGUAGE glot64 AS 'dG9TUUw='",
+
+"CREATE FUNCTION javatest.frombox(internal) RETURNS internal" +
+" IMMUTABLE LANGUAGE glot64 AS 'ZnJvbVNRTA=='",
+
+"CREATE FUNCTION javatest.tolseg(internal) RETURNS lseg" +
+" IMMUTABLE LANGUAGE glot64 AS 'dG9TUUw='",
+
+"CREATE TRANSFORM FOR line LANGUAGE glot64 (" +
+" FROM SQL WITH FUNCTION javatest.fromline," +
+"   TO SQL WITH FUNCTION javatest.toline )",
+
+"CREATE TRANSFORM FOR box LANGUAGE glot64 (" +
+" FROM SQL WITH FUNCTION javatest.frombox )",
+
+"CREATE TRANSFORM FOR lseg LANGUAGE glot64 (" +
+"   TO SQL WITH FUNCTION javatest.tolseg )",
+
+"CREATE FUNCTION javatest.usingtransforms() RETURNS void" +
+" TRANSFORM FOR TYPE line, FOR TYPE box, FOR TYPE lseg" +
+" LANGUAGE glot64 AS 'SSBjb3VsZCB1c2UgdHJhbnNmb3JtcyEK'",
+
+"SELECT javatest.usingtransforms()"
 }, remove = {
+"DROP FUNCTION javatest.usingtransforms()",
+"DROP TRANSFORM FOR lseg LANGUAGE glot64",
+"DROP TRANSFORM FOR box LANGUAGE glot64",
+"DROP TRANSFORM FOR line LANGUAGE glot64",
+"DROP FUNCTION javatest.tolseg(internal)",
+"DROP FUNCTION javatest.frombox(internal)",
+"DROP FUNCTION javatest.toline(internal)",
+"DROP FUNCTION javatest.fromline(internal)",
 "DROP TRIGGER g64_ar_iu ON javatest.username_test",
 "DROP TRIGGER g64_as_d ON javatest.username_test",
 "DROP FUNCTION javatest.glot64_trigger()",
@@ -161,7 +201,7 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "DROP LANGUAGE glot64",
 "DROP FUNCTION javatest.glot64_validator(oid)"
 })
-public class Glot64 implements InlineBlocks, Routines, Triggers
+public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 {
 	private final ProceduralLanguage pl;
 
@@ -344,7 +384,8 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 			"inputsTemplate   : %s\n" +
 			"unresolvedInputs : %s\n" +
 			"outputsTemplate  : %s\n" +
-			"unresolvedOutputs: %s\n",
+			"unresolvedOutputs: %s\n" +
+			"transforms       : %s\n",
 
 			target,
 
@@ -376,7 +417,8 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 			 * resolved, just as an empty BitSet would mean any other time. That
 			 * makes it simple to test for canSkipResolution, as shown below.)
 			 */
-			Objects.toString(unresolvedOut)
+			Objects.toString(unresolvedOut),
+			Objects.toString(memo.transforms())
 		);
 
 		boolean canSkipResolution =
@@ -598,6 +640,58 @@ public class Glot64 implements InlineBlocks, Routines, Triggers
 				return null; // in real life this suppresses triggering event
 			};
 		};
+	}
+
+	/**
+	 * Checks that <var>t</var> is a transform usable with this language.
+	 *<p>
+	 * The toy requirements imposed here are that a {@code fromSQL} function
+	 * must be implemented in this language and have a {@code src} string that
+	 * compiles to {@code "fromSQL"}, and likewise a {@code toSQL} function must
+	 * be implemented in this language and compile to {@code "toSQL"}.
+	 */
+	@Override
+	public void essentialTransformChecks(Transform t) throws SQLException
+	{
+		System.out.printf("%s essentialTransformChecks: ", t);
+
+		RegProcedure<FromSQL> fs = t.fromSQL();
+		RegProcedure<ToSQL> ts = t.toSQL();
+
+		if ( ! fs.isValid() )
+		{
+			/*
+			 * This transform specifies to use the PL's default from-SQL
+			 * conversion for this type. An exception should be thrown here
+			 * if there is no such usable default.
+			 */
+			System.out.printf(String.format(
+				"will use PL's default from-SQL treatment for %s\n", t.type()));
+		}
+		else if ( fs.language() != pl || ! "fromSQL".equals(compile(fs.src())) )
+			throw new SQLSyntaxErrorException(String.format(
+				"%s for use as a fromSQL function for %s must be implemented " +
+				"in %s and compile to string \"fromSQL\"", fs, pl, pl),
+				"42P17");
+
+		if ( ! ts.isValid() )
+		{
+			/*
+			 * This transform specifies to use the PL's default to-SQL
+			 * conversion for this type. An exception should be thrown here
+			 * if there is no such usable default.
+			 */
+			System.out.printf(String.format(
+				"will use PL's default to-SQL treatment for %s\n", t.type()));
+		}
+		else if ( ts.language() != pl  ||  ! "toSQL".equals(compile(ts.src())) )
+			throw new SQLSyntaxErrorException(String.format(
+				"%s for use as a toSQL function for %s must be implemented " +
+				"in %s and compile to string \"toSQL\"", ts, pl, pl),
+				"42P17");
+
+		System.out.printf("ok\n");
+		return;
 	}
 
 	/**
