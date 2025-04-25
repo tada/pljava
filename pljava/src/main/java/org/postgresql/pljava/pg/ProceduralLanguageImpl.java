@@ -32,7 +32,6 @@ import java.util.Set;
 
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -62,7 +61,9 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.LANGOID; // syscache
 import org.postgresql.pljava.pg.RegProcedureImpl.AbstractMemo.How;
-import org.postgresql.pljava.pg.RegProcedureImpl.AbstractMemo.Why;
+import org.postgresql.pljava.pg.RegProcedureImpl.SupportMemo;
+import org.postgresql.pljava.pg.TransformImpl.FromSQLMemo;
+import org.postgresql.pljava.pg.TransformImpl.ToSQLMemo;
 
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import static org.postgresql.pljava.pg.adt.NameAdapter.SIMPLE_INSTANCE;
@@ -179,13 +180,13 @@ implements
 				 * anymore, so I should be removed from the dependent-languages
 				 * set in its memo.
 				 */
-				ValidatorMemo.removeDependentLanguage(vp, this);
+				ValidatorMemo.removeDependent(vp, this);
 
 				/*
 				 * Likewise for handler and inline-handler dependencies.
 				 */
-				HandlerMemo.removeDependentLanguage(handler(), this);
-				InlineHandlerMemo.removeDependentLanguage(inlineHandler(),this);
+				HandlerMemo.removeDependent(handler(), this);
+				InlineHandlerMemo.removeDependent(inlineHandler(), this);
 
 				/*
 				 * Routines for which I am the language of implementation
@@ -204,8 +205,8 @@ implements
 				 */
 				s_plJavaHandlers.remove(this);
 
-				ValidatorMemo.removeDependentLanguage(validator(), this);
-				HandlerMemo.removeDependentLanguage(handler(), this);
+				ValidatorMemo.removeDependent(validator(), this);
+				HandlerMemo.removeDependent(handler(), this);
 				/* a pljavahandler language has no inline handler */
 
 				((LanguageSet)deps).forEach(l ->
@@ -380,6 +381,17 @@ implements
 		return ((RoutineSet)m_dependents).m_implementingClass;
 	}
 
+	void removeKnownTransform(Transform tr)
+	{
+		assert threadMayEnterPG() : "removeKnownTransform thread";
+		if ( ! (m_dependents instanceof RoutineSet) )
+			return;
+		Map<RegType,Transform> map =
+			((RoutineSet)m_dependents).m_typeTransforms;
+		if ( null != map )
+			map.values().remove(tr); // avoid assuming type() was cached
+	}
+
 	/**
 	 * Indicates whether this instance represents a PL/Java-based language.
 	 *<p>
@@ -478,9 +490,9 @@ implements
 
 			m_dependents = new RoutineSet(); // found to be null above
 
-			HandlerMemo.addDependentLanguage(hp, this);
-			InlineHandlerMemo.addDependentLanguage(ip, this);
-			ValidatorMemo.addDependentLanguage(vp, this);
+			HandlerMemo.addDependent(hp, this);
+			InlineHandlerMemo.addDependent(ip, this);
+			ValidatorMemo.addDependent(vp, this);
 
 			return true;
 		}
@@ -555,8 +567,8 @@ implements
 
 		m_dependents = new LanguageSet();
 
-		HandlerMemo.addDependentLanguage(hp, this);
-		ValidatorMemo.addDependentLanguage(vp, this);
+		HandlerMemo.addDependent(hp, this);
+		ValidatorMemo.addDependent(vp, this);
 
 		return true;
 	}
@@ -631,6 +643,8 @@ implements
 		if ( ts.length == nKnown )
 		{
 			List<Transform> result = List.of(ts);
+			TransformImpl.addDependentRoutine(p, result);
+			p.m_dependsOnTransforms = true; // here is the only place that's set
 			return () -> result;
 		}
 
@@ -649,7 +663,12 @@ implements
 			return doInPG(() ->
 			{
 				for ( Transform tr : toCheck )
+				{
+					tr.language(); // make sure it's cached for invalidation use
 					final_map.put(tr.type(), tr);
+					FromSQLMemo.addDependent(tr.fromSQL(), tr);
+					ToSQLMemo.addDependent(tr.toSQL(), tr);
+				}
 				return p.transforms();
 			});
 		};
@@ -755,52 +774,8 @@ implements
 		}
 	}
 
-	static abstract class SupportMemo<M extends Memo.Why<M>> extends Why<M>
-	{
-		final Set<ProceduralLanguageImpl> m_dependentLanguages;
-
-		SupportMemo(
-			RegProcedure<? super M> carrier, ProceduralLanguageImpl lang)
-		{
-			super(carrier);
-			m_dependentLanguages = new CopyOnWriteArraySet<>(Set.of(lang));
-		}
-
-		@Override
-		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
-		{
-			super.invalidate(sps, postOps);
-			m_dependentLanguages.forEach(dl -> dl.invalidate(sps, postOps));
-		}
-
-		static <M extends Memo.Why<M>> void removeDependentLanguage(
-			RegProcedure<M> proc, ProceduralLanguageImpl lang)
-		{
-			M memo = proc.memo();
-			if ( memo instanceof SupportMemo<?> )
-				((SupportMemo<?>)memo).m_dependentLanguages.remove(lang);
-		}
-
-		static <
-			O extends Memo.Why<O>,
-			M extends Memo.Why<M>,
-			T extends SupportMemo<M>
-		> void add(
-			RegProcedure<O> proc, ProceduralLanguageImpl lang,
-			Class<T> witness, Supplier<T> supplier)
-		{
-			if ( ! proc.isValid() )
-				return;
-			O memo = proc.memo();
-			if ( witness.isInstance(memo) )
-				witness.cast(memo).m_dependentLanguages.add(lang);
-			else
-				supplier.get().apply();
-		}
-	}
-
 	static class HandlerMemo
-	extends SupportMemo<Handler> implements Handler
+	extends SupportMemo<Handler,ProceduralLanguageImpl> implements Handler
 	{
 		private HandlerMemo(
 			RegProcedure<? super Handler> carrier, ProceduralLanguageImpl lang)
@@ -808,7 +783,7 @@ implements
 			super(carrier, lang);
 		}
 
-		static void addDependentLanguage(
+		static void addDependent(
 			RegProcedure<? super Handler> proc,
 			ProceduralLanguageImpl lang)
 		{
@@ -818,7 +793,8 @@ implements
 	}
 
 	static class InlineHandlerMemo
-	extends SupportMemo<InlineHandler> implements InlineHandler
+	extends SupportMemo<InlineHandler,ProceduralLanguageImpl>
+	implements InlineHandler
 	{
 		private InlineHandlerMemo(
 			RegProcedure<? super InlineHandler> carrier,
@@ -827,7 +803,7 @@ implements
 			super(carrier, lang);
 		}
 
-		static void addDependentLanguage(
+		static void addDependent(
 			RegProcedure<? super InlineHandler> proc,
 			ProceduralLanguageImpl lang)
 		{
@@ -837,7 +813,7 @@ implements
 	}
 
 	static class ValidatorMemo
-	extends SupportMemo<Validator> implements Validator
+	extends SupportMemo<Validator,ProceduralLanguageImpl> implements Validator
 	{
 		private ValidatorMemo(
 			RegProcedure<? super Validator> carrier,
@@ -846,7 +822,7 @@ implements
 			super(carrier, lang);
 		}
 
-		static void addDependentLanguage(
+		static void addDependent(
 			RegProcedure<? super Validator> proc,
 			ProceduralLanguageImpl lang)
 		{

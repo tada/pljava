@@ -21,8 +21,12 @@ import java.util.BitSet;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import java.util.function.UnaryOperator;
+import java.util.function.Supplier;
 
 import java.util.stream.IntStream;
 
@@ -139,12 +143,16 @@ implements
 
 		M why = m_why;
 		PLJavaMemo how = m_how;
+		boolean dependsOnTransforms = m_dependsOnTransforms;
 		m_why = null;
 		m_how = null;
+		m_dependsOnTransforms = false;
 		if ( why instanceof AbstractMemo )
 			((AbstractMemo)why).invalidate(sps, postOps);
 		if ( null != how )
 			how.invalidate(sps, postOps);
+		if ( dependsOnTransforms )
+			TransformImpl.removeDependentRoutine(this, transforms());
 	}
 
 	static final int SLOT_LANGUAGE;
@@ -357,6 +365,16 @@ implements
 	 */
 	M m_why;
 	PLJavaMemo m_how;
+
+	/*
+	 * This flag is only set in ProceduralLanguageImpl.transformsFor when it is
+	 * about to return a nonempty list of transforms and has registered this
+	 * routine as depending on them. It is checked and cleared in invalidate
+	 * above. If it is set, invalidate can safely use transforms() to retrieve
+	 * the list, which is in the cache slot until actual invalidation of the
+	 * SwitchPoint.
+	 */
+	boolean m_dependsOnTransforms = false;
 
 	/*
 	 * Computation methods for ProceduralLanguage.PLJavaBased API methods
@@ -1145,6 +1163,111 @@ implements
 			{
 				m_carrier.m_how = null;
 			}
+		}
+	}
+
+	/**
+	 * Abstract superclass of a {@code Why} memo used on routines that play
+	 * specific support roles for other catalog objects (such as a
+	 * {@code Handler} or {@code Validator} for a {@code ProceduralLanguage}
+	 * or a {@code FromSQL} or {@code ToSQL> for a {@code Transform>), where
+	 * dependent objects should be invalidated if the support routine is.
+	 *<p>
+	 * Because a support routine can be depended on by more than one object
+	 * (multiple languages, say, can share the same handler or validator
+	 * routines), the memo carries a {@code Set} of dependent objects, not
+	 * just a single reference. The {@code Set} implementation is chosen on
+	 * an expectation of rare mutations and relatively small sets.
+	 *<p>
+	 * A concrete subclass should supply an appropriately-typed static
+	 * {@code addDependent} method that delegates to the protected
+	 * {@link #add add} method here. The static {@code removeDependent}
+	 * method of this class can be invoked directly (typically qualified
+	 * by the concrete subclass name, for consistency with the
+	 * {@code addDependent} method).
+	 */
+	static abstract class SupportMemo<
+		M extends Memo.Why<M>,
+		A extends CatalogObjectImpl.Addressed<?>
+	>
+	extends AbstractMemo.Why<M>
+	{
+		private final Set<A> m_dependents;
+
+		protected SupportMemo(
+			RegProcedure<? super M> carrier, A dep)
+		{
+			super(carrier);
+			m_dependents = new CopyOnWriteArraySet<>(Set.of(dep));
+		}
+
+		/**
+		 * Has the effect of {@code super.invalidate} (simply nulling
+		 * the carrier {@code RegProcedure}'s reference to this memo),
+		 * and additionally calls
+		 * {@link CatalogObjectImpl.Addressed#invalidate invalidate}
+		 * on each recorded dependent <var>A</var> object.
+		 */
+		@Override
+		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+		{
+			super.invalidate(sps, postOps);
+			m_dependents.forEach(a -> a.invalidate(sps, postOps));
+		}
+
+		/**
+		 * Removes <var>dep</var> as a recorded dependency on
+		 * <var>proc</var>, with no effect if <var>proc</var> isn't carrying
+		 * a memo that extends this class or if its dependency set does not
+		 * contain <var>dep</var>.
+		 */
+		static <
+			M extends Memo.Why<M>,
+			A extends CatalogObjectImpl.Addressed<?>
+		>
+		void removeDependent(RegProcedure<M> proc, A dep)
+		{
+			M memo = proc.memo();
+			if ( memo instanceof SupportMemo<?,?> )
+				((SupportMemo<?,?>)memo).m_dependents.remove(dep);
+		}
+
+		/**
+		 * Adds <var>dep</var> as a recorded dependency on <var>proc</var>,
+		 * using an existing memo corresponding to type <var>T</var>
+		 * if present, or getting a new one from <var>supplier</var> and
+		 * applying it.
+		 *<p>
+		 * The <var>supplier will typically be a lambda that passes
+		 * <var>proc</var> and <var>dep</var> to the constructor of
+		 * the concrete subclass of this class.
+		 *<p>
+		 * No action will be taken if <var>proc</var> is the invalid
+		 * instance. It is not expected that <var>proc</var> will already
+		 * be carrying a memo of some other type; an exception will result
+		 * if it is.
+		 */
+		protected static <
+			O extends Memo.Why<O>,
+			M extends Memo.Why<M>,
+			T extends SupportMemo<M,A>,
+			A extends CatalogObjectImpl.Addressed<?>
+		>
+		void add(
+			RegProcedure<O> proc, A dep,
+			Class<T> witness, Supplier<T> supplier)
+		{
+			if ( ! proc.isValid() )
+				return;
+			O memo = proc.memo();
+			if ( witness.isInstance(memo) )
+			{
+				@SuppressWarnings("unchecked")
+				SupportMemo<?,A> sm = (SupportMemo<?,A>)memo;
+				sm.m_dependents.add(dep);
+			}
+			else
+				supplier.get().apply();
 		}
 	}
 }

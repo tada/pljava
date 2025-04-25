@@ -20,6 +20,9 @@ import java.sql.SQLException;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import java.util.function.UnaryOperator;
 
@@ -33,6 +36,7 @@ import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.TRFOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.TRFTYPELANG; // syscache
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
+import org.postgresql.pljava.pg.RegProcedureImpl.SupportMemo;
 
 import static org.postgresql.pljava.pg.adt.OidAdapter.PLANG_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGPROCEDURE_INSTANCE;
@@ -98,6 +102,22 @@ implements Nonshared<Transform>, Transform
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
 	}
 
+	@Override
+	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+	{
+		boolean languageCached = m_languageCached;
+		m_languageCached = false;
+		if ( languageCached )
+			((ProceduralLanguageImpl)language()).removeKnownTransform(this);
+
+		Iterator<RegProcedureImpl<?>> itr = m_dependentRoutines.iterator();
+		m_dependentRoutines.clear(); // CopyOnWriteArraySet iterator still good
+		itr.forEachRemaining(p -> p.invalidate(sps, postOps));
+
+		FromSQLMemo.removeDependent(fromSQL(), this);
+		ToSQLMemo.removeDependent(toSQL(), this);
+	}
+
 	static final int SLOT_TYPE;
 	static final int SLOT_LANG;
 	static final int SLOT_FROMSQL;
@@ -155,6 +175,25 @@ implements Nonshared<Transform>, Transform
 		}
 	}
 
+	/* mutable non-API data used only on the PG thread */
+
+	private final Set<RegProcedureImpl<?>>
+		m_dependentRoutines = new CopyOnWriteArraySet<>();
+
+	private boolean m_languageCached = false; // needed in invalidate
+
+	static void addDependentRoutine(RegProcedureImpl<?> p, List<Transform> ts)
+	{
+		for ( Transform t : ts )
+			((TransformImpl)t).m_dependentRoutines.add(p);
+	}
+
+	static void removeDependentRoutine(RegProcedureImpl<?> p,List<Transform> ts)
+	{
+		for ( Transform t : ts )
+			((TransformImpl)t).m_dependentRoutines.remove(p);
+	}
+
 	/* computation methods */
 
 	private static RegType type(TransformImpl o) throws SQLException
@@ -167,6 +206,7 @@ implements Nonshared<Transform>, Transform
 	throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
+		o.m_languageCached = true;
 		return s.get(Att.TRFLANG, PLANG_INSTANCE);
 	}
 
@@ -245,6 +285,40 @@ implements Nonshared<Transform>, Transform
 		catch ( Throwable t )
 		{
 			throw unchecked(t);
+		}
+	}
+
+	static class FromSQLMemo
+	extends SupportMemo<FromSQL,TransformImpl> implements FromSQL
+	{
+		private FromSQLMemo(
+			RegProcedure<? super FromSQL> carrier, Transform dep)
+		{
+			super(carrier, (TransformImpl)dep);
+		}
+
+		static void addDependent(
+			RegProcedure<? super FromSQL> proc, Transform dep)
+		{
+			SupportMemo.add(proc, (TransformImpl)dep, FromSQLMemo.class,
+				() -> new FromSQLMemo(proc, dep));
+		}
+	}
+
+	static class ToSQLMemo
+	extends SupportMemo<ToSQL,TransformImpl>	implements ToSQL
+	{
+		private ToSQLMemo(
+			RegProcedure<? super ToSQL> carrier, Transform dep)
+		{
+			super(carrier, (TransformImpl)dep);
+		}
+
+		static void addDependent(
+			RegProcedure<? super ToSQL> proc, Transform dep)
+		{
+			SupportMemo.add(proc, (TransformImpl)dep, ToSQLMemo.class,
+				() -> new ToSQLMemo(proc, dep));
 		}
 	}
 }
