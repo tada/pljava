@@ -572,6 +572,12 @@ public interface CatalogObject
 		protected static final int     TRIGGEROID = 2279;
 
 		/*
+		 * Of the several polymorphic types, API features this one because it
+		 * can also be the resolved actual type of some system catalog columns.
+		 */
+		protected static final int    ANYARRAYOID = 2277;
+
+		/*
 		 * PG types used in modeling PG types themselves.
 		 */
 		protected static final int          NAMEOID =   19;

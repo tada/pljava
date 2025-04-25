@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -116,6 +116,12 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "   END" +
 "  FROM" +
 "   result"
+)
+@SQLAction(requires = "tupleTableSlotTest", install =
+"SELECT" +
+" javatest.tupletableslottest(" +
+"  'SELECT most_common_vals FROM pg_catalog.pg_stats'," +
+"  'org.postgresql.pljava.pg.adt.ArrayAdapter', 'TYPE_OBTAINING_INSTANCE')"
 )
 public class TupleTableSlotTest
 {
@@ -653,7 +659,7 @@ public class TupleTableSlotTest
 	 * A temporary test jig during TupleTableSlot development; intended
 	 * to be used from a debugger.
 	 */
-	@Function(schema="javatest")
+	@Function(schema="javatest", provides="tupleTableSlotTest")
 	public static void tupleTableSlotTest(
 		String query, String adpClass, String adpInstance)
 	throws SQLException, ReflectiveOperationException

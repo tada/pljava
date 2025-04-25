@@ -69,13 +69,13 @@ import org.postgresql.pljava.model.TupleTableSlot;
 
 import static org.postgresql.pljava.pg.CatalogObjectImpl.notyet;
 import static org.postgresql.pljava.pg.CatalogObjectImpl.of;
+import static org.postgresql.pljava.pg.CatalogObjectImpl.Factory.ANYOID;
 import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
 import static org.postgresql.pljava.pg.DatumUtils.fetchPointer;
 import static org.postgresql.pljava.pg.DatumUtils.fromBitmapset;
 import static org.postgresql.pljava.pg.DatumUtils.mapFixedLength;
 import static org.postgresql.pljava.pg.DatumUtils.toBitmapset;
 import static org.postgresql.pljava.pg.ModelConstants.ALIGNOF_INT;
-import static org.postgresql.pljava.pg.ModelConstants.ANYOID;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_fcinfo_args;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_fcinfo_fncollation;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_fcinfo_isnull;

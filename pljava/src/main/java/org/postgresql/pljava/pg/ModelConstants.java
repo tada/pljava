@@ -139,27 +139,6 @@ public abstract class ModelConstants
 	@Native public static final int PG_LATIN1                        = 8;
 	@Native public static final int PG_ENCODING_BE_LAST              = 34;
 
-	/*
-	 * Oids of the polymorphic types. If there is ever a call to expose
-	 * them in API like other type constants, these can be moved to
-	 * CatalogObject.Factory with the rest of those, but for now it may be
-	 * enough for the internal RegTypeImpl to know about them.
-	 */
-	@Native public static final int ANYOID                           = 2276;
-
-	@Native public static final int ANYARRAYOID                      = 2277;
-	@Native public static final int ANYELEMENTOID                    = 2283;
-	@Native public static final int ANYNONARRAYOID                   = 2776;
-	@Native public static final int ANYENUMOID                       = 3500;
-	@Native public static final int ANYRANGEOID                      = 3831;
-	@Native public static final int ANYMULTIRANGEOID                 = 4537;
-
-	@Native public static final int ANYCOMPATIBLEMULTIRANGEOID       = 4538;
-	@Native public static final int ANYCOMPATIBLEOID                 = 5077;
-	@Native public static final int ANYCOMPATIBLEARRAYOID            = 5078;
-	@Native public static final int ANYCOMPATIBLENONARRAYOID         = 5079;
-	@Native public static final int ANYCOMPATIBLERANGEOID            = 5080;
-
 	@Native public static final int VARHDRSZ                         = 4;
 	@Native public static final int VARHDRSZ_EXTERNAL                = 2;
 	@Native public static final byte VARTAG_INDIRECT                 = 1;

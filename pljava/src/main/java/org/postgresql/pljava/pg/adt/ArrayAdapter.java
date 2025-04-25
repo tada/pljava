@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -38,6 +38,7 @@ import org.postgresql.pljava.adt.spi.Datum;
 import org.postgresql.pljava.model.Attribute;
 import org.postgresql.pljava.model.RegClass;
 import org.postgresql.pljava.model.RegType;
+import static org.postgresql.pljava.model.RegType.ANYARRAY;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -80,6 +81,9 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	public static final
 		ArrayAdapter<List<String>> FLAT_STRING_LIST_INSTANCE;
 
+	public static final
+		ArrayAdapter<RegType> TYPE_OBTAINING_INSTANCE;
+
 	static
 	{
 		@SuppressWarnings("removal") // JEP 411
@@ -91,6 +95,9 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 
 		FLAT_STRING_LIST_INSTANCE = new ArrayAdapter<>(
 			TextAdapter.INSTANCE, AsFlatList.of(AsFlatList::nullsIncludedCopy));
+
+		TYPE_OBTAINING_INSTANCE = new ArrayAdapter<RegType>(
+			Opaque.INSTANCE, new ElementTypeContract());
 	}
 
 	/**
@@ -274,7 +281,10 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 	public boolean canFetch(RegType pgType)
 	{
 		RegType elementType = pgType.element();
-		return elementType.isValid() && m_elementAdapter.canFetch(elementType);
+		if ( elementType.isValid() && m_elementAdapter.canFetch(elementType) )
+			return true;
+		return
+			ANYARRAY == pgType && Opaque.INSTANCE == m_elementAdapter;
 	}
 
 	/**
@@ -371,6 +381,23 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 		{
 			in.unpin();
 			in.close();
+		}
+	}
+
+	/**
+	 * A contract that cannot retrieve any element, but returns the array's
+	 * internally-recorded element type.
+	 */
+	private static class ElementTypeContract
+	implements Contract.Array<RegType, Void, Adapter.As<Void,?>>
+	{
+		@Override
+		public RegType construct(
+			int nDims, int[] dimsAndBounds, Adapter.As<Void,?> adapter,
+			TupleTableSlot.Indexed slot)
+		throws SQLException
+		{
+			return slot.descriptor().get(0).type();
 		}
 	}
 }

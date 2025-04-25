@@ -37,19 +37,6 @@ import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 
-import static org.postgresql.pljava.pg.ModelConstants.ANYOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYARRAYOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYELEMENTOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYNONARRAYOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYENUMOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYRANGEOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYMULTIRANGEOID;
-import static
-	org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLEMULTIRANGEOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLEOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLEARRAYOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLENONARRAYOID;
-import static org.postgresql.pljava.pg.ModelConstants.ANYCOMPATIBLERANGEOID;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.alignmentFromCatalog;
 import static org.postgresql.pljava.pg.ModelConstants.storageFromCatalog;
@@ -397,56 +384,6 @@ implements
 			TYPSUBSCRIPT   = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
-		}
-	}
-
-	/**
-	 * Returns a constructor for an ordinary {@code NoModifier}
-	 * instance or an {@code Unresolved} instance, as determined by
-	 * the PostgreSQL-version-specific set of PostgreSQL pseudotypes
-	 * that require resolution to actual types used at a given call site.
-	 *<p>
-	 * At present, the same {@link Unresolved Unresolved} class is used for
-	 * both families of polymorphic pseudotype as well as the truly
-	 * anything-goes the {@code ANY} type.
-	 */
-	static Supplier<CatalogObjectImpl> constructorFor(int oid)
-	{
-		switch ( oid )
-		{
-			// Polymorphic family 1
-		case ANYARRAYOID:
-		case ANYELEMENTOID:
-		case ANYNONARRAYOID:
-		case ANYENUMOID:
-		case ANYRANGEOID:
-			return Unresolved::new;
-		case ANYMULTIRANGEOID:
-			if ( PG_VERSION_NUM >= 140000 )
-				return Unresolved::new;
-			else
-				return NoModifier::new;
-
-			// Polymorphic family 2
-		case ANYCOMPATIBLEOID:
-		case ANYCOMPATIBLEARRAYOID:
-		case ANYCOMPATIBLENONARRAYOID:
-		case ANYCOMPATIBLERANGEOID:
-			if ( PG_VERSION_NUM >= 130000 )
-				return Unresolved::new;
-			else
-				return NoModifier::new;
-		case ANYCOMPATIBLEMULTIRANGEOID:
-			if ( PG_VERSION_NUM >= 140000 )
-				return Unresolved::new;
-			else
-				return NoModifier::new;
-
-			// The wild-west wildcard "any" type
-		case ANYOID:
-			return Unresolved::new;
-		default:
-			return NoModifier::new;
 		}
 	}
 

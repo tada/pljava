@@ -191,6 +191,14 @@ extends
 		 * {@code size()} of this {@code TupleDescriptor} can exceed the
 		 * {@code size()} of a {@code TupleDescriptor} constructed from the
 		 * routine's declaration.
+		 *<p>
+		 * {@link RegType#ANYARRAY ANYARRAY}, normally seen only in templates
+		 * as a polymorphic pseudotype, can appear in this result in rare cases,
+		 * where an expression involves certain columns of statistics-related
+		 * system catalogs. An argument with this resolved type represents an
+		 * array, but one whose element type may differ from call to call. See
+		 * {@link RegType#ANYARRAY ANYARRAY} for how such an array can be
+		 * handled.
 		 */
 		TupleDescriptor inputsDescriptor() throws SQLException;
 
@@ -210,6 +218,14 @@ extends
 		 * type (or with a single {@code OUT} parameter, a case PostgreSQL
 		 * treats the same way), this method returns a synthetic ephemeral
 		 * {@code TupleDescriptor} with one unnamed attribute of that type.
+		 *<p>
+		 * {@link RegType#ANYARRAY ANYARRAY}, normally seen only in templates
+		 * as a polymorphic pseudotype, can appear in this result in rare cases,
+		 * where an expression involves certain columns of statistics-related
+		 * system catalogs. An argument with this resolved type represents an
+		 * array, but one whose element type may differ from call to call. See
+		 * {@link RegType#ANYARRAY ANYARRAY} for how such an array can be
+		 * handled.
 		 */
 		TupleDescriptor outputsDescriptor() throws SQLException;
 

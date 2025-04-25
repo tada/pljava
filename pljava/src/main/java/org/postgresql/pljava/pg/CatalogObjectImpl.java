@@ -517,7 +517,7 @@ public class CatalogObjectImpl implements CatalogObject
 				{
 				case TypeRelationId:
 					fieldRead = RegType.CLASSID;
-					return RegTypeImpl.constructorFor(objId);
+					return typeConstructorFor(objId);
 				case ProcedureRelationId:
 					fieldRead = RegProcedure.CLASSID;
 					return RegProcedureImpl::new;
@@ -650,6 +650,77 @@ public class CatalogObjectImpl implements CatalogObject
 
 			postOps.forEach(Runnable::run);
 		}
+
+		/**
+		 * Returns a constructor for an ordinary {@code NoModifier}
+		 * instance or an {@code Unresolved} instance, as determined by
+		 * the PostgreSQL-version-specific set of PostgreSQL pseudotypes
+		 * that require resolution to actual types used at a given call site.
+		 *<p>
+		 * At present, the same {@link Unresolved Unresolved} class is used for
+		 * both families of polymorphic pseudotype as well as the truly
+		 * anything-goes the {@code ANY} type.
+		 */
+		static Supplier<CatalogObjectImpl> typeConstructorFor(int oid)
+		{
+			switch ( oid )
+			{
+				// Polymorphic family 1
+			case ANYARRAYOID:
+			case ANYELEMENTOID:
+			case ANYNONARRAYOID:
+			case ANYENUMOID:
+			case ANYRANGEOID:
+				return RegTypeImpl.Unresolved::new;
+			case ANYMULTIRANGEOID:
+				if ( PG_VERSION_NUM >= 140000 )
+					return RegTypeImpl.Unresolved::new;
+				else
+					return RegTypeImpl.NoModifier::new;
+
+				// Polymorphic family 2
+			case ANYCOMPATIBLEOID:
+			case ANYCOMPATIBLEARRAYOID:
+			case ANYCOMPATIBLENONARRAYOID:
+			case ANYCOMPATIBLERANGEOID:
+				if ( PG_VERSION_NUM >= 130000 )
+					return RegTypeImpl.Unresolved::new;
+				else
+					return RegTypeImpl.NoModifier::new;
+			case ANYCOMPATIBLEMULTIRANGEOID:
+				if ( PG_VERSION_NUM >= 140000 )
+					return RegTypeImpl.Unresolved::new;
+				else
+					return RegTypeImpl.NoModifier::new;
+
+				// The wild-west wildcard "any" type
+			case ANYOID:
+				return RegTypeImpl.Unresolved::new;
+			default:
+				return RegTypeImpl.NoModifier::new;
+			}
+		}
+
+		/*
+		 * Oids of the polymorphic types. If there is ever a call to expose
+		 * them in API like other type constants, these can be moved to
+		 * CatalogObject.Factory with the rest of those, but for now it may be
+		 * enough for the internal RegTypeImpl to know about them.
+		 */
+		@Native public static final int ANYOID                        = 2276;
+
+		// ANYARRAYOID is inherited because API has RegType.ANYARRAY
+		@Native public static final int ANYELEMENTOID                 = 2283;
+		@Native public static final int ANYNONARRAYOID                = 2776;
+		@Native public static final int ANYENUMOID                    = 3500;
+		@Native public static final int ANYRANGEOID                   = 3831;
+		@Native public static final int ANYMULTIRANGEOID              = 4537;
+
+		@Native public static final int ANYCOMPATIBLEMULTIRANGEOID    = 4538;
+		@Native public static final int ANYCOMPATIBLEOID              = 5077;
+		@Native public static final int ANYCOMPATIBLEARRAYOID         = 5078;
+		@Native public static final int ANYCOMPATIBLENONARRAYOID      = 5079;
+		@Native public static final int ANYCOMPATIBLERANGEOID         = 5080;
 	}
 
 	/*

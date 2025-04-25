@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,6 +13,8 @@ package org.postgresql.pljava.model;
 
 import java.sql.SQLType;
 import java.sql.SQLXML;
+
+import org.postgresql.pljava.Adapter; // javadoc
 
 import org.postgresql.pljava.model.CatalogObject.*;
 
@@ -98,6 +100,24 @@ extends
 	RegType     CSTRING = formObjectId(CLASSID, CSTRINGOID);
 	RegType        VOID = formObjectId(CLASSID,    VOIDOID);
 	RegType     TRIGGER = formObjectId(CLASSID, TRIGGEROID);
+
+	/*
+	 * API treatment for one of the several polymorphic types, because this one
+	 * can also be the actual resolved type of some system catalog columns.
+	 */
+	/**
+	 * Normally a pseudotype used in declaring polymorphic functions, this
+	 * can also be the actual resolved type of some statistics-related system
+	 * catalog columns or expressions derived from them.
+	 *<p>
+	 * When this type is encountered as the resolved type for an array,
+	 * different instances of the array may have different element types.
+	 * {@link Adapter.Array#elementType()} can be used to get an {@code Adapter}
+	 * that reports the element type of any array, so that a suitable
+	 * {@code Adapter} for that element type can be chosen and used to construct
+	 * an array adapter for access to the array's elements.
+	 */
+	RegType    ANYARRAY = formObjectId(CLASSID, ANYARRAYOID);
 
 	/*
 	 * PG types used in modeling PG types themselves.

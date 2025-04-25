@@ -640,6 +640,69 @@ public abstract class Adapter<T,U> implements Visible
 	}
 
 	/**
+	 * An {@code Adapter} that reports it can be used on any type, but cannot
+	 * fetch anything.
+	 *<p>
+	 * Can be useful when constructing a {@link Contract.Array Contract.Array}
+	 * that will inspect metadata for an array (its element type or dimensions)
+	 * without fetching any elements.
+	 */
+	public static final class Opaque extends As<Void,Void>
+	{
+		/**
+		 * Instance of the {@code Opaque} adapter.
+		 */
+		public static final Opaque INSTANCE;
+
+		/**
+		 * Returns true unconditionally, so the {@code Opaque} adapter can be
+		 * applied to any type or when type is unknown.
+		 *<p>
+		 * However, any actual attempt to fetch a non-null value
+		 * using the {@code Opaque} adapter will incur
+		 * an {@code UnsupportedOperationException}.
+		 */
+		@Override
+		public boolean canFetch(RegType pgType)
+		{
+			return true;
+		}
+
+		private <B> Void fetch(
+			Attribute a, Datum.Accessor<B,?> acc, B buffer, int offset,
+			Attribute aa)
+		{
+			throw new UnsupportedOperationException(
+				"Adapter.Opaque cannot fetch anything");
+		}
+
+		private Opaque(Configuration c)
+		{
+			super(c, null, null);
+		}
+
+		static
+		{
+			try
+			{
+				Lookup lup = lookup();
+				MethodHandle fetcher = lup.findVirtual(
+					Opaque.class, "fetch", methodType(Void.class,
+						Attribute.class, Datum.Accessor.class, Object.class,
+						int.class, Attribute.class));
+				Configuration c =
+					new Configuration.Leaf(Opaque.class, Void.class, fetcher);
+
+				INSTANCE = new Opaque(c);
+			}
+			catch ( ReflectiveOperationException e )
+			{
+				throw new ExceptionInInitializerError(e);
+			}
+		}
+	}
+
+	/**
 	 * Superclass for adapters that fetch something and return it as a reference
 	 * type T.
 	 *<p>
@@ -817,6 +880,22 @@ public abstract class Adapter<T,U> implements Visible
 	 */
 	public abstract static class Array<T> extends As<T,Void>
 	{
+		/**
+		 * Returns an {@code Adapter.Array} that simply returns the element type
+		 * of the fetched array.
+		 *<p>
+		 * Can be used when the only statically-known type for an array
+		 * is the polymorphic {@link RegType#ANYARRAY ANYARRAY} type,
+		 * to determine the actual element type of a given array. A suitable
+		 * {@code Adapter} for that type can then be chosen, and used
+		 * to construct an array adapter that can access the content
+		 * of the array.
+		 */
+		public static Array<RegType> elementType()
+		{
+			return Service.INSTANCE.elementTypeAdapter();
+		}
+
 		/**
 		 * The {@code Contract.Array} that this array adapter will use,
 		 * together with the supplied element-type adapter.
@@ -1785,6 +1864,9 @@ public abstract class Adapter<T,U> implements Visible
 		 */
 		protected abstract
 			Consumer<java.security.Permission> permissionChecker();
+
+		protected abstract
+			Array<RegType> elementTypeAdapter();
 
 		/**
 		 * An upcall from the implementation layer to obtain the

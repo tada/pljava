@@ -42,6 +42,7 @@ import org.postgresql.pljava.adt.spi.AbstractType.MultiArray.Sized.Allocated;
 
 import org.postgresql.pljava.internal.Backend;
 
+import org.postgresql.pljava.model.RegType;
 import org.postgresql.pljava.model.TupleTableSlot.Indexed;
 
 /**
@@ -64,6 +65,12 @@ public final class Service extends Adapter.Service
 	protected Consumer<Permission> permissionChecker()
 	{
 		return Backend.CHECKER;
+	}
+
+	@Override
+	protected Array<RegType> elementTypeAdapter()
+	{
+		return ArrayAdapter.TYPE_OBTAINING_INSTANCE;
 	}
 
 	/**
