@@ -22,7 +22,7 @@ import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
@@ -66,7 +66,7 @@ implements
 	{
 	}
 
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/**
 	 * Per-instance switch point, to be invalidated selectively

@@ -18,7 +18,7 @@ import java.sql.SQLException;
 
 import java.util.Iterator;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
@@ -44,7 +44,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 class RegOperatorImpl extends Addressed<RegOperator>
 implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 
@@ -140,7 +140,7 @@ implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 			.withDependent("joinEstimator", SLOT_JOINESTIMATOR        = i++)
 
 			.build()
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 		NSLOTS = i;
 	}
 

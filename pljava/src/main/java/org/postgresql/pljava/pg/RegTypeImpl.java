@@ -24,8 +24,8 @@ import java.sql.SQLXML;
 import java.util.Iterator;
 import java.util.List;
 
+import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 import org.postgresql.pljava.TargetList.Projection;
 
@@ -179,7 +179,7 @@ implements
 		}
 	}
 
-	static final UnaryOperator<MethodHandle[]> s_initializer;
+	static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	static final int SLOT_TUPLEDESCRIPTOR;
 	static final int SLOT_NOTIONALDESC; // defined even for non-row type
@@ -1299,7 +1299,7 @@ implements
 		 */
 		TupleDescriptor.Interned[] m_tupDescHolder;
 		private final MethodHandle[] m_moreSlots;
-		private static final UnaryOperator<MethodHandle[]> s_initializer;
+		private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 		private static final int SLOT_TDBLESSED;
 		private static final int NSLOTS;
 

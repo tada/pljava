@@ -19,7 +19,7 @@ import java.sql.SQLXML;
 
 import java.util.List;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.Adapter;
 import org.postgresql.pljava.TargetList.Projection;
@@ -54,7 +54,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 class ConstraintImpl extends Addressed<Constraint>
 implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 
@@ -169,7 +169,7 @@ implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 			/*
 			 * Add these slot initializers after what Addressed does.
 			 */
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 		NSLOTS = i;
 	}
 

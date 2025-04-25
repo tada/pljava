@@ -24,7 +24,7 @@ import java.util.Set;
 
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
@@ -47,7 +47,7 @@ import static org.postgresql.pljava.pg.adt.OidAdapter.TRANSFORM_INSTANCE;
 class TransformImpl extends Addressed<Transform>
 implements Nonshared<Transform>, Transform
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	private final SwitchPoint[] m_sp;
 
@@ -159,7 +159,7 @@ implements Nonshared<Transform>, Transform
 			/*
 			 * Add these slot initializers after what Addressed does.
 			 */
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 		NSLOTS = i;
 	}
 

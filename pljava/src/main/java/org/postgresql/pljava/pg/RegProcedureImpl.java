@@ -25,7 +25,7 @@ import java.util.Set;
 
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import java.util.stream.IntStream;
@@ -74,7 +74,7 @@ implements
 	Nonshared<RegProcedure<?>>, Namespaced<Simple>, Owned,
 	AccessControlled<CatalogObject.EXECUTE>, RegProcedure<M>
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	private final SwitchPoint[] m_sp;
 
@@ -248,7 +248,7 @@ implements
 			/*
 			 * Add these slot initializers after what Addressed does.
 			 */
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 		NSLOTS = i;
 	}
 

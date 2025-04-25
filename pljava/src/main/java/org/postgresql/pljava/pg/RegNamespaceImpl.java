@@ -19,7 +19,7 @@ import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
@@ -41,7 +41,7 @@ implements
 	Nonshared<RegNamespace>, Named<Simple>, Owned,
 	AccessControlled<CatalogObject.Grant.OnNamespace>, RegNamespace
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 
@@ -112,7 +112,7 @@ implements
 			/*
 			 * Add these slot initializers after what Addressed does.
 			 */
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 	}
 
 	static class Att

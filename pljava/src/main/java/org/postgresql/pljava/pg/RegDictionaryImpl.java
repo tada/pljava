@@ -18,7 +18,7 @@ import java.sql.SQLException;
 
 import java.util.Iterator;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
@@ -38,7 +38,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 class RegDictionaryImpl extends Addressed<RegDictionary>
 implements Nonshared<RegDictionary>, Namespaced<Simple>, Owned, RegDictionary
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 
@@ -106,7 +106,7 @@ implements Nonshared<RegDictionary>, Namespaced<Simple>, Owned, RegDictionary
 			.withDependent(     "owner", SLOT_OWNER)
 
 			.build()
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 	}
 
 	static class Att

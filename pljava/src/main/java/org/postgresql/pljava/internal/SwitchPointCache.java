@@ -39,8 +39,7 @@ import static java.util.Objects.requireNonNull;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
-import static java.util.function.UnaryOperator.identity;
+import static java.util.function.Function.identity;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toMap;
@@ -212,16 +211,25 @@ public class SwitchPointCache
 	 * computation result will be cached.
 	 *<p>
 	 * Finally, the builder's {@link #build build} method returns
-	 * a {@code Consumer<T>} that can be saved in a static final field and
-	 * invoked in the object's constructor; it will initialize all of the new
-	 * instance's fields that were declared in {@code withDependent} calls to
-	 * their initial, uncomputed states.
+	 * a {@code Function<MethodHandle[],MethodHandle[]>} that can be saved in
+	 * a static final field and invoked in the object's constructor on a new
+	 * {@code MethodHandle} array with the right number of slots; it will
+	 * initialize all of the slots that were declared in {@code withDependent}
+	 * calls to their initial, uncomputed states.
+	 */
+	/*
+	 * It could be tempting to replace Function<MethodHandle[],MethodHandle[]>
+	 * with the less-unwieldy UnaryOperator<MethodHandle[]>. But they are
+	 * frequently composed here with .andThen(...), which UnaryOperator
+	 * inherits from Function without refining its return type. Using
+	 * andThen(...)::apply is a notationally compact workaround for that, but
+	 * bloats the generated code and data.
 	 */
 	public static class Builder<T>
 	{
 		private final Class<T> m_class;
 		private Function<? super T,String> m_describer;
-		private UnaryOperator<MethodHandle[]> m_initializer;
+		private Function<MethodHandle[],MethodHandle[]> m_initializer;
 		private Lookup m_lookup;
 		private Map<String,Method> m_candidates;
 		private Function<T,SwitchPoint> m_spGetter;
@@ -366,18 +374,18 @@ public class SwitchPointCache
 		}
 
 		/**
-		 * Return a {@code UnaryOperator<MethodHandle[]>} to be invoked
-		 * in the constructor of a client object, applied to a newly-allocated
-		 * array of the right number of slots, which will initialize all of the
-		 * array's elements with the corresponding fallback method handles
-		 * and return the initialized array.
+		 * Return a {@code Function<MethodHandle[],MethodHandle[]>} to be
+		 * invoked in the constructor of a client object, applied to a
+		 * newly-allocated array of the right number of slots, which will
+		 * initialize all of the array's elements with the corresponding
+		 * fallback method handles and return the initialized array.
 		 *<p>
 		 * The initializer can be used conveniently in a constructor that
 		 * assigns the array to a final field, or calls a superclass constructor
 		 * that does so, to arrange that the array's elements are written
 		 * in advance of Java's freeze of the final array reference field.
 		 */
-		public UnaryOperator<MethodHandle[]> build()
+		public Function<MethodHandle[],MethodHandle[]> build()
 		{
 			return m_initializer;
 		}
@@ -781,7 +789,7 @@ public class SwitchPointCache
 			{
 				s[index] = init;
 				return s;
-			})::apply;
+			});
 
 			return this;
 		}

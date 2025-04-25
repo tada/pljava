@@ -21,7 +21,7 @@ import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
@@ -51,7 +51,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 class ExtensionImpl extends Addressed<Extension>
 implements Nonshared<Extension>, Named<Simple>, Owned, Extension
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 

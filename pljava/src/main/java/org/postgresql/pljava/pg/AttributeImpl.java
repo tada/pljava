@@ -22,7 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import static java.util.Objects.requireNonNull;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
@@ -62,7 +62,7 @@ implements
 
 	abstract SwitchPoint cacheSwitchPoint();
 
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of CatalogObject */
 

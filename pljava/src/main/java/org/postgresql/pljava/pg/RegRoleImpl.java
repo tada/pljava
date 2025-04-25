@@ -24,7 +24,7 @@ import java.util.List;
 
 import org.postgresql.pljava.RolePrincipal;
 
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
@@ -55,7 +55,7 @@ implements
 	Shared<RegRole>, Named<Simple>,
 	AccessControlled<CatalogObject.Grant.OnRole>, RegRole.Grantee
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	/* Implementation of Addressed */
 
@@ -138,7 +138,7 @@ implements
 			/*
 			 * Add these slot initializers after what Addressed does.
 			 */
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 		NSLOTS = i;
 	}
 

@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toList;
 import java.util.stream.Stream;
@@ -79,7 +79,7 @@ implements
 	Nonshared<ProceduralLanguage>, Named<Simple>, Owned,
 	AccessControlled<CatalogObject.USAGE>, ProceduralLanguage
 {
-	private static final UnaryOperator<MethodHandle[]> s_initializer;
+	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 	private final SwitchPoint[] m_sp;
 
@@ -259,7 +259,7 @@ implements
 			/*
 			 * Add these slot initializers after what Addressed does.
 			 */
-			.compose(CatalogObjectImpl.Addressed.s_initializer)::apply;
+			.compose(CatalogObjectImpl.Addressed.s_initializer);
 		NSLOTS = i;
 	}
 

@@ -73,8 +73,8 @@ import java.util.Set;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
-import java.util.function.UnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.stream.Stream.iterate;
@@ -785,7 +785,7 @@ public class CatalogObjectImpl implements CatalogObject
 		 * subclass overrides {@link #cacheId() cacheId} to return the
 		 * identifier of a syscache to be searched by a single oid.
 		 */
-		static final UnaryOperator<MethodHandle[]> s_initializer;
+		static final Function<MethodHandle[],MethodHandle[]> s_initializer;
 
 		/**
 		 * {@link SwitchPointCache SwitchPointCache}-managed slots, the
@@ -814,8 +814,9 @@ public class CatalogObjectImpl implements CatalogObject
 		 * {@link SwitchPointCache.Builder#withDependent withDependent} call as
 		 * the initializer for the slots array is being built. In each subclass,
 		 * a static initializer uses {@link SwitchPointCache.Builder} to
-		 * construct an initializer ({@code UnaryOperator<MethodHandle[]>}) that
-		 * will be saved in a static, and applied in the instance constructor to
+		 * construct an initializer
+		 * ({@code Function<MethodHandle[],MethodHandle[]>}) that will be saved
+		 * in a static, and applied in the instance constructor to
 		 * a freshly-allocated array, installing the initial method handles in
 		 * its slots.
 		 *<p>
