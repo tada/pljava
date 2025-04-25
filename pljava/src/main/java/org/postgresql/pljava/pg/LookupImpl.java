@@ -31,6 +31,10 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.regex.Pattern;
 
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
+
 import org.postgresql.pljava.PLJavaBasedLanguage;
 import org.postgresql.pljava.PLJavaBasedLanguage.InlineBlocks;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
@@ -39,6 +43,7 @@ import org.postgresql.pljava.PLJavaBasedLanguage.Template;
 import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;
 import org.postgresql.pljava.PLJavaBasedLanguage.Triggers;
 import org.postgresql.pljava.PLJavaBasedLanguage.TriggerTemplate;
+import org.postgresql.pljava.PLJavaBasedLanguage.UsingTransforms;
 
 import org.postgresql.pljava.TargetList.Projection;
 
@@ -48,6 +53,7 @@ import static org.postgresql.pljava.internal.Backend.validateBodies;
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.DualState;
 import org.postgresql.pljava.internal.Invocation;
+import org.postgresql.pljava.internal.UncheckedException;
 
 import org.postgresql.pljava.model.Attribute;
 import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
@@ -1013,6 +1019,8 @@ class LookupImpl implements RegProcedure.Lookup
 		boolean checkBody, boolean additionalChecks)
 	throws SQLException
 	{
+		checkForTransforms(subject, impl, additionalChecks);
+
 		if ( TRIGGER == subject.returnType() )
 		{
 			if ( ! (impl instanceof Triggers) )
@@ -1749,6 +1757,64 @@ class LookupImpl implements RegProcedure.Lookup
 		private State(LookupImpl referent, MemoryContext cxt, long globalRefP)
 		{
 			super(referent, cxt, globalRefP);
+		}
+	}
+
+	private static void checkForTransforms(
+		RegProcedure<PLJavaBased> p, Routines impl, boolean addlChecks)
+	throws SQLException
+	{
+		List<RegType> types = p.transformTypes();
+		if ( null == types )
+			return;
+
+		if ( ! ( impl instanceof UsingTransforms ) )
+			throw new SQLSyntaxErrorException(String.format(
+			"%s of %s does not implement TRANSFORM FOR TYPE",
+			p.language(), p), "42P13");
+
+		/*
+		 * Check (as PostgreSQL doesn't) for multiple mentions of a type
+		 * to transform, but only as an additionalCheck, at validation time.
+		 * If a routine so declared sneaks past validation, we'll just do
+		 * duplicative work at call time rather than checking for it then.
+		 */
+		if ( addlChecks )
+		{
+			List<RegType> dups = types.stream()
+				.collect(groupingBy(t -> t, counting()))
+				.entrySet().stream()
+				.filter(e -> 1 < e.getValue())
+				.map(e -> e.getKey())
+				.collect(toList());
+			if ( ! dups.isEmpty() )
+				throw new SQLSyntaxErrorException(String.format(
+					"%s mentions redundantly in TRANSFORM FOR TYPE: %s",
+					p, dups), "42P13");
+		}
+
+		PLJavaMemo m = (PLJavaMemo)p.memo();
+
+		/*
+		 * m.transforms() will construct a list (and cache it, so it doesn't
+		 * hurt much to do it here in advance) of transforms corresponding to
+		 * the transformTypes. It can throw an SQLException if any needed
+		 * transform can't be found, or if impl's essentialTransformChecks
+		 * method throws one. Like most CatalogObject methods, transforms()
+		 * will have wrapped that in an UncheckedException, but we unwrap it
+		 * here if it happens. When the language handler calls transforms(), it
+		 * should be getting a cached value so an exception would be unexpected.
+		 */
+		try
+		{
+			m.transforms();
+		}
+		catch ( UncheckedException e )
+		{
+			Throwable t = e.unwrap();
+			if ( t instanceof SQLException )
+				throw (SQLException)t;
+			throw e;
 		}
 	}
 
