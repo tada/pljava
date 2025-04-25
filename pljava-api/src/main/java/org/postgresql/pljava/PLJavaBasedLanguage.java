@@ -23,6 +23,7 @@ import org.postgresql.pljava.model.RegProcedure.Lookup;
 import org.postgresql.pljava.model.RegType;
 import org.postgresql.pljava.model.Transform;
 import org.postgresql.pljava.model.Trigger;
+import org.postgresql.pljava.model.Trigger.ForTrigger;
 import org.postgresql.pljava.model.TupleTableSlot; // javadoc
 
 import org.postgresql.pljava.annotation.Trigger.Called; // javadoc
@@ -122,7 +123,7 @@ public interface PLJavaBasedLanguage
 		 * This default implementation checks nothing.
 		 */
 		default void essentialChecks(
-			RegProcedure<PLJavaBased> subject, boolean checkBody)
+			RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
 		throws SQLException
 		{
 		}
@@ -158,7 +159,7 @@ public interface PLJavaBasedLanguage
 		 * This default implementation checks nothing.
 		 */
 		default void additionalChecks(
-			RegProcedure<PLJavaBased> subject, boolean checkBody)
+			RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
 		throws SQLException
 		{
 		}
@@ -173,10 +174,10 @@ public interface PLJavaBasedLanguage
 		 * The information available at this stage comes from the system
 		 * catalogs, reflecting the static declaration of the target routine.
 		 * The methods of <var>target</var> can be used to examine that
-		 * catalog information; the {@link RegProcedure#memo memo} method
-		 * retrieves a PL/Java-specific {@link PLJavaBased memo} with some
-		 * derived information, including tuple descriptors for the inputs and
-		 * outputs. (All routines, including those treated by PostgreSQL as
+		 * catalog information; the {@link PLJavaBased PLJavaBased}
+		 * <var>memo</var> holds additional derived information,
+		 * including tuple descriptors for the inputs and outputs.
+		 * (All routines, including those treated by PostgreSQL as
 		 * returning a scalar result, are presented to a PL/Java handler with
 		 * the inputs and outputs represented by {@link TupleTableSlot}.)
 		 * The tuple descriptors seen at this stage may include attributes with
@@ -201,7 +202,8 @@ public interface PLJavaBasedLanguage
 		 * implementing a language where those dynamic details are left to user
 		 * code.
 		 */
-		Template prepare(RegProcedure<PLJavaBased> target) throws SQLException;
+		Template prepare(RegProcedure<?> target, PLJavaBased memo)
+		throws SQLException;
 	}
 
 	/**
@@ -229,7 +231,8 @@ public interface PLJavaBasedLanguage
 		 * This default implementation checks nothing further.
 		 */
 		default void essentialTriggerChecks(
-			RegProcedure<PLJavaBased> subject, boolean checkBody)
+			RegProcedure<ForTrigger> subject, PLJavaBased memo,
+			boolean checkBody)
 		throws SQLException
 		{
 		}
@@ -248,7 +251,8 @@ public interface PLJavaBasedLanguage
 		 * This default implementation checks nothing further.
 		 */
 		default void additionalTriggerChecks(
-			RegProcedure<PLJavaBased> subject, boolean checkBody)
+			RegProcedure<ForTrigger> subject, PLJavaBased memo,
+			boolean checkBody)
 		throws SQLException
 		{
 		}
@@ -284,7 +288,8 @@ public interface PLJavaBasedLanguage
 		 * A {@code TriggerFunction} will not be invoked for any trigger except
 		 * the one passed to the {@code specialize} call that returned it.
 		 */
-		TriggerTemplate prepareTrigger(RegProcedure<PLJavaBased> target)
+		TriggerTemplate prepareTrigger(
+			RegProcedure<ForTrigger> target, PLJavaBased memo)
 		throws SQLException;
 	}
 

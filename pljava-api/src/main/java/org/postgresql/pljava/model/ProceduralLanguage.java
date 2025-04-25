@@ -17,7 +17,8 @@ import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
 import org.postgresql.pljava.model.RegProcedure.Call;
 import org.postgresql.pljava.model.RegProcedure.Lookup;
-import org.postgresql.pljava.model.RegProcedure.Memo;
+import org.postgresql.pljava.model.RegProcedure.Memo.How;
+import org.postgresql.pljava.model.RegProcedure.Memo.Why;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier; // javadoc
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
@@ -59,20 +60,21 @@ extends
 	 */
 	ProceduralLanguage      SQL = formObjectId(CLASSID,      SQLlanguageId);
 
-	interface Handler       extends Memo<Handler> { }
-	interface InlineHandler extends Memo<InlineHandler> { }
-	interface Validator     extends Memo<Validator> { }
+	interface Handler       extends Why<Handler> { }
+	interface InlineHandler extends Why<InlineHandler> { }
+	interface Validator     extends Why<Validator> { }
 
 	/**
-	 * A {@link Memo} attached to a {@link RegProcedure} that represents
+	 * A {@link How How} memo attached to a {@link RegProcedure} that represents
 	 * a PL/Java-based routine, retaining additional information useful to
 	 * a PL/Java-based language implementation.
 	 *<p>
-	 * A valid memo of this type may be obtained within the body of
-	 * a language-handler method that has been passed an argument of
-	 * {@code RegProcedure<PLJavaBased>}.
+	 * A valid memo of this type will be maintained by PL/Java's dispatcher
+	 * on {@code RegProcedure} instances that represent PL/Java-based routines.
+	 * When passing such a {@code RegProcedure} to a language-handler method,
+	 * the dispatcher also passes the memo.
 	 */
-	interface PLJavaBased extends Memo<PLJavaBased>
+	interface PLJavaBased extends How<PLJavaBased>
 	{
 		/**
 		 * A {@link TupleDescriptor} describing the expected parameters, based

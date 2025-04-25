@@ -20,7 +20,7 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
-import org.postgresql.pljava.model.RegProcedure.Memo;
+import org.postgresql.pljava.model.RegProcedure.Memo.Why;
 
 import org.postgresql.pljava.annotation.BaseUDT.Alignment;
 import org.postgresql.pljava.annotation.BaseUDT.PredefinedCategory; // javadoc
@@ -140,14 +140,14 @@ extends
 
 	enum Type { BASE, COMPOSITE, DOMAIN, ENUM, PSEUDO, RANGE, MULTIRANGE }
 
-	interface TypeInput extends Memo<TypeInput> { }
-	interface TypeOutput extends Memo<TypeOutput> { }
-	interface TypeReceive extends Memo<TypeReceive> { }
-	interface TypeSend extends Memo<TypeSend> { }
-	interface TypeModifierInput extends Memo<TypeModifierInput> { }
-	interface TypeModifierOutput extends Memo<TypeModifierOutput> { }
-	interface TypeAnalyze extends Memo<TypeAnalyze> { }
-	interface TypeSubscript extends Memo<TypeSubscript> { }
+	interface TypeInput extends Why<TypeInput> { }
+	interface TypeOutput extends Why<TypeOutput> { }
+	interface TypeReceive extends Why<TypeReceive> { }
+	interface TypeSend extends Why<TypeSend> { }
+	interface TypeModifierInput extends Why<TypeModifierInput> { }
+	interface TypeModifierOutput extends Why<TypeModifierOutput> { }
+	interface TypeAnalyze extends Why<TypeAnalyze> { }
+	interface TypeSubscript extends Why<TypeSubscript> { }
 
 	/**
 	 * Interface additionally implemented by an instance that represents a type

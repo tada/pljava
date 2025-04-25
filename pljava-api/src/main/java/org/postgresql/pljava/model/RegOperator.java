@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -15,7 +15,7 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
-import org.postgresql.pljava.model.RegProcedure.Memo;
+import org.postgresql.pljava.model.RegProcedure.Memo.Why;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Operator;
 
@@ -51,9 +51,9 @@ extends Addressed<RegOperator>, Namespaced<Operator>, Owned
 		POSTFIX
 	}
 
-	interface Evaluator              extends Memo<Evaluator> { }
-	interface RestrictionSelectivity extends Memo<RestrictionSelectivity> { }
-	interface JoinSelectivity        extends Memo<JoinSelectivity> { }
+	interface Evaluator              extends Why<Evaluator> { }
+	interface RestrictionSelectivity extends Why<RestrictionSelectivity> { }
+	interface JoinSelectivity        extends Why<JoinSelectivity> { }
 
 	Kind kind();
 	boolean canMerge();

@@ -41,10 +41,11 @@ import org.postgresql.pljava.annotation.Trigger.Scope;
  * @param <M> distinguishes {@code RegProcedure} instances used for different
  * known purposes, by specifying the type of a 'memo' that could be attached to
  * the instance, perhaps with extra information helpful for the intended use.
- * At present, such memo interfaces are all empty, but still this parameter can
- * serve a compile-time role to discourage mixing different procedures up.
+ * At present, such memo interfaces are nearly all empty, but still this
+ * parameter can serve a compile-time role to discourage mixing different
+ * procedures up.
  */
-public interface RegProcedure<M extends RegProcedure.Memo<M>>
+public interface RegProcedure<M extends RegProcedure.Memo.Why<M>>
 extends
 	Addressed<RegProcedure<?>>, Namespaced<Simple>, Owned,
 	AccessControlled<EXECUTE>
@@ -157,9 +158,46 @@ extends
 	 */
 	M memo();
 
-	interface Memo<M extends Memo<M>> { }
+	/**
+	 * Superinterface of two memo types a {@code RegProcedure} can carry,
+	 * {@link Why Why} and {@link How How}.
+	 *<p>
+	 * A {@code Why} memo pertains to the intended use of a
+	 * {@code RegProcedure}, for example as a
+	 * {@link RegType.TypeInput TypeInput} function or as a
+	 * {@link PlannerSupport PlannerSupport} function. The {@code Why} memo,
+	 * if present, can be retrieved by the {@link #memo() memo()} method, and
+	 * the type parameter of {@code RegProcedure} reflects it, as a compile-time
+	 * safeguard against mixing up {@code RegProcedure}s with different
+	 * purposes.
+	 *<p>
+	 * Orthogonally to {@code Why}, a {@code How} memo pertains to how the
+	 * {@code RegProcedure} is implemented, such as
+	 * {@link ProceduralLanguage.PLJavaBased PLJavaBased} if the
+	 * {@code RegProcedure} is implemented in a language built atop PL/Java.
+	 * The language of implementation is ideally independent of the intended
+	 * use, so {@code RegProcedure} is not parameterized with a {@code How}
+	 * type, and has no API method to retrieve an associated {@code How} memo.
+	 * For PL/Java-based languages, PL/Java's dispatcher will pass the
+	 * associated {@code How} memo to the language handler.
+	 */
+	interface Memo<M extends Memo<M>>
+	{
+		/**
+		 * Superinterface of memos that pertain to the intended use of a
+		 * {@link RegProcedure RegProcedure} (<em>why</em> it is used).
+		 */
+		interface Why<M extends Why<M>> extends Memo<M> { }
 
-	interface PlannerSupport extends Memo<PlannerSupport> { }
+		/**
+		 * Superinterface of memos that pertain to the internal implementation
+		 * of a {@link RegProcedure RegProcedure} (<em>how</em> it is
+		 * implemented).
+		 */
+		interface How<M extends How<M>> extends Memo<M> { }
+	}
+
+	interface PlannerSupport extends Memo.Why<PlannerSupport> { }
 
 	/**
 	 * Counterpart to the PostgreSQL {@code FmgrInfo}.

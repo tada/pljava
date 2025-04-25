@@ -18,7 +18,7 @@ import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
-import org.postgresql.pljava.model.RegProcedure.Memo;
+import org.postgresql.pljava.model.RegProcedure.Memo.Why;
 
 /**
  * Model of the PostgreSQL {@code pg_transform} system catalog.
@@ -57,8 +57,8 @@ public interface Transform extends Addressed<Transform>
 	RegClass.Known<Transform> CLASSID =
 		formClassId(TransformRelationId, Transform.class);
 
-	interface FromSQL extends Memo<FromSQL> { }
-	interface ToSQL   extends Memo<ToSQL>   { }
+	interface FromSQL extends Why<FromSQL> { }
+	interface ToSQL   extends Why<ToSQL>   { }
 
 	/**
 	 * The PostgreSQL data type to which this transform is intended to apply.

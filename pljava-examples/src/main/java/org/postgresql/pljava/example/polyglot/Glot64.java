@@ -49,6 +49,7 @@ import org.postgresql.pljava.model.Transform;
 import org.postgresql.pljava.model.Transform.FromSQL;
 import org.postgresql.pljava.model.Transform.ToSQL;
 import org.postgresql.pljava.model.Trigger;
+import org.postgresql.pljava.model.Trigger.ForTrigger;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -266,7 +267,7 @@ public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 	 */
 	@Override
 	public void essentialChecks(
-		RegProcedure<PLJavaBased> subject, boolean checkBody)
+		RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
 	throws SQLException
 	{
 		System.out.printf("%s essentialChecks: checkBody %s\n",
@@ -297,7 +298,7 @@ public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 	 */
 	@Override
 	public void additionalChecks(
-		RegProcedure<PLJavaBased> subject, boolean checkBody)
+		RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
 	throws SQLException
 	{
 		System.out.printf("%s additionalChecks: checkBody %s: ",
@@ -371,11 +372,9 @@ public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 	 * result(s).
 	 */
 	@Override
-	public Template prepare(RegProcedure<PLJavaBased> target)
+	public Template prepare(RegProcedure<?> target, PLJavaBased memo)
 	throws SQLException
 	{
-		PLJavaBased memo = target.memo();
-
 		BitSet unresolvedIn  = memo.unresolvedInputs();
 		BitSet unresolvedOut = memo.unresolvedOutputs();
 
@@ -530,24 +529,25 @@ public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 
 	@Override
 	public void essentialTriggerChecks(
-		RegProcedure<PLJavaBased> subject, boolean checkBody)
+		RegProcedure<ForTrigger> subject, PLJavaBased memo, boolean checkBody)
 	throws SQLException
 	{
 		System.out.printf("essentialTriggerChecks: ");
-		essentialChecks(subject, checkBody);
+		essentialChecks(subject, memo, checkBody);
 	}
 
 	@Override
 	public void additionalTriggerChecks(
-		RegProcedure<PLJavaBased> subject, boolean checkBody)
+		RegProcedure<ForTrigger> subject, PLJavaBased memo, boolean checkBody)
 	throws SQLException
 	{
 		System.out.printf("additionalTriggerChecks: ");
-		additionalChecks(subject, checkBody);
+		additionalChecks(subject, memo, checkBody);
 	}
 
 	@Override
-	public TriggerTemplate prepareTrigger(RegProcedure<PLJavaBased> target)
+	public TriggerTemplate prepareTrigger(
+		RegProcedure<ForTrigger> target, PLJavaBased memo)
 	throws SQLException
 	{
 		System.out.printf(

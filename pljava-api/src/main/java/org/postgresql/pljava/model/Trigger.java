@@ -27,7 +27,7 @@ import org.postgresql.pljava.model.RegProcedure.Call.Context.TriggerData;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
-import org.postgresql.pljava.model.RegProcedure.Memo;
+import org.postgresql.pljava.model.RegProcedure.Memo.Why;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
@@ -49,7 +49,7 @@ extends
 
 	enum ReplicationRole { ON_ORIGIN, ALWAYS, ON_REPLICA, DISABLED };
 
-	interface ForTrigger extends Memo<ForTrigger> { }
+	interface ForTrigger extends Why<ForTrigger> { }
 
 	/**
 	 * Name of this trigger.
