@@ -368,6 +368,7 @@ public class CatalogObjects {
 							.map(Class::getSimpleName)
 							.collect(joining(", "))
 					);
+					++ untested;
 				}
 				catch ( LinkageError e )
 				{
