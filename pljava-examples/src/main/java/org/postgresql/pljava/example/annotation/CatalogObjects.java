@@ -316,7 +316,7 @@ public class CatalogObjects {
 					{
 						log(INFO,
 							"database has no {0} objects " +
-							" for representation test", regc.name());
+							"for representation test", regc.name());
 						++ untested;
 						continue;
 					}

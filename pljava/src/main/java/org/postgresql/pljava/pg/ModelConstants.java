@@ -363,6 +363,8 @@ public abstract class ModelConstants
 	@Native private static final int IDX_TSDICTOID      = 512;
 	@Native private static final int IDX_TYPEOID        = 513;
 	@Native private static final int IDX_CONSTROID      = 514;
+	@Native private static final int IDX_TRFOID         = 515;
+	@Native private static final int IDX_TRFTYPELANG    = 516;
 
 
 
@@ -547,6 +549,8 @@ public abstract class ModelConstants
 	public static final int TSDICTOID;       // RegDictionaryImpl
 	public static final int TYPEOID;         // RegTypeImpl
 	public static final int CONSTROID;       // ConstraintImpl
+	public static final int TRFOID;          // TransformImpl
+	public static final int TRFTYPELANG;     // "
 
 
 
@@ -733,6 +737,8 @@ public abstract class ModelConstants
 			TSDICTOID      = n.get(IDX_TSDICTOID);
 			TYPEOID        = n.get(IDX_TYPEOID);
 			CONSTROID      = n.get(IDX_CONSTROID);
+			TRFOID         = n.get(IDX_TRFOID);
+			TRFTYPELANG    = n.get(IDX_TRFTYPELANG);
 
 
 

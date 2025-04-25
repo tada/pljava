@@ -539,15 +539,18 @@ public class CatalogObjectImpl implements CatalogObject
 				case OperatorRelationId:
 					fieldRead = RegOperator.CLASSID;
 					return RegOperatorImpl::new;
+				case TriggerRelationId:
+					fieldRead = Trigger.CLASSID;
+					return TriggerImpl::new;
 				case ExtensionRelationId:
 					fieldRead = Extension.CLASSID;
 					return ExtensionImpl::new;
 				case CollationRelationId:
 					fieldRead = RegCollation.CLASSID;
 					return RegCollationImpl::new;
-				case TriggerRelationId:
-					fieldRead = Trigger.CLASSID;
-					return TriggerImpl::new;
+				case TransformRelationId:
+					fieldRead = Transform.CLASSID;
+					return TransformImpl::new;
 				case TSDictionaryRelationId:
 					fieldRead = RegDictionary.CLASSID;
 					return RegDictionaryImpl::new;

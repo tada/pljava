@@ -45,6 +45,7 @@ extends Adapter.As<T,Void>
 	public static final Addressed<Database>           DATABASE_INSTANCE;
 	public static final Addressed<Extension>          EXTENSION_INSTANCE;
 	public static final Addressed<ProceduralLanguage> PLANG_INSTANCE;
+	public static final Addressed<Transform>          TRANSFORM_INSTANCE;
 
 	static
 	{
@@ -100,6 +101,9 @@ extends Adapter.As<T,Void>
 
 		PLANG_INSTANCE         = new  Addressed<>(configs[2],
 			ProceduralLanguage.CLASSID, ProceduralLanguage.class);
+
+		TRANSFORM_INSTANCE     = new  Addressed<>(configs[2],
+			Transform.CLASSID, Transform.class);
 	}
 
 	/**
