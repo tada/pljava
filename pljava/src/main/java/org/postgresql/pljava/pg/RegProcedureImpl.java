@@ -38,10 +38,12 @@ import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.model.*;
+import org.postgresql.pljava.model.RegProcedure.Memo;
 import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.PROCOID; // syscache
+import org.postgresql.pljava.pg.ProceduralLanguageImpl.PLJavaMemo;
 import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
 
 import static org.postgresql.pljava.pg.adt.ArrayAdapter
@@ -63,8 +65,7 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
-class RegProcedureImpl<M extends RegProcedure.Memo<M>>
-extends Addressed<RegProcedure<?>>
+class RegProcedureImpl<M extends Memo.Why<M>> extends Addressed<RegProcedure<?>>
 implements
 	Nonshared<RegProcedure<?>>, Namespaced<Simple>, Owned,
 	AccessControlled<CatalogObject.EXECUTE>, RegProcedure<M>
@@ -136,10 +137,14 @@ implements
 		sps.add(sp);
 		m_sp[0] = new SwitchPoint();
 
-		M memo = m_memo;
-		m_memo = null;
-		if ( memo instanceof AbstractMemo<?> )
-			((AbstractMemo<?>)memo).invalidate(sps, postOps);
+		M why = m_why;
+		PLJavaMemo how = m_how;
+		m_why = null;
+		m_how = null;
+		if ( why instanceof AbstractMemo )
+			((AbstractMemo)why).invalidate(sps, postOps);
+		if ( null != how )
+			how.invalidate(sps, postOps);
 	}
 
 	static final int SLOT_LANGUAGE;
@@ -336,20 +341,22 @@ implements
 
 	/* mutable non-API fields that will only be used on the PG thread */
 
-	/**
-	 * This is the idea behind the API {@code memo()} method..
-	 *<p>
-	 * It can be retrieved with the {@link #memo memo} method. The method does
-	 * not synchronize. It is documented to return a valid result only in
-	 * certain circumstances, which an individual {@code Memo} subinterface
-	 * should detail. For example, {@code PLJavaBased} documents that it may be
-	 * obtained within the body of a language-handler method that has been
-	 * passed a {@code RegProcedure<PLJavaBased>}. It will have been placed
-	 * there by code executing on the PG thread; the handler, even if executed
-	 * on another thread, will execute after a synchronizing operation ensuring
-	 * visibility of the write.
+	/*
+	 * This is the idea behind the API memo() method.
+	 *
+	 * A Why memo can be retrieved with the memo() method. The method does not
+	 * synchronize. It is documented to return a valid result only in certain
+	 * circumstances, which an individual Why subinterface should detail. A Why
+	 * memo's type is constrained by the type parameter M.
+	 *
+	 * As the only foreseeable How memo for now is PLJavaMemo, that field is
+	 * of fixed type for now. PLJavaBased documents that it is valid when
+	 * the dispatcher passes it to a language-handler method along with
+	 * a RegProcedure<?>. The dispatcher, while allowing the handler to run
+	 * in another thread, is always on "the PG thread" when manipulating m_how.
 	 */
-	M m_memo;
+	M m_why;
+	PLJavaMemo m_how;
 
 	/*
 	 * Computation methods for ProceduralLanguage.PLJavaBased API methods
@@ -449,7 +456,7 @@ implements
 	}
 
 	private static Checked.Supplier<List<Transform>,SQLException> transforms(
-		RegProcedureImpl<PLJavaBased> o)
+		RegProcedureImpl<?> o)
 	throws SQLException
 	{
 		List<RegType> types = o.transformTypes();
@@ -653,7 +660,7 @@ implements
 
 	/*
 	 * API-like methods not actually exposed as RegProcedure API.
-	 * There are exposed on the RegProcedure.Memo subinterface
+	 * There are exposed on the RegProcedure.Memo.How subinterface
 	 * ProceduralLanguage.PLJavaBased. These implementations could
 	 * conceivably be moved to the implementation of that, so that
 	 * not all RegProcedure instances would haul around five extra slots.
@@ -1057,44 +1064,87 @@ implements
 	public M memo()
 	{
 		/*
-		 * See the m_memo declaration comments on this lack of synchronization.
+		 * See the m_why declaration comments on this lack of synchronization.
 		 */
-		return m_memo;
+		return m_why;
 	}
 
-	public static abstract class AbstractMemo<M extends Memo<M>>
-	implements Memo<M>
+	public static abstract class AbstractMemo
 	{
-		/**
-		 * The {@code RegProcedure} instance carrying this memo.
-		 */
-		protected final RegProcedureImpl<M> m_carrier;
-
-		protected AbstractMemo(RegProcedureImpl<? super M> carrier)
+		protected AbstractMemo()
 		{
 			assert threadMayEnterPG() : "AbstractMemo thread";
-			if ( null != carrier.m_memo )
-				throw new AssertionError("carrier already has a memo");
-			@SuppressWarnings("unchecked")
-			RegProcedureImpl<M> narrowed = (RegProcedureImpl<M>)carrier;
-			m_carrier = narrowed;
 		}
 
-		public RegProcedureImpl<M> apply()
+		abstract void invalidate(List<SwitchPoint> sps, List<Runnable> postOps);
+
+		public static abstract class Why<M extends Memo.Why<M>>
+		extends AbstractMemo implements Memo.Why<M>
 		{
-			assert threadMayEnterPG() : "AbstractMemo thread";
-			assert null == m_carrier.m_memo : "carrier memo became nonnull";
+			/**
+			 * The {@code RegProcedure} instance carrying this memo.
+			 */
+			protected final RegProcedureImpl<M> m_carrier;
 
-			@SuppressWarnings("unchecked")
-			M self = (M)this;
+			protected Why(RegProcedure<? super M> carrier)
+			{
+				@SuppressWarnings("unchecked")
+				RegProcedureImpl<M> narrowed = (RegProcedureImpl<M>)carrier;
+				if ( null != narrowed.m_why )
+					throw new AssertionError("carrier already has why memo");
+				m_carrier = narrowed;
+			}
 
-			m_carrier.m_memo = self;
-			return m_carrier;
+			public RegProcedureImpl<M> apply()
+			{
+				assert threadMayEnterPG() : "AbstractMemo.Why thread";
+				assert null == m_carrier.m_why : "carrier memo became nonnull";
+
+				@SuppressWarnings("unchecked")
+				M self = (M)this;
+
+				m_carrier.m_why = self;
+				return m_carrier;
+			}
+
+			void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+			{
+				m_carrier.m_why = null;
+			}
 		}
 
-		void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+		public static abstract class How<M extends Memo.How<M>>
+		extends AbstractMemo implements Memo.How<M>
 		{
-			m_carrier.m_memo = null;
+			/**
+			 * The {@code RegProcedure} instance carrying this memo.
+			 */
+			protected final RegProcedureImpl<?> m_carrier;
+
+			protected How(RegProcedure<?> carrier)
+			{
+				RegProcedureImpl<?> narrowed = (RegProcedureImpl<?>)carrier;
+				if ( null != narrowed.m_how )
+					throw new AssertionError("carrier already has how memo");
+				m_carrier = narrowed;
+			}
+
+			public RegProcedureImpl<?> apply()
+			{
+				assert threadMayEnterPG() : "AbstractMemo.how thread";
+				assert null == m_carrier.m_how : "carrier memo became nonnull";
+
+				// generalize later if there is ever any other possibility
+				PLJavaMemo self = (PLJavaMemo)this;
+
+				m_carrier.m_how = self;
+				return m_carrier;
+			}
+
+			void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
+			{
+				m_carrier.m_how = null;
+			}
 		}
 	}
 }

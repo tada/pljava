@@ -57,7 +57,8 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.LANGOID; // syscache
-import org.postgresql.pljava.pg.RegProcedureImpl.AbstractMemo;
+import org.postgresql.pljava.pg.RegProcedureImpl.AbstractMemo.How;
+import org.postgresql.pljava.pg.RegProcedureImpl.AbstractMemo.Why;
 
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import static org.postgresql.pljava.pg.adt.NameAdapter.SIMPLE_INSTANCE;
@@ -175,7 +176,7 @@ implements
 				 * here. (That will involve a reentrant call of this method,
 				 * which will quickly return.)
 				 */
-				Validator v = ((RegProcedureImpl<Validator>)vp).m_memo;
+				Validator v = vp.memo();
 				if ( null != v )
 					((ValidatorMemo)v).invalidate(sps, postOps);
 
@@ -279,7 +280,7 @@ implements
 	{
 	}
 
-	private static class RoutineSet extends HashSet<RegProcedure<PLJavaBased>>
+	private static class RoutineSet extends HashSet<RegProcedure<?>>
 	{
 		/* only accessed on the PG thread */
 		private PLJavaBasedLanguage m_implementingClass;
@@ -328,13 +329,12 @@ implements
 		if ( ! (m_dependents instanceof RoutineSet) )
 			return null;
 
-		@SuppressWarnings("unchecked")
-		RegProcedureImpl<PLJavaBased> rpi = (RegProcedureImpl<PLJavaBased>)r;
+		RegProcedureImpl<?> rpi = (RegProcedureImpl<?>)r;
 
 		if ( ((RoutineSet)m_dependents).add(rpi) )
 			new PLJavaMemo(rpi).apply();
 
-		return (PLJavaMemo)r.memo(); // unnarrowed r to check cast as assertion
+		return rpi.m_how;
 	}
 
 	void memoizeImplementingClass(
@@ -566,7 +566,7 @@ implements
 	 * in the map and lead to the constant {@code Supplier} being cached.
 	 */
 	Checked.Supplier<List<Transform>,SQLException>
-	transformsFor(List<RegType> types, RegProcedureImpl<PLJavaBased> p)
+	transformsFor(List<RegType> types, RegProcedureImpl<?> p)
 	throws SQLException
 	{
 		assert threadMayEnterPG() : "transformsFor thread";
@@ -727,8 +727,7 @@ implements
 		}
 	}
 
-	static class ValidatorMemo extends AbstractMemo<Validator>
-	implements Validator
+	static class ValidatorMemo extends Why<Validator> implements Validator
 	{
 		/**
 		 * The language that the carrier routine serves as validator for.
@@ -754,12 +753,11 @@ implements
 		}
 	}
 
-	static class PLJavaMemo extends AbstractMemo<PLJavaBased>
-	implements PLJavaBased
+	static class PLJavaMemo extends How<PLJavaBased> implements PLJavaBased
 	{
 		Template m_routineTemplate;
 
-		private PLJavaMemo(RegProcedureImpl<? super PLJavaBased> carrier)
+		private PLJavaMemo(RegProcedureImpl<?> carrier)
 		{
 			super(carrier);
 		}

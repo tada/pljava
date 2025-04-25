@@ -70,6 +70,7 @@ import org.postgresql.pljava.model.RegProcedure.Call.ResultInfo;
 import static org.postgresql.pljava.model.RegProcedure.Kind.PROCEDURE;
 import org.postgresql.pljava.model.RegType;
 import static org.postgresql.pljava.model.RegType.TRIGGER;
+import org.postgresql.pljava.model.Trigger.ForTrigger;
 import org.postgresql.pljava.model.TupleDescriptor;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -165,13 +166,13 @@ class LookupImpl implements RegProcedure.Lookup
 	{
 		@Override
 		public void essentialChecks(
-			RegProcedure<PLJavaBased> subject, boolean checkBody)
+			RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
 		{
 			throw squawk(subject.language());
 		}
 
 		@Override
-		public Template prepare(RegProcedure<PLJavaBased> target)
+		public Template prepare(RegProcedure<?> target, PLJavaBased memo)
 		{
 			throw squawk(target.language());
 		}
@@ -540,7 +541,7 @@ class LookupImpl implements RegProcedure.Lookup
 
 		int placeholders = 0;
 		ProceduralLanguageImpl pl = null;
-		PLJavaBased memo = null;
+		PLJavaMemo memo = null;
 		try
 		{
 			/*
@@ -574,20 +575,15 @@ class LookupImpl implements RegProcedure.Lookup
 
 			/*
 			 * Not a validator. So, confirm the PL is something PL/Java-based,
-			 * to justify casting it to RegProcedureImpl<PLJavaBased> and
-			 * expecting to find a PLJavaBased memo there. That's where we will
-			 * find the Template if one has already been cached.
+			 * to justify expecting to find a PLJavaBased memo there. That's
+			 * where we will find the Template if one has already been cached.
 			 */
 			if ( ! pl.isPLJavaBased() )
 				throw new SQLSyntaxErrorException(String.format(
 					"%s of %s not recognized as a PL/Java-based language",
 					pl, m_target), "42883");
 
-			@SuppressWarnings("unchecked")
-			RegProcedureImpl<PLJavaBased> target =
-				(RegProcedureImpl<PLJavaBased>)m_target;
-
-			memo = target.m_memo;
+			memo = m_target.m_how;
 
 			/*
 			 * We are getting ready to return a Routine that, when executed,
@@ -604,7 +600,7 @@ class LookupImpl implements RegProcedure.Lookup
 
 			if ( null != memo )
 			{
-				Template template = ((PLJavaMemo)memo).m_routineTemplate;
+				Template template = memo.m_routineTemplate;
 				assert null != template : "PLJavaBased memo with null template";
 				return specializingRoutine(template);
 			}
@@ -625,13 +621,12 @@ class LookupImpl implements RegProcedure.Lookup
 			 * Before doing so, cache s_placeholderTemplate for now, all
 			 * analogously to the use of s_placeholderRoutine above.
 			 */
-			memo = pl.addDependentRoutine(target);
-			((PLJavaMemo)memo).m_routineTemplate = s_placeholderTemplate;
+			memo = pl.addDependentRoutine(m_target);
+			memo.m_routineTemplate = s_placeholderTemplate;
 			++ placeholders;
 
 			if ( pbl instanceof Routines )
-				return preparingRoutine(
-					target, (PLJavaMemo)memo, (Routines)pbl);
+				return preparingRoutine(m_target, memo, (Routines)pbl);
 
 			assert null == pbl
 				: "PL with wrong type of implementing class cached";
@@ -657,7 +652,7 @@ class LookupImpl implements RegProcedure.Lookup
 			pl.memoizeImplementingClass(null, s_placeholderInstance);
 			++ placeholders;
 
-			return instantiatingRoutine(target, (PLJavaMemo)memo, ctor, pl);
+			return instantiatingRoutine(m_target, memo, ctor, pl);
 		}
 		catch ( Throwable t )
 		{
@@ -668,7 +663,7 @@ class LookupImpl implements RegProcedure.Lookup
 				/* FALLTHROUGH */
 			case 2:
 				memo.m_routineTemplate = null;
-				((PLJavaMemo)memo).discardIncomplete();
+				memo.discardIncomplete();
 				/* FALLTHROUGH */
 			case 1:
 				m_routine = null;
@@ -715,7 +710,7 @@ class LookupImpl implements RegProcedure.Lookup
 	 * {@code specializingRoutine}.
 	 */
 	private static Routine preparingRoutine(
-		RegProcedure<PLJavaBased> target, PLJavaMemo memo, Routines impl)
+		RegProcedureImpl<?> target, PLJavaMemo memo, Routines impl)
 	throws SQLException
 	{
 		return fcinfo ->
@@ -725,7 +720,7 @@ class LookupImpl implements RegProcedure.Lookup
 			try
 			{
 				validate(impl, target, true/*checkBody*/, false/*additional*/);
-				outer_template = prepare(impl, target);
+				outer_template = prepare(impl, (RegProcedureImpl<?>)target);
 			}
 			finally
 			{
@@ -751,7 +746,7 @@ class LookupImpl implements RegProcedure.Lookup
 	 * {@code preparingRoutine}.
 	 */
 	private static Routine instantiatingRoutine(
-		RegProcedure<PLJavaBased> target, PLJavaMemo memo,
+		RegProcedureImpl<?> target, PLJavaMemo memo,
 		Checked.Function<ProceduralLanguage,? extends Routines,SQLException>
 			ctor,
 		ProceduralLanguageImpl pl)
@@ -958,10 +953,8 @@ class LookupImpl implements RegProcedure.Lookup
 		Routines impl, RegProcedure<?> subject, boolean checkBody)
 	throws SQLException
 	{
-		@SuppressWarnings("unchecked")
-		RegProcedure<PLJavaBased> narrowed = (RegProcedure<PLJavaBased>)subject;
-
-		validate(impl, narrowed, checkBody, true);
+		RegProcedureImpl<?> rpi = (RegProcedureImpl<?>)subject;
+		validate(impl, rpi, checkBody, true);
 
 		/*
 		 * On the way to invoking this method, nearly all of the linkages
@@ -989,11 +982,11 @@ class LookupImpl implements RegProcedure.Lookup
 		 */
 		doInPG(() ->
 		{
-			PLJavaMemo m = (PLJavaMemo)narrowed.memo();
+			PLJavaMemo m = rpi.m_how;
 			if ( null == m  ||  null != m.m_routineTemplate )
 				return;
 			if ( checkBody )
-				m.m_routineTemplate = preparingTemplate(narrowed, impl);
+				m.m_routineTemplate = preparingTemplate(rpi, impl);
 			else
 				m.discardIncomplete();
 		});
@@ -1015,11 +1008,13 @@ class LookupImpl implements RegProcedure.Lookup
 	 * requested, {@code additionalChecks}) methods.
 	 */
 	private static void validate(
-		Routines impl, RegProcedure<PLJavaBased> subject,
+		Routines impl, RegProcedureImpl<?> subject,
 		boolean checkBody, boolean additionalChecks)
 	throws SQLException
 	{
 		checkForTransforms(subject, impl, additionalChecks);
+
+		PLJavaMemo memo = subject.m_how;
 
 		if ( TRIGGER == subject.returnType() )
 		{
@@ -1041,21 +1036,24 @@ class LookupImpl implements RegProcedure.Lookup
 
 			Triggers timpl = (Triggers)impl;
 
-			timpl.essentialTriggerChecks(subject, checkBody);
+			@SuppressWarnings("unchecked")
+			RegProcedure<ForTrigger> tsubj = (RegProcedure<ForTrigger>)subject;
+
+			timpl.essentialTriggerChecks(tsubj, memo, checkBody);
 
 			if ( ! additionalChecks )
 				return;
 
-			timpl.additionalTriggerChecks(subject, checkBody);
+			timpl.additionalTriggerChecks(tsubj, memo, checkBody);
 			return;
 		}
 
-		impl.essentialChecks(subject, checkBody);
+		impl.essentialChecks(subject, memo, checkBody);
 
 		if ( ! additionalChecks )
 			return;
 
-		impl.additionalChecks(subject, checkBody);
+		impl.additionalChecks(subject, memo, checkBody);
 	}
 
 	/**
@@ -1075,19 +1073,21 @@ class LookupImpl implements RegProcedure.Lookup
 	 * a caller's {@link Context.TriggerData TriggerData} to the
 	 * {@code TriggerFunction}'s {@code apply} method.
 	 */
-	private static Template prepare(
-		Routines impl, RegProcedure<PLJavaBased> target)
+	private static Template prepare(Routines impl, RegProcedureImpl<?> target)
 	throws SQLException
 	{
 		if ( TRIGGER != target.returnType() )
-			return requireNonNull(impl.prepare(target));
+			return requireNonNull(impl.prepare(target, target.m_how));
 
 		/*
 		 * It's a trigger (and validated before we got here).
 		 */
 
+		@SuppressWarnings("unchecked")
+		RegProcedure<ForTrigger> ttgt = (RegProcedure<ForTrigger>)target;
+
 		TriggerTemplate ttpl =
-			requireNonNull(((Triggers)impl).prepareTrigger(target));
+			requireNonNull(((Triggers)impl).prepareTrigger(ttgt, target.m_how));
 
 		return flinfo ->
 		{
@@ -1128,7 +1128,7 @@ class LookupImpl implements RegProcedure.Lookup
 	 * its {@code specialize} method and return the result.
 	 */
 	private static Template preparingTemplate(
-		RegProcedure<PLJavaBased> subject, Routines impl)
+		RegProcedureImpl<?> subject, Routines impl)
 	{
 		return flinfo ->
 		{
@@ -1144,7 +1144,7 @@ class LookupImpl implements RegProcedure.Lookup
 
 			doInPG(() ->
 			{
-				PLJavaMemo m = (PLJavaMemo)subject.memo();
+				PLJavaMemo m = subject.m_how;
 				if ( null == m )
 					return;
 				m.m_routineTemplate = t;
@@ -1761,7 +1761,7 @@ class LookupImpl implements RegProcedure.Lookup
 	}
 
 	private static void checkForTransforms(
-		RegProcedure<PLJavaBased> p, Routines impl, boolean addlChecks)
+		RegProcedure<?> p, Routines impl, boolean addlChecks)
 	throws SQLException
 	{
 		List<RegType> types = p.transformTypes();
@@ -1793,7 +1793,7 @@ class LookupImpl implements RegProcedure.Lookup
 					p, dups), "42P13");
 		}
 
-		PLJavaMemo m = (PLJavaMemo)p.memo();
+		PLJavaMemo m = ((RegProcedureImpl<?>)p).m_how;
 
 		/*
 		 * m.transforms() will construct a list (and cache it, so it doesn't
