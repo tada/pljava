@@ -30,6 +30,7 @@
 #include <catalog/pg_ts_config.h>
 #include <catalog/pg_constraint.h>
 #include <catalog/pg_trigger.h>
+#include <catalog/pg_transform.h>
 
 #include <commands/trigger.h>
 
@@ -300,6 +301,7 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST(      TriggerRelationId );
 	CONFIRMCONST(    ExtensionRelationId );
 	CONFIRMCONST(    CollationRelationId );
+	CONFIRMCONST(    TransformRelationId );
 	CONFIRMCONST( TSDictionaryRelationId );
 	CONFIRMCONST(     TSConfigRelationId );
 

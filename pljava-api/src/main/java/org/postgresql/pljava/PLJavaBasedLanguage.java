@@ -21,6 +21,7 @@ import org.postgresql.pljava.model.RegProcedure.Call;
 import org.postgresql.pljava.model.RegProcedure.Call.Context.TriggerData; // jvd
 import org.postgresql.pljava.model.RegProcedure.Lookup;
 import org.postgresql.pljava.model.RegType;
+import org.postgresql.pljava.model.Transform;
 import org.postgresql.pljava.model.Trigger;
 import org.postgresql.pljava.model.TupleTableSlot; // javadoc
 
@@ -34,7 +35,8 @@ import org.postgresql.pljava.annotation.Trigger.Scope; // javadoc
  * An implementing class does not implement this interface directly, but rather
  * implements one or both of the subinterfaces {@link InlineBlocks InlineBlocks}
  * and {@link Routines Routines}. A language that implements {@code Routines}
- * may also implement {@link Triggers Triggers}. The implementing class must
+ * may also implement one or more of: {@link Triggers Triggers},
+ * {@link UsingTransforms UsingTransforms}. The implementing class must
  * have a public constructor with a
  * {@link ProceduralLanguage ProceduralLanguage} parameter, which it may ignore,
  * or use to determine the name, oid, accessibility, or other details of the
@@ -284,6 +286,57 @@ public interface PLJavaBasedLanguage
 		 */
 		TriggerTemplate prepareTrigger(RegProcedure<PLJavaBased> target)
 		throws SQLException;
+	}
+
+	/**
+	 * To be implemented by a language that supports routines declared with
+	 * {@code TRANSFORM FOR TYPE}.
+	 *<p>
+	 * In addition to implementing the abstract method declared here, a language
+	 * that implements this interface takes up full responsibility  for doing
+	 * whatever must be done to give effect to any such transforms declared on
+	 * routines that use the language. PostgreSQL itself provides nothing but
+	 * a way to declare transforms and associate them with routine declarations.
+	 *<p>
+	 * PL/Java will reject, at validation time when possible, any routine
+	 * declared with {@code TRANSFORM FOR TYPE} if the language does not
+	 * implement this interface.
+	 */
+	public interface UsingTransforms extends PLJavaBasedLanguage
+	{
+		/**
+		 * Performs validation checks on a {@link Transform} that purports to be
+		 * usable with this language.
+		 *<p>
+		 * PL/Java will already have checked that <var>t</var>'s
+		 * {@link Transform#language() language()} refers to this language.
+		 * This method should use best effort to make sure that <var>t</var>'s
+		 * {@link Transform#fromSQL() fromSQL()} and
+		 * {@link Transform#toSQL() toSQL()} functions are, in fact, functions
+		 * that this language implementation can use to transform values between
+		 * <var>t</var>'s target PostgreSQL {@link Transform#type() type()} and
+		 * a data type available to this language. See documentation of the
+		 * {@link Transform#fromSQL() fromSQL()} and
+		 * {@link Transform#toSQL() toSQL()} methods for more detail on what may
+		 * need to be checked.
+		 *<p>
+		 * It is possible for {@link Transform#fromSQL() fromSQL()}
+		 * or {@link Transform#toSQL() toSQL()} to return
+		 * a {@code RegProcedure} instance for which
+		 * {@link RegProcedure#isValid() isValid()} is false, which indicates
+		 * that this language's default from-SQL or to-SQL handling,
+		 * respectively, is to be used for the transform's
+		 * {@linkplain Transform#type() type}. In such cases, this method should
+		 * check that this language has a usable default conversion in the
+		 * indicated direction for that type.
+		 *<p>
+		 * This method should return normally on success, otherwise throwing
+		 * an informative exception. Unless there is a more-specific
+		 * choice, {@link SQLSyntaxErrorException} with {@code SQLState}
+		 * {@code 42P17} corresponds to PostgreSQL's
+		 * {@code invalid_object_definition}.
+		 */
+		void essentialTransformChecks(Transform t) throws SQLException;
 	}
 
 	/**

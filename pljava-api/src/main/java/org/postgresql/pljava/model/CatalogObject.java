@@ -535,6 +535,7 @@ public interface CatalogObject
 		protected static final int      TriggerRelationId = 2620;
 		protected static final int    ExtensionRelationId = 3079;
 		protected static final int    CollationRelationId = 3456;
+		protected static final int    TransformRelationId = 3576;
 		protected static final int TSDictionaryRelationId = 3600;
 		protected static final int     TSConfigRelationId = 3602;
 
