@@ -15,13 +15,17 @@ import java.lang.invoke.MethodHandle;
 import static java.lang.invoke.MethodHandles.lookup;
 
 import java.sql.SQLException;
+import java.sql.SQLSyntaxErrorException;
 
 import java.util.ArrayList;
+import static java.util.Arrays.copyOfRange;
 import java.util.BitSet;
 import static java.util.Collections.unmodifiableSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import static java.util.Objects.requireNonNull;
 import java.util.Set;
@@ -35,6 +39,7 @@ import java.util.stream.Stream;
 import org.postgresql.pljava.PLJavaBasedLanguage;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
+import org.postgresql.pljava.PLJavaBasedLanguage.UsingTransforms;
 import org.postgresql.pljava.PLPrincipal;
 
 import org.postgresql.pljava.model.*;
@@ -42,9 +47,12 @@ import org.postgresql.pljava.model.RegProcedure.Call;
 
 import org.postgresql.pljava.annotation.Function.Trust;
 
+import static org.postgresql.pljava.internal.Backend.doInPG;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
+import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
+import static org.postgresql.pljava.internal.SwitchPointCache.doNotCache;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
@@ -275,6 +283,9 @@ implements
 	{
 		/* only accessed on the PG thread */
 		private PLJavaBasedLanguage m_implementingClass;
+
+		/* likewise */
+		private Map<RegType,Transform> m_typeTransforms;
 	}
 
 	/* mutable non-API data used only on the PG thread */
@@ -534,6 +545,88 @@ implements
 		return null;
 	}
 
+	/**
+	 * Called from a {@code RegProcedureImpl} computation method, returns
+	 * a list of {@code Transform} corresponding to the supplied {@code RegType}
+	 * list.
+	 *<p>
+	 * A map is maintained here from types to transforms that have already
+	 * passed the language implementation's {@code essentialTransformChecks}.
+	 * If transforms for all of <var>types</var> are already in the map, a list
+	 * of those is returned in a trivial constant {@code Supplier} that will be
+	 * cached when the calling computation method returns.
+	 *<p>
+	 * If not all of <var>types</var> can already be found in the map, they must
+	 * be looked up in the syscache. They have not yet been checked by
+	 * {@code essentialTransformChecks}. A {@code Supplier} will be returned,
+	 * without caching, that calls {@code essentialTransformChecks} on those,
+	 * outside of {@code doInPG}, adds them to the map if that succeeds, and
+	 * then returns the value of a recursive call of the
+	 * {@code RegProcedureImpl} method, which will then find all the transforms
+	 * in the map and lead to the constant {@code Supplier} being cached.
+	 */
+	Checked.Supplier<List<Transform>,SQLException>
+	transformsFor(List<RegType> types, RegProcedureImpl<PLJavaBased> p)
+	throws SQLException
+	{
+		assert threadMayEnterPG() : "transformsFor thread";
+		assert ! types.isEmpty()  : "transformsFor empty types";
+
+		Map<RegType,Transform> map =
+			((RoutineSet)m_dependents).m_typeTransforms;
+
+		if ( null == map )
+			((RoutineSet)m_dependents).m_typeTransforms = map = new HashMap<>();
+
+		Transform[] ts = new Transform [ types.size() ];
+		int nKnown = 0, iNew = ts.length;
+
+		for ( RegType ty : types )
+		{
+			Transform tr = map.get(ty);
+			if ( null != tr )
+			{
+				ts [ nKnown ++ ] = tr;
+				continue;
+			}
+
+			tr = TransformImpl.fromTypeLang(ty, this);
+
+			if ( null == tr )
+				throw new SQLSyntaxErrorException(String.format(
+					"%s of %s has no transform defined for: %s",
+					this, p, ty), "42P13");
+
+			ts [ -- iNew ] = tr;
+		}
+
+		if ( ts.length == nKnown )
+		{
+			List<Transform> result = List.of(ts);
+			return () -> result;
+		}
+
+		Transform[] toCheck = copyOfRange(ts, iNew, ts.length);
+		UsingTransforms utImpl = (UsingTransforms)implementingClass();
+		Map<RegType,Transform> final_map = map;
+
+		doNotCache();
+		return () ->
+		{
+			for ( int i = toCheck.length ; i --> 0 ; )
+			{
+				Transform tr = toCheck [ i ];
+				utImpl.essentialTransformChecks(tr);
+			}
+			return doInPG(() ->
+			{
+				for ( Transform tr : toCheck )
+					final_map.put(tr.type(), tr);
+				return p.transforms();
+			});
+		};
+	}
+
 	/* computation methods */
 
 	private static PLPrincipal principal(ProceduralLanguageImpl o)
@@ -731,7 +824,7 @@ implements
 		@Override
 		public List<Transform> transforms()
 		{
-			throw notyet();
+			return m_carrier.transforms();
 		}
 	}
 }

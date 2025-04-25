@@ -32,11 +32,13 @@ import org.postgresql.pljava.annotation.Function.Parallel;
 import org.postgresql.pljava.annotation.Function.Security;
 
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
+import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.model.*;
+import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
 import static org.postgresql.pljava.pg.ModelConstants.PROCOID; // syscache
@@ -170,6 +172,7 @@ implements
 	static final int SLOT_UNRESOLVEDINPUTS;
 	static final int SLOT_OUTPUTSTEMPLATE;
 	static final int SLOT_UNRESOLVEDOUTPUTS;
+	static final int SLOT_TRANSFORMS;
 
 	static final int NSLOTS;
 
@@ -222,10 +225,11 @@ implements
 			.withDependent(           "bin", SLOT_BIN            = i++)
 			.withDependent(        "config", SLOT_CONFIG         = i++)
 
-			.withDependent("inputsTemplate",    SLOT_INPUTSTEMPLATE    = i++)
-			.withDependent("unresolvedInputs",  SLOT_UNRESOLVEDINPUTS  = i++)
-			.withDependent("outputsTemplate",   SLOT_OUTPUTSTEMPLATE   = i++)
+			.withDependent(   "inputsTemplate", SLOT_INPUTSTEMPLATE    = i++)
+			.withDependent( "unresolvedInputs", SLOT_UNRESOLVEDINPUTS  = i++)
+			.withDependent(  "outputsTemplate", SLOT_OUTPUTSTEMPLATE   = i++)
 			.withDependent("unresolvedOutputs", SLOT_UNRESOLVEDOUTPUTS = i++)
+			.withDependent(       "transforms", SLOT_TRANSFORMS        = i++)
 
 			.build()
 			/*
@@ -444,6 +448,18 @@ implements
 		return unr;
 	}
 
+	private static Checked.Supplier<List<Transform>,SQLException> transforms(
+		RegProcedureImpl<PLJavaBased> o)
+	throws SQLException
+	{
+		List<RegType> types = o.transformTypes();
+		if ( null == types  ||  types.isEmpty() )
+			return () -> null;
+
+		ProceduralLanguageImpl pl = (ProceduralLanguageImpl)o.language();
+		return pl.transformsFor(types, o);
+	}
+
 	/* computation methods for API */
 
 	private static ProceduralLanguage language(RegProcedureImpl o)
@@ -640,7 +656,7 @@ implements
 	 * There are exposed on the RegProcedure.Memo subinterface
 	 * ProceduralLanguage.PLJavaBased. These implementations could
 	 * conceivably be moved to the implementation of that, so that
-	 * not all RegProcedure instances would haul around four extra slots.
+	 * not all RegProcedure instances would haul around five extra slots.
 	 */
 	public TupleDescriptor inputsTemplate()
 	{
@@ -689,6 +705,22 @@ implements
 			MethodHandle h = m_slots[SLOT_UNRESOLVEDOUTPUTS];
 			BitSet unr = (BitSet)h.invokeExact(this, h);
 			return null == unr ? null : (BitSet)unr.clone();
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	public List<Transform> transforms()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_TRANSFORMS];
+			Checked.Supplier<List<Transform>,SQLException> s =
+				(Checked.Supplier<List<Transform>,SQLException>)
+				h.invokeExact(this, h);
+			return s.get();
 		}
 		catch ( Throwable t )
 		{
