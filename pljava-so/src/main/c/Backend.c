@@ -1096,8 +1096,8 @@ static void initPLJavaClasses(void)
 	Invocation_initialize();
 	Exception_initialize2();
 	Type_initialize();
-	pljava_DualState_initialize();
 	pljava_ModelUtils_initialize();
+	pljava_DualState_initialize();
 	SPI_initialize();
 	Function_initialize();
 	Session_initialize();

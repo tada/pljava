@@ -34,6 +34,7 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.CatalogObjectImpl.Factory.TRFOID_CB;
 import static org.postgresql.pljava.pg.ModelConstants.TRFOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.TRFTYPELANG; // syscache
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
@@ -48,6 +49,23 @@ class TransformImpl extends Addressed<Transform>
 implements Nonshared<Transform>, Transform
 {
 	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
+
+	/**
+	 * Count of instances subject to invalidation.
+	 *<p>
+	 * Only accessed in invalidate and SP.onFirstUse, both on the PG thread.
+	 */
+	private static int s_instances;
+
+	private static class SP extends SwitchPoint
+	{
+		@Override
+		protected void onFirstUse()
+		{
+			if ( 1 == ++ s_instances )
+				sysCacheInvalArmed(TRFOID_CB, true);
+		}
+	}
 
 	private final SwitchPoint[] m_sp;
 
@@ -103,7 +121,7 @@ implements Nonshared<Transform>, Transform
 	TransformImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
-		m_sp = new SwitchPoint[] { new SwitchPoint() };
+		m_sp = new SwitchPoint[] { new SP() };
 	}
 
 	@Override
@@ -113,7 +131,9 @@ implements Nonshared<Transform>, Transform
 		if ( sp.unused() )
 			return;
 		sps.add(sp);
-		m_sp[0] = new SwitchPoint();
+		m_sp[0] = new SP();
+		if ( 0 == -- s_instances )
+			sysCacheInvalArmed(TRFOID_CB, false);
 
 		boolean languageCached = m_languageCached;
 		m_languageCached = false;

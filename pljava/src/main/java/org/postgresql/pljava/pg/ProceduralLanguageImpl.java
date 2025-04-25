@@ -59,6 +59,7 @@ import static org.postgresql.pljava.internal.SwitchPointCache.doNotCache;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.CatalogObjectImpl.Factory.LANGOID_CB;
 import static org.postgresql.pljava.pg.ModelConstants.LANGOID; // syscache
 import org.postgresql.pljava.pg.RegProcedureImpl.AbstractMemo.How;
 import org.postgresql.pljava.pg.RegProcedureImpl.SupportMemo;
@@ -80,6 +81,23 @@ implements
 	AccessControlled<CatalogObject.USAGE>, ProceduralLanguage
 {
 	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
+
+	/**
+	 * Count of instances subject to invalidation.
+	 *<p>
+	 * Only accessed in invalidate and SP.onFirstUse, both on the PG thread.
+	 */
+	private static int s_instances;
+
+	private static class SP extends SwitchPoint
+	{
+		@Override
+		protected void onFirstUse()
+		{
+			if ( 1 == ++ s_instances )
+				sysCacheInvalArmed(LANGOID_CB, true);
+		}
+	}
 
 	private final SwitchPoint[] m_sp;
 
@@ -128,7 +146,7 @@ implements
 	ProceduralLanguageImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
-		m_sp = new SwitchPoint[] { new SwitchPoint() };
+		m_sp = new SwitchPoint[] { new SP() };
 	}
 
 	@Override
@@ -148,6 +166,8 @@ implements
 			 */
 			m_sp[0] = null;
 			sps.add(oldSP);
+			if ( 0 == -- s_instances )
+				sysCacheInvalArmed(LANGOID_CB, false);
 
 			Set<?> deps = m_dependents;
 			m_dependents = null;
@@ -215,7 +235,7 @@ implements
 		}
 		finally
 		{
-			m_sp[0] = new SwitchPoint();
+			m_sp[0] = new SP();
 		}
 	}
 

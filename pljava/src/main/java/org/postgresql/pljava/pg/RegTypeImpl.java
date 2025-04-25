@@ -36,6 +36,7 @@ import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import org.postgresql.pljava.model.*;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.CatalogObjectImpl.Factory.TYPEOID_CB;
 
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.alignmentFromCatalog;
@@ -1163,6 +1164,23 @@ implements
 	 */
 	static class NoModifier extends RegTypeImpl
 	{
+		/**
+		 * Count of instances subject to invalidation.
+		 *<p>
+		 * Only accessed in invalidate and SP.onFirstUse, both on the PG thread.
+		 */
+		private static int s_instances;
+
+		private static class SP extends SwitchPoint
+		{
+			@Override
+			protected void onFirstUse()
+			{
+				if ( 1 == ++ s_instances )
+					sysCacheInvalArmed(TYPEOID_CB, true);
+			}
+		}
+
 		private final SwitchPoint[] m_sp;
 
 		@Override
@@ -1174,7 +1192,7 @@ implements
 		NoModifier()
 		{
 			super(s_initializer.apply(new MethodHandle[NSLOTS]));
-			m_sp = new SwitchPoint[] { new SwitchPoint() };
+			m_sp = new SwitchPoint[] { new SP() };
 		}
 
 		@Override
@@ -1184,7 +1202,9 @@ implements
 			if ( sp.unused() )
 				return;
 			sps.add(sp);
-			m_sp[0] = new SwitchPoint();
+			m_sp[0] = new SP();
+			if ( 0 == -- s_instances )
+				sysCacheInvalArmed(TYPEOID_CB, false);
 		}
 
 		@Override

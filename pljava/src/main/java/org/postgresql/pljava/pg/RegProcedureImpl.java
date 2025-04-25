@@ -46,6 +46,7 @@ import org.postgresql.pljava.model.RegProcedure.Memo;
 import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static org.postgresql.pljava.pg.CatalogObjectImpl.Factory.PROCOID_CB;
 import static org.postgresql.pljava.pg.ModelConstants.PROCOID; // syscache
 import org.postgresql.pljava.pg.ProceduralLanguageImpl.PLJavaMemo;
 import static org.postgresql.pljava.pg.TupleDescImpl.synthesizeDescriptor;
@@ -75,6 +76,23 @@ implements
 	AccessControlled<CatalogObject.EXECUTE>, RegProcedure<M>
 {
 	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
+
+	/**
+	 * Count of instances subject to invalidation.
+	 *<p>
+	 * Only accessed in invalidate and SP.onFirstUse, both on the PG thread.
+	 */
+	private static int s_instances;
+
+	private static class SP extends SwitchPoint
+	{
+		@Override
+		protected void onFirstUse()
+		{
+			if ( 1 == ++ s_instances )
+				sysCacheInvalArmed(PROCOID_CB, true);
+		}
+	}
 
 	private final SwitchPoint[] m_sp;
 
@@ -129,7 +147,7 @@ implements
 	RegProcedureImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
-		m_sp = new SwitchPoint[] { new SwitchPoint() };
+		m_sp = new SwitchPoint[] { new SP() };
 	}
 
 	@Override
@@ -139,7 +157,9 @@ implements
 		if ( sp.unused() )
 			return;
 		sps.add(sp);
-		m_sp[0] = new SwitchPoint();
+		m_sp[0] = new SP();
+		if ( 0 == -- s_instances )
+			sysCacheInvalArmed(PROCOID_CB, false);
 
 		M why = m_why;
 		PLJavaMemo how = m_how;

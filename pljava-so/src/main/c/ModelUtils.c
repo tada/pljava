@@ -92,6 +92,14 @@ static jmethodID s_TupleTableSlotImpl_newDeformed;
 static void relCacheCB(Datum arg, Oid relid);
 static void sysCacheCB(Datum arg, int cacheid, uint32 hash);
 
+/*
+ * An array of boolean, one for each registered syscache callback, updated from
+ * Java to reflect whether any instances subject to invalidation of that class
+ * have been cached. When false, the C syscache callback can return immediately.
+ */
+static bool s_sysCacheInvalArmed
+	[ org_postgresql_pljava_pg_CatalogObjectImpl_Factory_SYSCACHE_CBS ];
+
 jobject pljava_TupleDescriptor_create(TupleDesc tupdesc, Oid reloid)
 {
 	jlong tupdesc_size = (jlong)TupleDescSize(tupdesc);
@@ -478,22 +486,13 @@ static void resourceReleaseCB(ResourceReleasePhase phase,
 
 static void sysCacheCB(Datum arg, int cacheid, uint32 hash)
 {
-	switch ( cacheid )
-	{
-	case LANGOID:
-	case PROCOID:
-	case TRFOID:
-	case TYPEOID:
-		JNI_callStaticObjectMethodLocked(s_CatalogObjectImpl_Factory_class,
-			s_CatalogObjectImpl_Factory_syscacheInvalidate,
-			(jint)cacheid, (jint)hash);
-		break;
-	default:
-#ifdef USE_ASSERT_CHECKING
-		elog(ERROR, "unhandled invalidation callback for cache id %d", cacheid);
-#endif
-		break;
-	}
+	int32 index = DatumGetInt32(arg);
+	if ( ! s_sysCacheInvalArmed [ index ] )
+		return;
+
+	JNI_callStaticObjectMethodLocked(s_CatalogObjectImpl_Factory_class,
+		s_CatalogObjectImpl_Factory_syscacheInvalidate,
+		(jint)index, (jint)cacheid, (jint)hash);
 }
 
 void pljava_ResourceOwner_unregister(void)
@@ -531,6 +530,11 @@ void pljava_ModelUtils_initialize(void)
 		"_tupDescBootstrap",
 		"()Ljava/nio/ByteBuffer;",
 		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstrap
+		},
+		{
+		"_windowSysCacheInvalArmed",
+		"()Ljava/nio/ByteBuffer;",
+		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1windowSysCacheInvalArmed
 		},
 		{ 0, 0, 0 }
 	};
@@ -718,7 +722,7 @@ void pljava_ModelUtils_initialize(void)
 		s_CatalogObjectImpl_Factory_class, "invalidateRelation", "(I)V");
 	s_CatalogObjectImpl_Factory_syscacheInvalidate =
 		PgObject_getStaticJavaMethod(
-		s_CatalogObjectImpl_Factory_class, "syscacheInvalidate", "(II)V");
+		s_CatalogObjectImpl_Factory_class, "syscacheInvalidate", "(III)V");
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/CharsetEncodingImpl$EarlyNatives");
 	PgObject_registerNatives2(cls, charsetMethods);
@@ -796,10 +800,16 @@ void pljava_ModelUtils_initialize(void)
 
 	CacheRegisterRelcacheCallback(relCacheCB, 0);
 
-	CacheRegisterSyscacheCallback(LANGOID, sysCacheCB, 0);
-	CacheRegisterSyscacheCallback(PROCOID, sysCacheCB, 0);
-	CacheRegisterSyscacheCallback(TRFOID,  sysCacheCB, 0);
-	CacheRegisterSyscacheCallback(TYPEOID, sysCacheCB, 0);
+#define REGISTER_SYSCACHE_CALLBACK(cache) \
+	CacheRegisterSyscacheCallback((cache), sysCacheCB, Int32GetDatum(\
+	org_postgresql_pljava_pg_CatalogObjectImpl_Factory_##cache##_CB))
+
+	REGISTER_SYSCACHE_CALLBACK(LANGOID);
+	REGISTER_SYSCACHE_CALLBACK(PROCOID);
+	REGISTER_SYSCACHE_CALLBACK(TRFOID);
+	REGISTER_SYSCACHE_CALLBACK(TYPEOID);
+
+#undef REGISTER_SYSCACHE_CALLBACK
 }
 
 /*
@@ -959,6 +969,18 @@ Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstra
 	result = JNI_newDirectByteBuffer((void *)td, length);
 	END_NATIVE_AND_CATCH("_tupDescBootstrap")
 	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
+ * Method:    _windowSysCacheInvalArmed
+ * Signature: ()Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1windowSysCacheInvalArmed(JNIEnv *env, jclass cls)
+{
+	return (*env)->NewDirectByteBuffer(
+		env, s_sysCacheInvalArmed, sizeof s_sysCacheInvalArmed);
 }
 
 /*

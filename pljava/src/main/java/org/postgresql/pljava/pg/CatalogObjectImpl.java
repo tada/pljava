@@ -616,29 +616,15 @@ public class CatalogObjectImpl implements CatalogObject
 		 * Oid (inconvenient, as that is likely different from the hash Java
 		 * uses), or zero to flush metadata for all cached types.
 		 */
-		private static void syscacheInvalidate(int cacheId, int oidHash)
+		private static void syscacheInvalidate(
+			int cbIndex, int cacheId, int oidHash)
 		{
 			assert threadMayEnterPG() : "RegType invalidate thread";
 
 			List<SwitchPoint> sps = new ArrayList<>();
 			List<Runnable> postOps = new ArrayList<>();
 
-			Class<? extends Addressed> targetClass;
-
-			if ( LANGOID == cacheId )
-				targetClass = ProceduralLanguageImpl.class;
-			else if ( PROCOID == cacheId )
-				targetClass = RegProcedureImpl.class;
-			else if ( TRFOID == cacheId )
-				targetClass = TransformImpl.class;
-			else if ( TYPEOID == cacheId )
-				targetClass = RegTypeImpl.class;
-			else
-			{
-				assert false :
-					"unhandled invalidation callback for cache id " + cacheId;
-				return;
-			}
+			Class<? extends Addressed> targetClass = s_sysInvalClasses[cbIndex];
 
 			forEachValue(o ->
 			{
@@ -727,6 +713,49 @@ public class CatalogObjectImpl implements CatalogObject
 		@Native public static final int ANYCOMPATIBLEARRAYOID         = 5078;
 		@Native public static final int ANYCOMPATIBLENONARRAYOID      = 5079;
 		@Native public static final int ANYCOMPATIBLERANGEOID         = 5080;
+
+		/*
+		 * Indices into arrays used for syscache invalidation callbacks.
+		 * One of these is a boolean native array the C callback can check
+		 * and return quickly if there is nothing from that cache to invalidate.
+		 * At least one more array indexed the same way is in Java and used
+		 * in syscacheInvalidate.
+		 */
+		@Native public static final int LANGOID_CB = 0;
+		@Native public static final int PROCOID_CB = 1;
+		@Native public static final int  TRFOID_CB = 2;
+		@Native public static final int TYPEOID_CB = 3;
+		@Native public static final int SYSCACHE_CBS = 4;
+
+		/**
+		 * An array mapping a syscache invalidation callback index to the Java
+		 * class used for instances of the corresponding catalog class.
+		 */
+		private static final Class<? extends Addressed>[] s_sysInvalClasses;
+
+		static
+		{
+			@SuppressWarnings("unchecked")
+			Class<? extends Addressed>[] cs =
+				(Class<? extends Addressed>[])new Class<?> [ SYSCACHE_CBS ];
+			cs [ LANGOID_CB ] = ProceduralLanguageImpl.class;
+			cs [ PROCOID_CB ] = RegProcedureImpl.class;
+			cs [  TRFOID_CB ] = TransformImpl.class;
+			cs [ TYPEOID_CB ] = RegTypeImpl.class;
+			s_sysInvalClasses = cs;
+		}
+
+		/**
+		 * A {@code ByteBuffer} that windows a C boolean array, one for each
+		 * registered syscache invalidation callback, updated (see the {@link
+		 * CatalogObjectImpl.Addressed#sysCacheInvalArmed sysCacheInvalArmed}
+		 * method below) to reflect whether the Java {@code CacheMap} contains
+		 * any instances of the corresponding class that could need
+		 * invalidation.
+		 */
+		private static final ByteBuffer s_sysCacheInvalArmed =
+			CatalogObjectImpl.Addressed._windowSysCacheInvalArmed()
+				.order(nativeOrder());
 	}
 
 	/*
@@ -774,6 +803,12 @@ public class CatalogObjectImpl implements CatalogObject
 		 * lock acquisitions) less easy to predict or intercept.
 		 */
 		static final SwitchPoint[] s_globalPoint = { new SwitchPoint() };
+
+		/**
+		 * Obtains a {@code ByteBuffer} that windows the C boolean array
+		 * indicating which syscache callbacks are currently 'armed'.
+		 */
+		private static native ByteBuffer _windowSysCacheInvalArmed();
 
 		/**
 		 * Initializer for only the {@code SLOT_TUPLE} slot of a
@@ -844,6 +879,20 @@ public class CatalogObjectImpl implements CatalogObject
 				.withSlots(o -> o.m_slots)
 				.withDependent("cacheTuple", SLOT_TUPLE)
 				.build();
+		}
+
+		/**
+		 * Writes the 'armed' status for a specific C syscache invalidation
+		 * callback, specified by the index defined for it in
+		 * {@link CatalogObjectImpl.Factory Factory}.
+		 *<p>
+		 * When the status for a given syscache is not armed, its C callback
+		 * returns immediately with no Java upcall.
+		 */
+		protected static void sysCacheInvalArmed(int index, boolean inUse)
+		{
+			CatalogObjectImpl.Factory.s_sysCacheInvalArmed.put(
+				index, (byte)(inUse ? 1 : 0));
 		}
 
 		/**
