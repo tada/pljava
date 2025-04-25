@@ -28,6 +28,7 @@ import java.util.function.UnaryOperator;
 
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
+import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
 import org.postgresql.pljava.model.*;
@@ -47,6 +48,8 @@ class TransformImpl extends Addressed<Transform>
 implements Nonshared<Transform>, Transform
 {
 	private static final UnaryOperator<MethodHandle[]> s_initializer;
+
+	private final SwitchPoint[] m_sp;
 
 	/**
 	 * Looks up a single {@code Transform} given a type and procedural language.
@@ -100,11 +103,18 @@ implements Nonshared<Transform>, Transform
 	TransformImpl()
 	{
 		super(s_initializer.apply(new MethodHandle[NSLOTS]));
+		m_sp = new SwitchPoint[] { new SwitchPoint() };
 	}
 
 	@Override
 	void invalidate(List<SwitchPoint> sps, List<Runnable> postOps)
 	{
+		SwitchPoint sp = m_sp[0];
+		if ( sp.unused() )
+			return;
+		sps.add(sp);
+		m_sp[0] = new SwitchPoint();
+
 		boolean languageCached = m_languageCached;
 		m_languageCached = false;
 		if ( languageCached )
@@ -130,10 +140,16 @@ implements Nonshared<Transform>, Transform
 		s_initializer =
 			new Builder<>(TransformImpl.class)
 			.withLookup(lookup())
-			.withSwitchPoint(o -> s_globalPoint[0])
+			.withSwitchPoint(o -> o.m_sp[0])
 			.withSlots(o -> o.m_slots)
-			.withCandidates(TransformImpl.class.getDeclaredMethods())
 
+			.withCandidates(
+				CatalogObjectImpl.Addressed.class.getDeclaredMethods())
+			.withReceiverType(CatalogObjectImpl.Addressed.class)
+			.withDependent("cacheTuple", SLOT_TUPLE)
+
+			.withCandidates(TransformImpl.class.getDeclaredMethods())
+			.withReceiverType(null)
 			.withDependent(    "type", SLOT_TYPE	= i++)
 			.withDependent("language", SLOT_LANG    = i++)
 			.withDependent( "fromSQL", SLOT_FROMSQL = i++)

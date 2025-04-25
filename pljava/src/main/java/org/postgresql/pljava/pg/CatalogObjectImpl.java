@@ -37,6 +37,7 @@ import org.postgresql.pljava.pg.ModelConstants;
 import static org.postgresql.pljava.pg.ModelConstants.PG_VERSION_NUM;
 import static org.postgresql.pljava.pg.ModelConstants.LANGOID;
 import static org.postgresql.pljava.pg.ModelConstants.PROCOID;
+import static org.postgresql.pljava.pg.ModelConstants.TRFOID;
 import static org.postgresql.pljava.pg.ModelConstants.TYPEOID;
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_LONG;
 import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
@@ -628,6 +629,8 @@ public class CatalogObjectImpl implements CatalogObject
 				targetClass = ProceduralLanguageImpl.class;
 			else if ( PROCOID == cacheId )
 				targetClass = RegProcedureImpl.class;
+			else if ( TRFOID == cacheId )
+				targetClass = TransformImpl.class;
 			else if ( TYPEOID == cacheId )
 				targetClass = RegTypeImpl.class;
 			else

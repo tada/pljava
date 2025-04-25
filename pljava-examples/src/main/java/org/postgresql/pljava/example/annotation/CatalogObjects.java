@@ -60,6 +60,7 @@ import org.postgresql.pljava.model.RegClass.Known;
 import org.postgresql.pljava.model.RegProcedure;
 import org.postgresql.pljava.model.RegType;
 import org.postgresql.pljava.model.SlotTester;
+import org.postgresql.pljava.model.Transform;
 import org.postgresql.pljava.model.Trigger;
 import org.postgresql.pljava.model.TupleTableSlot;
 
@@ -92,6 +93,7 @@ public class CatalogObjects {
 	static final As<RegClass          ,?> RegClsAdapter;
 	static final As<RegProcedure<?>   ,?> RegPrcAdapter;
 	static final As<RegType           ,?> RegTypAdapter;
+	static final As<Transform         ,?> TrnsfmAdapter;
 
 	static
 	{
@@ -117,6 +119,8 @@ public class CatalogObjects {
 					cls, "REGPROCEDURE_INSTANCE");
 			RegTypAdapter =
 				(As<RegType,?>)t.adapterPlease(cls, "REGTYPE_INSTANCE");
+			TrnsfmAdapter =
+				(As<Transform,?>)t.adapterPlease(cls, "TRANSFORM_INSTANCE");
 		}
 		catch ( SQLException | ReflectiveOperationException e )
 		{
@@ -133,7 +137,7 @@ public class CatalogObjects {
 		)
 		{
 			SlotTester st = conn.unwrap(SlotTester.class);
-			CatalogObject catObj;
+			CatalogObject.Addressed<?> catObj;
 			String description1;
 			String description2;
 			boolean passing = true;
@@ -225,6 +229,26 @@ public class CatalogObjects {
 			{
 				log(WARNING, "RegType before/after drop: {1} / {0}",
 					description1, description2);
+				passing = false;
+			}
+
+			s.executeUpdate( // a completely bogus transform, don't use it!
+				"CREATE TRANSFORM FOR pg_catalog.circle LANGUAGE sql" +
+				" (FROM SQL WITH FUNCTION time_support)");
+			catObj = findObj(s, st, TrnsfmAdapter,
+				"SELECT CAST (trf.oid AS pg_catalog.oid)" +
+				" FROM pg_catalog.pg_transform AS trf" +
+				" JOIN pg_catalog.pg_language AS lan ON trflang = lan.oid" +
+				" WHERE lanname = 'sql'" +
+				" AND trftype = CAST ('circle' AS pg_catalog.regtype)");
+			boolean exists1 = catObj.exists();
+			s.executeUpdate(
+				"DROP TRANSFORM FOR pg_catalog.circle LANGUAGE sql");
+			boolean exists2 = catObj.exists();
+			if ( exists2 )
+			{
+				log(WARNING, "Transform.exists() before/after drop: {0} / {1}",
+					exists1, exists2);
 				passing = false;
 			}
 

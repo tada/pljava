@@ -482,6 +482,7 @@ static void sysCacheCB(Datum arg, int cacheid, uint32 hash)
 	{
 	case LANGOID:
 	case PROCOID:
+	case TRFOID:
 	case TYPEOID:
 		JNI_callStaticObjectMethodLocked(s_CatalogObjectImpl_Factory_class,
 			s_CatalogObjectImpl_Factory_syscacheInvalidate,
@@ -797,6 +798,7 @@ void pljava_ModelUtils_initialize(void)
 
 	CacheRegisterSyscacheCallback(LANGOID, sysCacheCB, 0);
 	CacheRegisterSyscacheCallback(PROCOID, sysCacheCB, 0);
+	CacheRegisterSyscacheCallback(TRFOID,  sysCacheCB, 0);
 	CacheRegisterSyscacheCallback(TYPEOID, sysCacheCB, 0);
 }
 
