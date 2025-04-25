@@ -301,6 +301,14 @@ public interface PLJavaBasedLanguage
 	 * PL/Java will reject, at validation time when possible, any routine
 	 * declared with {@code TRANSFORM FOR TYPE} if the language does not
 	 * implement this interface.
+	 *<p>
+	 * A language that does implement this interface can learn
+	 * what transforms are to be applied by calling
+	 * {@link PLJavaBased#transforms() memo.transforms()} in its
+	 * {@link Routines#prepare prepare} and/or
+	 * {@link Triggers#prepareTrigger prepareTrigger} methods, and perhaps
+	 * also in its validation methods to detect configuration issues as early
+	 * as possible.
 	 */
 	public interface UsingTransforms extends PLJavaBasedLanguage
 	{

@@ -727,5 +727,11 @@ implements
 		{
 			return m_carrier.unresolvedOutputs();
 		}
+
+		@Override
+		public List<Transform> transforms()
+		{
+			throw notyet();
+		}
 	}
 }

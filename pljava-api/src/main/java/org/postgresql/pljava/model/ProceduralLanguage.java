@@ -22,11 +22,13 @@ import org.postgresql.pljava.model.RegProcedure.Memo;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier; // javadoc
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
+import org.postgresql.pljava.PLJavaBasedLanguage; // javadoc
 import org.postgresql.pljava.PLPrincipal;
 
 import org.postgresql.pljava.annotation.Function.Trust;
 
 import java.util.BitSet;
+import java.util.List;
 
 /**
  * Model of a PostgreSQL procedural language, including (for non-built-in
@@ -116,7 +118,7 @@ extends
 		 * If the set is empty, such per-call-site resolution can be skipped.
 		 * @return a cloned {@code BitSet}
 		 */
-		public BitSet unresolvedInputs();
+		BitSet unresolvedInputs();
 
 		/**
 		 * A {@link TupleDescriptor} describing the expected result, based
@@ -175,7 +177,22 @@ extends
 		 * {@code VOID}-returning case where no further resolution is needed
 		 * (just as an empty {@code BitSet} here would normally indicate).
 		 */
-		public BitSet unresolvedOutputs();
+		BitSet unresolvedOutputs();
+
+		/**
+		 * A list of {@link Transform} instances (null if none) indicating
+		 * transforms to be applied on data types supplied to or supplied by
+		 * this routine.
+		 *<p>
+		 * When this method returns a non-null result, each {@code Transform}
+		 * in the list has already been checked by the language implementation's
+		 * {@link PLJavaBasedLanguage.UsingTransforms#essentialTransformChecks
+		 * essentialTransformChecks} method. Any exceptions those checks might
+		 * throw should have been thrown when the dispatcher invoked this method
+		 * before dispatching to the language handler, so a language handler
+		 * using this method need not normally expect to handle them.
+		 */
+		List<Transform> transforms();
 	}
 
 	default Trust trust()
