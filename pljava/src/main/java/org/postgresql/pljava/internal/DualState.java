@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -2233,6 +2233,21 @@ public abstract class DualState<T> extends WeakReference<T>
 	/**
 	 * A {@code DualState} subclass whose only native resource releasing action
 	 * needed is {@code SPI_freetuptable} of a single pointer.
+	 *<p>
+	 * Note: for now, the tuptable is freed only on {@code javaStateReleased}.
+	 * It turns out that {@code SPI_freetuptable}, since PG 9.4 (and backpatched
+	 * releases of 9.3) has contained code to raise a warning if the tuple table
+	 * being released does not belong to the <em>current</em> SPI connection.
+	 * When this class earlier did the free in {@code javaStateUnreachable},
+	 * that warning could be triggered on rare and irksome occasions if Java's
+	 * GC happened to find, during a nested invocation of some Java function,
+	 * that a tuple table from an outer invocation had become unreachable.
+	 *<p>
+	 * It would be conceivable to have {@code javaStateUnreachable} try to
+	 * determine if the current nest level matches that of the tuple table's
+	 * creation, and free it if so at least, otherwise leaking it to the
+	 * exit of the outer call. But for now it's also conceivable to just have it
+	 * do nothing, and let the context reset at invocation exit mop it up.
 	 */
 	public static abstract class SingleSPIfreetuptable<T>
 	extends SingleGuardedLong<T>
@@ -2250,13 +2265,12 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 
 		/**
-		 * When the Java state is released or unreachable, an
-		 * {@code SPI_freetuptable}
+		 * When the Java state is released, an {@code SPI_freetuptable}
 		 * call is made so the native memory is released without having to wait
 		 * for release of its containing context.
 		 */
 		@Override
-		protected void javaStateUnreachable(boolean nativeStateLive)
+		protected void javaStateReleased(boolean nativeStateLive)
 		{
 			assert Backend.threadMayEnterPG();
 			if ( nativeStateLive )
