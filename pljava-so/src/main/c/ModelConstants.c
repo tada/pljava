@@ -38,6 +38,7 @@
 
 #include <mb/pg_wchar.h>
 
+#include <nodes/execnodes.h>
 #include <nodes/memnodes.h>
 
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
@@ -245,6 +246,12 @@ static int32 constants[] = {
 	TYPEOFFSET(TriggerData, TRGD, tg_trigger),
 	TYPEOFFSET(TriggerData, TRGD, tg_updatedcols),
 
+	TYPEOFFSET(ReturnSetInfo, RSI, allowedModes),
+	TYPEOFFSET(ReturnSetInfo, RSI, isDone),
+	TYPEOFFSET(ReturnSetInfo, RSI, returnMode),
+	CONSTANTEXPR(SIZEOF_RSI_isDone, sizeof ((ReturnSetInfo *)0)->isDone),
+	CONSTANTEXPR(SIZEOF_RSI_returnMode,sizeof ((ReturnSetInfo *)0)->returnMode),
+
 
 
 	CONSTANT(ATTNUM),
@@ -272,12 +279,13 @@ static int32 constants[] = {
 #undef CONSTANT
 #undef CONSTANTEXPR
 
-static void dummy(Bitmapset *bitmapset)
+static void dummy(Bitmapset *bitmapset, ReturnSetInfo *rsi)
 {
 	StaticAssertStmt(SIZEOF_DATUM == SIZEOF_VOID_P,
 		"PostgreSQL SIZEOF_DATUM and SIZEOF_VOID_P no longer equivalent?");
 
 	AssertVariableIsOfType(bitmapset->nwords, int); /* DatumUtils.java */
+	AssertVariableIsOfType(rsi->allowedModes, int); /* LookupImpl.java */
 
 /*
  * BEGIN:CONFIRMCONST for CatalogObjectImpl.Factory constants
@@ -721,6 +729,15 @@ StaticAssertStmt((sizeof ((strct *)0)->fld) == \
 	CONFIRMCONST( TRIGGER_EVENT_INSTEAD );
 	CONFIRMCONST( TRIGGER_EVENT_TIMINGMASK );
 	CONFIRMCONST( FirstLowInvalidHeapAttributeNumber );
+
+	CONFIRMCONST( SFRM_ValuePerCall );
+	CONFIRMCONST( SFRM_Materialize );
+	CONFIRMCONST( SFRM_Materialize_Random );
+	CONFIRMCONST( SFRM_Materialize_Preferred );
+
+	CONFIRMCONST( ExprSingleResult );
+	CONFIRMCONST( ExprMultipleResult );
+	CONFIRMCONST( ExprEndResult );
 
 #undef CONFIRMCONST
 #undef CONFIRMSIZETAG

@@ -332,7 +332,7 @@ public abstract class ModelConstants
 
 
 	/*
-	 * Layouts of fcinfo->context structures.
+	 * Layouts of fcinfo->context / fcinfo->resultinfo structures.
 	 */
 	@Native private static final int IDX_OFFSET_TRGD_tg_event       = 180;
 	@Native private static final int IDX_OFFSET_TRGD_tg_relation    = 181;
@@ -340,6 +340,12 @@ public abstract class ModelConstants
 	@Native private static final int IDX_OFFSET_TRGD_tg_newtuple    = 183;
 	@Native private static final int IDX_OFFSET_TRGD_tg_trigger     = 184;
 	@Native private static final int IDX_OFFSET_TRGD_tg_updatedcols = 185;
+
+	@Native private static final int IDX_OFFSET_RSI_allowedModes    = 186;
+	@Native private static final int IDX_OFFSET_RSI_isDone          = 187;
+	@Native private static final int IDX_OFFSET_RSI_returnMode      = 188;
+	@Native private static final int IDX_SIZEOF_RSI_isDone          = 189;
+	@Native private static final int IDX_SIZEOF_RSI_returnMode      = 190;
 
 
 
@@ -527,6 +533,12 @@ public abstract class ModelConstants
 	public static final int OFFSET_TRGD_tg_newtuple;
 	public static final int OFFSET_TRGD_tg_trigger;
 	public static final int OFFSET_TRGD_tg_updatedcols;
+
+	public static final int OFFSET_RSI_allowedModes;
+	public static final int OFFSET_RSI_isDone;
+	public static final int OFFSET_RSI_returnMode;
+	public static final int SIZEOF_RSI_isDone;
+	public static final int SIZEOF_RSI_returnMode;
 
 
 
@@ -718,6 +730,12 @@ public abstract class ModelConstants
 			OFFSET_TRGD_tg_newtuple    = n.get(IDX_OFFSET_TRGD_tg_newtuple);
 			OFFSET_TRGD_tg_trigger     = n.get(IDX_OFFSET_TRGD_tg_trigger);
 			OFFSET_TRGD_tg_updatedcols = n.get(IDX_OFFSET_TRGD_tg_updatedcols);
+
+			OFFSET_RSI_allowedModes    = n.get(IDX_OFFSET_RSI_allowedModes);
+			OFFSET_RSI_isDone          = n.get(IDX_OFFSET_RSI_isDone);
+			OFFSET_RSI_returnMode      = n.get(IDX_OFFSET_RSI_returnMode);
+			SIZEOF_RSI_isDone          = n.get(IDX_SIZEOF_RSI_isDone);
+			SIZEOF_RSI_returnMode      = n.get(IDX_SIZEOF_RSI_returnMode);
 
 
 

@@ -44,6 +44,7 @@
 #include "org_postgresql_pljava_pg_CatalogObjectImpl_Factory.h"
 #include "org_postgresql_pljava_pg_CharsetEncodingImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_DatumUtils.h"
+#include "org_postgresql_pljava_pg_ExprContextImpl.h"
 #include "org_postgresql_pljava_pg_LookupImpl.h"
 #include "org_postgresql_pljava_pg_MemoryContextImpl_EarlyNatives.h"
 #include "org_postgresql_pljava_pg_ResourceOwnerImpl_EarlyNatives.h"
@@ -68,6 +69,10 @@
 static jclass s_CatalogObjectImpl_Factory_class;
 static jmethodID s_CatalogObjectImpl_Factory_invalidateRelation;
 static jmethodID s_CatalogObjectImpl_Factory_syscacheInvalidate;
+
+static jclass s_ExprContextImpl_class;
+static jmethodID s_ExprContextImpl_releaseAndDecache;
+static void exprContextCB(Datum arg);
 
 static jclass s_LookupImpl_class;
 static jmethodID s_LookupImpl_dispatchNew;
@@ -248,8 +253,8 @@ Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
 	jobject resultinfo_b = NULL;
 	jobject lookup = NULL;
 	Size size;
-	Ptr2Long p2l_mcxt;
-	Ptr2Long p2l_extra;
+	ExprContext *econtext = NULL;
+	MemoryContext perQueryContext = NULL;
 
 	/*
 	 * If the caller has supplied an expression node representing the call site,
@@ -348,8 +353,16 @@ Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
 			extra->resultinfo = resultinfo;
 		}
 
+		if ( T_ReturnSetInfo == resultinfoTag )
+		{
+			ReturnSetInfo *rsi = (ReturnSetInfo *)resultinfo;
+			econtext = rsi->econtext;
+			perQueryContext = econtext->ecxt_per_query_memory;
+		}
+
 		JNI_callVoidMethod(lookup, s_LookupImpl_dispatch,
-			oid, newExpr, hasExpr, fcinfo_b, context_b, resultinfo_b);
+			oid, newExpr, hasExpr, fcinfo_b, context_b, resultinfo_b,
+			(jlong)(uintptr_t)econtext, (jlong)(uintptr_t)perQueryContext);
 
 		PG_RETURN_VOID(); /* XXX for now */
 	}
@@ -406,6 +419,13 @@ Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
 		size = nodeTagToSize(resultinfoTag);
 		if ( 0 < size )
 			resultinfo_b = JNI_newDirectByteBuffer(resultinfo, (jlong)size);
+
+		if ( T_ReturnSetInfo == resultinfoTag )
+		{
+			ReturnSetInfo *rsi = (ReturnSetInfo *)resultinfo;
+			econtext = rsi->econtext;
+			perQueryContext = econtext->ecxt_per_query_memory;
+		}
 	}
 
 	extra->nargs = nargs;
@@ -413,19 +433,20 @@ Datum pljava_ModelUtils_callDispatch(PG_FUNCTION_ARGS, bool forValidator)
 	size = SizeForFunctionCallInfo(nargs);
 	fcinfo_b = JNI_newDirectByteBuffer(fcinfo, (jlong)size);
 
-	p2l_mcxt.longVal = 0;
-	p2l_mcxt.ptrVal = mcxt;
-
-	p2l_extra.longVal = 0;
-	p2l_extra.ptrVal = extra;
-
 	flinfo->fn_extra = extra;
 
 	JNI_callStaticVoidMethod(s_LookupImpl_class, s_LookupImpl_dispatchNew,
-		p2l_mcxt.longVal, p2l_extra.longVal,
-		oid, j4v, hasExpr, fcinfo_b, context_b, resultinfo_b);
+		(jlong)(uintptr_t)mcxt, (jlong)(uintptr_t)extra,
+		oid, j4v, hasExpr, fcinfo_b, context_b, resultinfo_b,
+		(jlong)(uintptr_t)econtext, (jlong)(uintptr_t)perQueryContext);
 
 	PG_RETURN_VOID(); /* XXX for now */
+}
+
+static void exprContextCB(Datum arg)
+{
+	JNI_callStaticObjectMethodLocked(s_ExprContextImpl_class,
+		s_ExprContextImpl_releaseAndDecache, (jint)DatumGetInt32(arg));
 }
 
 static void memoryContextCallback(void *arg)
@@ -609,6 +630,16 @@ void pljava_ModelUtils_initialize(void)
 		{ 0, 0, 0 }
 	};
 
+	JNINativeMethod exprContextMethods[] =
+	{
+		{
+		"_registerCallback",
+		"(JI)V",
+		Java_org_postgresql_pljava_pg_ExprContextImpl__1registerCallback
+		},
+		{ 0, 0, 0 }
+	};
+
 	JNINativeMethod lookupImplMethods[] =
 	{
 		{
@@ -732,17 +763,26 @@ void pljava_ModelUtils_initialize(void)
 	PgObject_registerNatives2(cls, datumMethods);
 	JNI_deleteLocalRef(cls);
 
+	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/ExprContextImpl");
+	s_ExprContextImpl_class = JNI_newGlobalRef(cls);
+	PgObject_registerNatives2(cls, exprContextMethods);
+	s_ExprContextImpl_releaseAndDecache = PgObject_getStaticJavaMethod(
+		cls, "releaseAndDecache", "(I)V");
+	JNI_deleteLocalRef(cls);
+
 	cls = PgObject_getJavaClass("org/postgresql/pljava/pg/LookupImpl");
 	PgObject_registerNatives2(cls, lookupImplMethods);
 	s_LookupImpl_class = JNI_newGlobalRef(cls);
 	JNI_deleteLocalRef(cls);
 	s_LookupImpl_dispatchNew =
 		PgObject_getStaticJavaMethod(s_LookupImpl_class, "dispatchNew",
-		"(JJIZZLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)"
+		"(JJIZZ"
+		"Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;"
+		"JJ)"
 		"V");
 	s_LookupImpl_dispatch =
 		PgObject_getJavaMethod(s_LookupImpl_class, "dispatch",
-		"(IZZLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;)"
+		"(IZZLjava/nio/ByteBuffer;Ljava/nio/ByteBuffer;Ljava/nio/ByteBuffer;JJ)"
 		"V");
 	s_LookupImpl_dispatchInline =
 		PgObject_getStaticJavaMethod(s_LookupImpl_class, "dispatchInline",
@@ -1171,6 +1211,21 @@ Java_org_postgresql_pljava_pg_DatumUtils__1mapVarlena(JNIEnv* env, jobject _cls,
 		(MemoryContext)p2lmc.ptrVal, (ResourceOwner)p2lro.ptrVal);
 	END_NATIVE_AND_CATCH("_mapVarlena")
 	return result;
+}
+
+
+/*
+ * Class:     org_postgresql_pljava_pg_ExprContextImpl
+ * Method:    _registerCallback
+ * Signature: (JI)V
+ */
+JNIEXPORT void JNICALL
+Java_org_postgresql_pljava_pg_ExprContextImpl__1registerCallback(JNIEnv* env, jobject _cls, jlong ecxt, jint key)
+{
+	BEGIN_NATIVE_AND_TRY
+	RegisterExprContextCallback(
+		(ExprContext *)(uintptr_t)ecxt, exprContextCB, Int32GetDatum(key));
+	END_NATIVE_AND_CATCH("_mapVarlena")
 }
 
 

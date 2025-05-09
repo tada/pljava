@@ -22,9 +22,11 @@ import java.nio.IntBuffer;
 import java.nio.charset.CharacterCodingException;
 
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import static java.util.Objects.requireNonNull;
@@ -33,12 +35,17 @@ import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
+import java.util.stream.Stream;
 
 import org.postgresql.pljava.PLJavaBasedLanguage;
 import org.postgresql.pljava.PLJavaBasedLanguage.InlineBlocks;
+import org.postgresql.pljava.PLJavaBasedLanguage.ReturningSets;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routines;
+import org.postgresql.pljava.PLJavaBasedLanguage.SRFFirst;
+import org.postgresql.pljava.PLJavaBasedLanguage.SRFNext;
 import org.postgresql.pljava.PLJavaBasedLanguage.SRFTemplate;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
 import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;
@@ -135,12 +142,21 @@ import static
 
 import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_Trigger;
 import static org.postgresql.pljava.pg.ModelConstants.OFFSET_TRG_tgoid;
+
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_RSI_allowedModes;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_RSI_isDone;
+import static org.postgresql.pljava.pg.ModelConstants.OFFSET_RSI_returnMode;
+import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_INT;
+import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_RSI_isDone;
+import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_RSI_returnMode;
+
 import static
 	org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlotNoFree;
 
 /**
- * The implementation of {@link Lookup}, serving as the dispatcher for routines,
- * validators, and inline code blocks in PL/Java-based languages.
+ * The implementation of {@link RegProcedure.Lookup Lookup}, serving as
+ * the dispatcher for routines, validators, and inline code blocks
+ * in PL/Java-based languages.
  */
 class LookupImpl implements RegProcedure.Lookup
 {
@@ -275,7 +291,8 @@ class LookupImpl implements RegProcedure.Lookup
 	private static void dispatchNew(
 		long mcxt, long extra, int targetOid,
 		boolean forValidator, boolean hasExpr,
-		ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo)
+		ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo,
+		long exprContextAddress, long perQueryCxtAddress)
 	throws SQLException
 	{
 		/*
@@ -298,7 +315,8 @@ class LookupImpl implements RegProcedure.Lookup
 			_cacheReference(flinfo, extra);
 
 			CallImpl cImpl = flinfo.preDispatch(
-				targetOid, true, hasExpr, fcinfo, context, resultinfo);
+				targetOid, true, hasExpr, fcinfo, context, resultinfo,
+				exprContextAddress, perQueryCxtAddress);
 
 			Routine routine = flinfo.selectRoutine();
 
@@ -338,7 +356,8 @@ class LookupImpl implements RegProcedure.Lookup
 	 */
 	private void dispatch(
 		int targetOid, boolean newExpr, boolean hasExpr,
-		ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo)
+		ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo,
+		long exprContextAddress, long perQueryCxtAddress)
 	throws SQLException
 	{
 		/*
@@ -349,7 +368,8 @@ class LookupImpl implements RegProcedure.Lookup
 		Checked.Runnable<SQLException> r = doInPG(() ->
 		{
 			CallImpl cImpl = preDispatch(
-				targetOid, newExpr, hasExpr, fcinfo, context, resultinfo);
+				targetOid, newExpr, hasExpr, fcinfo, context, resultinfo,
+				exprContextAddress, perQueryCxtAddress);
 
 			Routine routine = selectRoutine();
 
@@ -459,7 +479,8 @@ class LookupImpl implements RegProcedure.Lookup
 	 */
 	private CallImpl preDispatch(
 		int targetOid, boolean newExpr, boolean hasExpr,
-		ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo)
+		ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo,
+		long exprContextAddress, long perQueryCxtAddress)
 	throws SQLException
 	{
 		assert threadMayEnterPG() : "LookupImpl.dispatchNew thread";
@@ -500,10 +521,23 @@ class LookupImpl implements RegProcedure.Lookup
 				if ( 0 == resultinfo.capacity() )
 					resultinfo = null;
 			}
+
+			if ( null == resultinfo )
+				assert 0L == exprContextAddress && 0L == perQueryCxtAddress;
+			else
+			{
+				if ( exprContextAddress != m_savedCall.m_exprContextAddress )
+					newCallNeeded = true;
+
+				if ( perQueryCxtAddress != m_savedCall.m_perQueryCxtAddress )
+					newCallNeeded = true;
+			}
 		}
 
 		if ( newCallNeeded )
-			m_savedCall = new CallImpl(fcinfo, context, resultinfo);
+			m_savedCall =
+				new CallImpl(fcinfo, context, resultinfo,
+					exprContextAddress, perQueryCxtAddress);
 
 		return m_savedCall;
 	}
@@ -997,10 +1031,13 @@ class LookupImpl implements RegProcedure.Lookup
 	 * Calls the implementation's essential (and additional, if requested)
 	 * checks, following general checks common to all languages.
 	 *<p>
+	 * If <var>subject</var>'s {@link RegProcedure#returnsSet returnsSet()}
+	 * is true, delegates to {@link #validateSRF validateSRF}. Otherwise:
+	 *<p>
 	 * If <var>subject</var>'s return type is {@link RegType#TRIGGER TRIGGER},
 	 * this method will also check that <var>impl</var> implements
 	 * {@link Triggers Triggers} and that <var>subject</var> declares no
-	 * parameters and is not declared {@code SETOF}, throwing appropriate
+	 * parameters, throwing appropriate
 	 * exceptions if those conditions do not hold, and will then call
 	 * <var>impl</var>'s {@code essentialTriggerChecks} (and, if requested,
 	 * {@code additionalTriggerChecks}) methods.
@@ -1017,6 +1054,12 @@ class LookupImpl implements RegProcedure.Lookup
 
 		PLJavaMemo memo = subject.m_how;
 
+		if ( subject.returnsSet() )
+		{
+			validateSRF(impl, subject, memo, checkBody, additionalChecks);
+			return;
+		}
+
 		if ( TRIGGER == subject.returnType() )
 		{
 			if ( ! (impl instanceof Triggers) )
@@ -1028,11 +1071,6 @@ class LookupImpl implements RegProcedure.Lookup
 				|| null != subject.allArgTypes() )
 				throw new SQLSyntaxErrorException(String.format(
 					"%s declares arguments, but a trigger function may not",
-					subject), "42P13");
-
-			if ( subject.returnsSet() )
-				throw new SQLSyntaxErrorException(String.format(
-					"%s returns SETOF, but a trigger function may not",
 					subject), "42P13");
 
 			Triggers timpl = (Triggers)impl;
@@ -1058,6 +1096,42 @@ class LookupImpl implements RegProcedure.Lookup
 	}
 
 	/**
+	 * Calls the implementation's essential (and additional, if requested)
+	 * set-returning function checks, following general checks common to
+	 * all languages.
+	 *<p>
+	 * If <var>impl</var> does not implement
+	 * {@link ReturningSets ReturningSets}, throws an immediate exception
+	 * reporting that the language does not support returning sets.
+	 *<p>
+	 * Ultimately, calls <var>impl</var>'s {@code essentialSRFChecks} (and, if
+	 * requested, {@code additionalSRFChecks}) methods.
+	 */
+	private static void validateSRF(
+		Routines impl, RegProcedureImpl<?> subject, PLJavaMemo memo,
+		boolean checkBody, boolean additionalChecks)
+	throws SQLException
+	{
+		if ( ! (impl instanceof ReturningSets) )
+			throw new SQLSyntaxErrorException(String.format(
+				"%s of %s does not support RETURNS SETOF / RETURNS TABLE",
+				subject.language(), subject), "42P13");
+
+		if ( TRIGGER == subject.returnType() )
+			throw new SQLSyntaxErrorException(String.format(
+				"%s returns SETOF, but a trigger function may not",
+				subject), "42P13");
+
+		ReturningSets rsImpl = (ReturningSets)impl;
+		rsImpl.essentialSRFChecks(subject, memo, checkBody);
+
+		if ( ! additionalChecks )
+			return;
+
+		rsImpl.additionalSRFChecks(subject, memo, checkBody);
+	}
+
+	/**
 	 * Calls the appropriate method on <var>impl</var> to prepare and return
 	 * a {@code Template}.
 	 *<p>
@@ -1077,6 +1151,9 @@ class LookupImpl implements RegProcedure.Lookup
 	private static Template prepare(Routines impl, RegProcedureImpl<?> target)
 	throws SQLException
 	{
+		if ( target.returnsSet() )
+			return prepareSRF(impl, target);
+
 		if ( TRIGGER != target.returnType() )
 			return requireNonNull(impl.prepare(target, target.m_how));
 
@@ -1120,6 +1197,112 @@ class LookupImpl implements RegProcedure.Lookup
 					trgi.withTriggerData(tdi, () -> final_tf.apply(tdi));
 				// XXX when result-returning implemented, do the right stuff
 			};
+		};
+	}
+
+	private static Template prepareSRF(
+		Routines impl, RegProcedureImpl<?> target) throws SQLException
+	{
+		ReturningSets rsImpl = (ReturningSets)impl;
+		SRFTemplate rsTpl =
+			requireNonNull(rsImpl.prepareSRF(target, target.m_how));
+
+		return flinfo ->
+		{
+			ResultInfo ri = ((LookupImpl)flinfo).m_savedCall.resultInfo();
+
+			if ( ! ( ri instanceof ResultInfo.ReturnSetInfo ) )
+				throw new SQLFeatureNotSupportedException(String.format(
+					"set-valued %s " +
+					"called in context that cannot accept a set", target),
+					"0A000");
+
+			CallImpl.ReturnSetInfoImpl rsii =
+				(CallImpl.ReturnSetInfoImpl)ri;
+
+			List<Class<? extends SRFTemplate>> callerSupported =
+				rsii.allowedModes();
+
+			Class<? extends SRFTemplate> negotiated;
+
+			try
+			{
+				int index = rsTpl.negotiate(callerSupported);
+				negotiated = callerSupported.get(index);
+				negotiated.cast(rsTpl); // for check
+			}
+			catch ( IndexOutOfBoundsException | ClassCastException e )
+			{
+				List<Class<? extends SRFTemplate>> plSupported =
+					Stream.iterate(
+						(new Class<?>[] { rsTpl.getClass() }),
+						(a -> 0 < a.length),
+						a ->
+						(
+							Arrays.stream(a)
+							.flatMap(c ->
+								Stream.concat(
+									(
+										c.isInterface()
+										? Stream.of()
+										: Stream.of(c.getSuperclass())
+									),
+									Arrays.stream(c.getInterfaces())
+								)
+							)
+							.filter(SRFTemplate.class::isAssignableFrom)
+							.toArray(Class<?>[]::new)
+						)
+					)
+					.flatMap(Arrays::stream)
+					.filter(c -> SRFTemplate.class == c.getDeclaringClass())
+					.distinct()
+					.map(c -> c.asSubclass(SRFTemplate.class))
+					.collect(toList());
+
+				String plString = plSupported.stream()
+					.map(Class::getSimpleName)
+					.collect(joining(",","{","}"));
+
+				String callerString = callerSupported.stream()
+					.map(Class::getSimpleName)
+					.collect(joining(",","{","}"));
+
+				boolean noneCommon = plSupported
+					.stream().noneMatch(callerSupported::contains);
+
+				if ( noneCommon )
+					throw new SQLFeatureNotSupportedException(String.format(
+						"%s of %s can return set result using %s, none " +
+						"matching caller-expected %s",
+						target.language(), target, plString, callerString),
+						"0A000");
+				else
+					throw new SQLException(String.format(
+						"%s of %s can return set result using %s, caller " +
+						"accepts %s, but language handler did not " +
+						"negotiate a match",
+						target.language(), target, plString, callerString),
+						"39P02");
+			}
+
+
+			if ( SRFTemplate.Materialize.class == negotiated )
+				return fcinfo ->
+				{
+					throw notyet("set-return by Materialize");
+				};
+			else if ( SRFTemplate.ValuePerCall.class == negotiated )
+			{
+				LookupImpl flinfo_i = (LookupImpl)flinfo;
+				SRFTemplate.ValuePerCall vpcTpl =
+					(SRFTemplate.ValuePerCall)rsTpl;
+				SRFFirst srfFirst = vpcTpl.specializeValuePerCall(flinfo);
+
+				return new SRFRoutine(flinfo_i, srfFirst);
+			}
+			else
+				throw notyet("set-return by " + negotiated.getSimpleName());
 		};
 	}
 
@@ -1400,6 +1583,144 @@ class LookupImpl implements RegProcedure.Lookup
 	}
 
 	/**
+	 * Wrapper that presents {@link SRFFirst SRFFirst} as an ordinary
+	 * {@link Routine Routine}.
+	 *<p>
+	 * This wrapper is what will be cached in the {@link LookupInfo LookupInfo}
+	 * as the routine specialization, except during the actual collection of
+	 * rows from a {@code ValuePerCall} set-returning function. During the
+	 * collection of rows, this wrapper is replaced in the cache by a lambda
+	 * that collects the next row. When the row collection completes normally or
+	 * abnormally, this wrapper is reestablished in the cache.
+	 *<p>
+	 * This is a full-fledged class, and not merely a lambda itself, as it must
+	 * refer to its own {@code this} to reestablish itself in the cache, and
+	 * hold a {@link SRFRoutine.State State} object to know when to do so in
+	 * the abnormal-completion case.
+	 */
+	private static class SRFRoutine implements Routine
+	{
+		private final LookupImpl m_flinfo;
+		private final SRFFirst m_srfFirst;
+
+		/*
+		 * A mutable field that holds a State only while m_routine holds
+		 * a row-collecting lambda instead of this object. Only to be mutated
+		 * on the PG thread. The reestablish() method below clears this field
+		 * and stores this SRFRoutine back into m_routine.
+		 */
+		private State m_state;
+
+		private SRFRoutine(LookupImpl flinfo, SRFFirst srfFirst)
+		{
+			m_flinfo = flinfo;
+			m_srfFirst = srfFirst;
+		}
+
+		private final void reestablish(boolean release)
+		{
+			doInPG(() ->
+			{
+				if ( release )
+					m_state.release();
+				m_state = null;
+				m_flinfo.m_routine = this;
+			});
+		}
+
+		@Override
+		public void call(Call fcinfo) throws SQLException
+		{
+			SRFNext next = m_srfFirst.firstCall(fcinfo);
+			SRFNext.Result rslt = next.nextResult(fcinfo);
+			CallImpl.ReturnSetInfoImpl rsi =
+				(CallImpl.ReturnSetInfoImpl)fcinfo.resultInfo();
+			/*
+			 * Logically, rsi.setMode(SFRM_ValuePerCall) belongs here, but
+			 * in practice can be elided because PG initializes the mode to
+			 * ValuePerCall.
+			 */
+			rsi.setDone(rslt);
+			switch ( rslt )
+			{
+			case END:
+				next.close();
+				/* FALLTHROUGH */
+			case SINGLE:
+				return;
+			case MULTIPLE:
+			}
+
+			Routine r = fci2 ->
+			{
+				SRFNext.Result rslt2 = next.nextResult(fci2);
+				CallImpl.ReturnSetInfoImpl rsi2 =
+					(CallImpl.ReturnSetInfoImpl)fci2.resultInfo();
+				/*
+				 * If ValuePerCall were not the default mode,
+				 * rsi2.setMode(SFRM_ValuePerCall) would be needed here too;
+				 * PG checks it on every ValuePerCall iteration, weirdly enough.
+				 */
+				rsi2.setDone(rslt2);
+				if ( SRFNext.Result.MULTIPLE == rslt2 )
+					return;
+				/*
+				 * Assume it is DONE. SINGLE would be a protocol
+				 * violation, and PG will report that for us.
+				 */
+				try
+				{
+					next.close();
+				}
+				finally
+				{
+					reestablish(true);
+				}
+			};
+
+			doInPG(() ->
+			{
+				m_state = new State(this, rsi.exprContext(), next);
+				m_flinfo.m_routine = r;
+			});
+		}
+
+		private static final class State extends DualState<SRFRoutine>
+		{
+			private final SRFNext m_next;
+
+			private State(
+				SRFRoutine referent, ExprContextImpl lifespan, SRFNext next)
+			{
+				super(referent, lifespan);
+				m_next = next;
+			}
+
+			private void release()
+			{
+				releaseFromJava();
+			}
+
+			@Override
+			protected void nativeStateReleased(boolean javaStateLive)
+			{
+				if ( ! javaStateLive )
+					return;
+				SRFRoutine r = referent();
+				try
+				{
+					m_next.close();
+				}
+				finally
+				{
+					if ( null != r )
+						r.reestablish(false);
+				}
+			}
+		}
+	}
+
+	/**
 	 * The implementation of {@link Call}, encapsulating the information
 	 * supplied by PostgreSQL in the per-call C struct.
 	 */
@@ -1408,6 +1729,11 @@ class LookupImpl implements RegProcedure.Lookup
 		private final ByteBuffer m_fcinfo;
 		private final ByteBuffer m_context;
 		private final ByteBuffer m_resultinfo;
+		/*
+		 * Only relevant when m_resultinfo is a ReturnSetInfo:
+		 */
+		private final long m_exprContextAddress;
+		private final long m_perQueryCxtAddress;
 
 		/* mutable, accessed on the PG thread */
 		private TupleTableSlot m_arguments;
@@ -1415,11 +1741,15 @@ class LookupImpl implements RegProcedure.Lookup
 		private ResultInfo m_resultinfoImpl;
 
 		private CallImpl(
-			ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo)
+			ByteBuffer fcinfo, ByteBuffer context, ByteBuffer resultinfo,
+			long exprContextAddress, long perQueryCxtAddress)
 		{
 			m_fcinfo = fcinfo.order(nativeOrder());
 			m_context = asReadOnlyNativeOrder(context);
-			m_resultinfo = asReadOnlyNativeOrder(resultinfo);
+			m_resultinfo =
+				null == resultinfo ? null : resultinfo.order(nativeOrder());
+			m_exprContextAddress = exprContextAddress;
+			m_perQueryCxtAddress = perQueryCxtAddress;
 		}
 
 		private void dispatch(Routine r) throws SQLException
@@ -1742,10 +2072,77 @@ class LookupImpl implements RegProcedure.Lookup
 
 		class ReturnSetInfoImpl implements ResultInfo.ReturnSetInfo
 		{
+			private final MemoryContext m_perQueryCxt;
+
+			{
+				assert threadMayEnterPG() : "ReturnSetInfoImpl new thread";
+				m_perQueryCxt =
+					MemoryContextImpl.fromAddress(m_perQueryCxtAddress);
+			}
+
+			/*
+			 * The per-query memory context referenced from the ExprContext.
+			 *
+			 * In strict fidelity to PostgreSQL, this would be a method on
+			 * ExprContextImpl. But there is not much else about an ExprContext
+			 * interesting enough to be worth putting accessor methods on it,
+			 * and this context will be needed for allocating even the first
+			 * row from an SRF, before it is known whether a Java mirror
+			 * of ExprContext will even be needed. So to simplify the API and
+			 * reduce indirection, the method is here.
+			 */
+			MemoryContext perQueryMemoryContext()
+			{
+				return m_perQueryCxt;
+			}
+
+			ExprContextImpl exprContext()
+			{
+				assert threadMayEnterPG() :
+					"ReturnSetInfoImpl.exprContext thread";
+
+				return ExprContextImpl.newInstance(
+					m_exprContextAddress, m_perQueryCxt);
+			}
+
 			@Override
 			public List<Class<? extends SRFTemplate>> allowedModes()
 			{
-				throw notyet();
+				assert Integer.BYTES == SIZEOF_INT;
+				int modes = m_resultinfo.getInt(OFFSET_RSI_allowedModes);
+				switch ( modes & ( SFRM_ValuePerCall | SFRM_Materialize ) )
+				{
+				case SFRM_ValuePerCall: return s_vpc;
+				case SFRM_Materialize : return s_mat;
+				case SFRM_ValuePerCall | SFRM_Materialize :
+					if ( 0 == (modes & SFRM_Materialize_Preferred) )
+						return s_vpcmat;
+					return s_matvpc;
+				default:
+					throw new AssertionError(
+						"unhandled ReturnSetInfo.allowedModes");
+				}
+			}
+
+			void setMode(int returnMode)
+			{
+				assert Integer.BYTES == SIZEOF_RSI_returnMode:"returnMode size";
+				m_resultinfo.putInt(OFFSET_RSI_returnMode, returnMode);
+			}
+
+			void setDone(SRFNext.Result result)
+			{
+				int isDone = 0; // Java >= 21: exhaustive switch is enough
+
+				switch ( result )
+				{
+				case SINGLE:   isDone = ExprSingleResult;   break;
+				case MULTIPLE: isDone = ExprMultipleResult; break;
+				case END:      isDone = ExprEndResult;      break;
+				}
+
+				assert Integer.BYTES == SIZEOF_RSI_isDone:"isDone size";
+				m_resultinfo.putInt(OFFSET_RSI_isDone, isDone);
 			}
 		}
 	}
@@ -1824,6 +2221,15 @@ class LookupImpl implements RegProcedure.Lookup
 		}
 	}
 
+	private static final List<Class<? extends SRFTemplate>> s_vpc =
+		List.of(SRFTemplate.ValuePerCall.class);
+	private static final List<Class<? extends SRFTemplate>> s_mat =
+		List.of(SRFTemplate.Materialize.class);
+	private static final List<Class<? extends SRFTemplate>> s_vpcmat =
+		List.of(SRFTemplate.ValuePerCall.class, SRFTemplate.Materialize.class);
+	private static final List<Class<? extends SRFTemplate>> s_matvpc =
+		List.of(SRFTemplate.Materialize.class, SRFTemplate.ValuePerCall.class);
+
 	private static native void _cacheReference(LookupImpl instance, long extra);
 
 	private static native boolean _get_fn_expr_variadic(ByteBuffer fcinfo);
@@ -1855,4 +2261,13 @@ class LookupImpl implements RegProcedure.Lookup
 	@Native private static final int TRIGGER_EVENT_TIMINGMASK        = 0x18;
 
 	@Native private static final int FirstLowInvalidHeapAttributeNumber = -7;
+
+	@Native private static final int SFRM_ValuePerCall          = 0x01;
+	@Native private static final int SFRM_Materialize           = 0x02;
+	@Native private static final int SFRM_Materialize_Random    = 0x04;
+	@Native private static final int SFRM_Materialize_Preferred = 0x08;
+
+	@Native private static final int ExprSingleResult   = 0;
+	@Native private static final int ExprMultipleResult = 1;
+	@Native private static final int ExprEndResult      = 2;
 }
