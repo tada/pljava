@@ -541,8 +541,8 @@ public abstract class DualState<T> extends WeakReference<T>
 		{
 			assert Backend.threadMayEnterPG() : m("inCleanup.enter thread");
 			int got = get();
-			assert (got&3) != how : m("inCleanup.enter re-entered same how");
-			assert got < 4 : m("inCleanup.enter too many entries");
+			assert got < Integer.MAX_VALUE >>> 2 :
+				m("inCleanup.enter too many entries");
 			set((got << 2) | how);
 			return true;
 		}
@@ -1800,6 +1800,7 @@ public abstract class DualState<T> extends WeakReference<T>
 							z(JAVA_RELEASED & state)  &&  null != s.referent());
 					}
 				}
+				catch ( Throwable x ) { } /* JDK 9 Cleaner ignores exceptions */
 				finally
 				{
 					s.unlock(state, true);//true->ensure NATIVE_RELEASED is set.
