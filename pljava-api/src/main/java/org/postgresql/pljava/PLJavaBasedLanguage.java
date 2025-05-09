@@ -14,6 +14,8 @@ package org.postgresql.pljava;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 
+import java.util.List;
+
 import org.postgresql.pljava.model.ProceduralLanguage; // javadoc
 import org.postgresql.pljava.model.ProceduralLanguage.PLJavaBased;
 import org.postgresql.pljava.model.RegProcedure;
@@ -105,6 +107,13 @@ public interface PLJavaBasedLanguage
 		 * to correctness of {@code prepare}, can be made in
 		 * {@link #additionalChecks additionalChecks}.
 		 *<p>
+		 * The dispatcher will never invoke this method for a <var>subject</var>
+		 * with {@link RegProcedure#returnsSet returnsSet()} true, so this
+		 * method may assume that property is false, unless the language also
+		 * implements {@link ReturningSets ReturningSets} and the
+		 * {@link ReturningSets#essentialSRFChecks essentialSRFChecks} method
+		 * delegates to this one (as its default implementation does).
+		 *<p>
 		 * If <var>checkBody</var> is false, less-thorough checks may be
 		 * needed. The details are left to the language implementation;
 		 * in general, basic checks of syntax, matching parameter counts, and
@@ -147,6 +156,13 @@ public interface PLJavaBasedLanguage
 		 * Checks of conditions essential to correctness of {@code prepare}
 		 * must be made in {@code essentialChecks}.
 		 *<p>
+		 * The dispatcher will never invoke this method for a <var>subject</var>
+		 * with {@link RegProcedure#returnsSet returnsSet()} true, so this
+		 * method may assume that property is false, unless the language also
+		 * implements {@link ReturningSets ReturningSets} and the
+		 * {@link ReturningSets#additionalSRFChecks additionalSRFChecks} method
+		 * delegates to this one (as its default implementation does).
+		 *<p>
 		 * If <var>checkBody</var> is false, less-thorough checks may be
 		 * needed. The details are left to the language implementation;
 		 * in general, basic checks of syntax, matching parameter counts, and
@@ -185,6 +201,14 @@ public interface PLJavaBasedLanguage
 		 * {@code Template} instance this method returns is later applied at
 		 * an actual call site.
 		 *<p>
+		 * This method is never called for a <var>target</var> with
+		 * {@link RegProcedure#returnsSet returnsSet()} true. If the language
+		 * also implements {@link ReturningSets ReturningSets}, any such
+		 * <var>target</var> will be passed to the
+		 * {@link ReturningSets#prepareSRF prepareSRF} method instead;
+		 * otherwise, it will incur an exception stating the language does not
+		 * support returning sets.
+		 *<p>
 		 * This method should return a {@link Template Template}, which may
 		 * encapsulate any useful precomputed values based on the catalog
 		 * information this method consulted.
@@ -203,6 +227,77 @@ public interface PLJavaBasedLanguage
 		 * code.
 		 */
 		Template prepare(RegProcedure<?> target, PLJavaBased memo)
+		throws SQLException;
+	}
+
+	/**
+	 * To be implemented by a language that can be used to write functions
+	 * returning sets (that is, more than a single result or row).
+	 */
+	public interface ReturningSets extends PLJavaBasedLanguage
+	{
+		/**
+		 * Performs the essential validation checks on a proposed
+		 * PL/Java-based set-returning function.
+		 *<p>
+		 * See {@link Routines#essentialChecks essentialChecks} for
+		 * the explanation of what to consider 'essential' checks.
+		 *<p>
+		 * This default implementation simply delegates to the
+		 * {@link Routines#essentialChecks essentialChecks} method, which must
+		 * therefore be prepared for <var>subject</var> to have either value of
+		 * {@link RegProcedure#returnsSet returnsSet()}.
+		 */
+		default void essentialSRFChecks(
+			RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
+		throws SQLException
+		{
+			/*
+			 * A cast, because the alternative of having SetReturning extend
+			 * Routines would allow Routines to be omitted from the implements
+			 * clause of a language handler, which I would rather not encourage
+			 * as a matter of style.
+			 */
+			((Routines)this).essentialChecks(subject, memo, checkBody);
+		}
+
+		/**
+		 * Performs additional validation checks on a proposed
+		 * PL/Java-based set-returning function.
+		 *<p>
+		 * See {@link Routines#additionalChecks additionalChecks} for
+		 * the explanation of what to consider 'additional' checks.
+		 *<p>
+		 * This default implementation simply delegates to the
+		 * {@link Routines#additionalChecks additionalChecks} method, which must
+		 * therefore be prepared for <var>subject</var> to have either value of
+		 * {@link RegProcedure#returnsSet returnsSet()}.
+		 */
+		default void additionalSRFChecks(
+			RegProcedure<?> subject, PLJavaBased memo, boolean checkBody)
+		throws SQLException
+		{
+			((Routines)this).additionalChecks(subject, memo, checkBody);
+		}
+
+		/**
+		 * Prepares a template for a call of the set-returning function
+		 * <var>target</var>.
+		 *<p>
+		 * This method is never called without
+		 * {@link #essentialSRFChecks essentialSRFChecks} having been called
+		 * immediately prior and completing normally.
+		 *<p>
+		 * This method is analogous to the
+		 * {@link Routines#prepare prepare} method, but is called only for
+		 * a <var>target</var> with {@link RegProcedure#returnsSet returnsSet()}
+		 * true, and must return {@link SRFTemplate SRFTemplate} rather than
+		 * {@link Template Template}.
+		 *<p>
+		 * The documentation of the {@link Routines#prepare prepare} method
+		 * further describes what is expected of an implementation.
+		 */
+		SRFTemplate prepareSRF(RegProcedure<?> target, PLJavaBased memo)
 		throws SQLException;
 	}
 
@@ -468,6 +563,196 @@ public interface PLJavaBasedLanguage
 		 * {@code "any"} type.
 		 */
 		Routine specialize(Lookup flinfo) throws SQLException;
+	}
+
+	/**
+	 * Superinterface for the result of a
+	 * {@link ReturningSets#prepareSRF prepareSRF} call on a PL/Java-based
+	 * set-returning function.
+	 *<p>
+	 * An instance returned by {@link ReturningSets#prepareSRF prepareSRF} must
+	 * implement at least one of the member subinterfaces. If it implements
+	 * more than one, it will need to override the {@link #negotiate negotiate}
+	 * method to select the behavior to be used at a given call site.
+	 */
+	public interface SRFTemplate
+	{
+		/**
+		 * Returns the index of a preferred subinterface of {@code SRFTemplate}
+		 * among a list of those the caller supports.
+		 *<p>
+		 * The list is ordered with a caller's more-preferred choices early.
+		 *<p>
+		 * An implementation could simply return the first index of an
+		 * <var>allowed</var> class <var>C</var> such that
+		 * {@code this instanceof C} to use the caller's preferred method
+		 * always, or could make a choice informed by characteristics of
+		 * the template.
+		 * @return the index within <var>allowed</var> of the interface to be
+		 * used at this call site, or -1 if no interface in <var>allowed</var>
+		 * is supported.
+		 */
+		int negotiate(List<Class<? extends SRFTemplate>> allowed);
+
+		/**
+		 * An {@code SRFTemplate} subinterface that can generate
+		 * a specialization returning the set result materialized in
+		 * a {@code Tuplestore}.
+		 */
+		interface Materialize extends SRFTemplate
+		{
+			/**
+			 * {@inheritDoc}
+			 *<p>
+			 * This default implementation simply returns
+			 * {@code allowed.indexOf(Materialize.class)}.
+			 */
+			@Override
+			default int negotiate(List<Class<? extends SRFTemplate>> allowed)
+			{
+				return allowed.indexOf(Materialize.class);
+			}
+		}
+
+		/**
+		 * An {@code SRFTemplate} subinterface that can generate
+		 * a specialization returning the set result in a series of calls
+		 * each returning one value or row.
+		 */
+		interface ValuePerCall extends SRFTemplate
+		{
+			/**
+			 * {@inheritDoc}
+			 *<p>
+			 * This default implementation simply returns
+			 * {@code allowed.indexOf(ValuePerCall.class)}.
+			 */
+			@Override
+			default int negotiate(List<Class<? extends SRFTemplate>> allowed)
+			{
+				return allowed.indexOf(ValuePerCall.class);
+			}
+
+			SRFFirst specializeValuePerCall(Lookup flinfo) throws SQLException;
+		}
+	}
+
+	/**
+	 * The result of a {@link SRFTemplate.ValuePerCall#specializeValuePerCall
+	 * specializeValuePerCall} call on an {@link SRFTemplate SRFTemplate}.
+	 *<p>
+	 * An instance can incorporate whatever can be precomputed based on the
+	 * resolved parameter types and other information available to
+	 * {@code specializeValuePerCall}. Its {@link #firstCall firstCall} method
+	 * will then be invoked, for each call made at that call site, to supply the
+	 * arguments and obtain an instance of {@link SRFNext SRFNext} whose
+	 * {@link SRFNext#nextResult nextResult} method will be called, as many
+	 * times as needed, to retrieve all rows of the result.
+	 */
+	@FunctionalInterface
+	public interface SRFFirst
+	{
+		/**
+		 * Executes the prepared and specialized {@code SRFFirst} code, using
+		 * the arguments and other call-specific information passed in
+		 * {@code fcinfo} and returns an instance of {@link SRFNext SRFNext}
+		 * to produce a result set row by row.
+		 *<p>
+		 * This method should not access <var>fcinfo</var>'s
+		 * {@link RegProcedure.Call#result result} or
+		 * {@link RegProcedure.Call#isNull isNull} methods to return any value,
+		 * but should return an instance of {@code SRFNext} that will do so.
+		 */
+		SRFNext firstCall(Call fcinfo) throws SQLException;
+	}
+
+	/**
+	 * The result of a {@link SRFFirst#firstCall firstCall} call on an instance
+	 * of {@link SRFFirst SRFFirst}.
+	 *<p>
+	 * The {@link #nextResult nextResult} method will be called repeatedly
+	 * as long as its return value indicates another row may follow, unless
+	 * PostgreSQL earlier determines no more rows are needed.
+	 *<p>
+	 * The {@link #close close} method will be called after the last call of
+	 * {@code nextResult}, whether because all rows have been read or because
+	 * PostgreSQL has read all it needs. It is not called, however,
+	 * if {@code nextResult} has returned {@link Result#SINGLE Result.SINGLE}.
+	 *
+	 */
+	public interface SRFNext extends AutoCloseable
+	{
+		/**
+		 * Called when PostgreSQL will be making no further calls of
+		 * {@link #nextResult nextResult} for this result set, which may be
+		 * before all results have been fetched.
+		 *<p>
+		 * When a degenerate single-row set is returned (as indicated by
+		 * {@link #nextResult nextResult} returning
+		 * {@link Result#SINGLE Result.SINGLE}), this method is not called.
+		 */
+		void close();
+
+		/**
+		 * Called to return a single result.
+		 *<p>
+		 * As with non-set-returning routines, this method should store result
+		 * values into {@link RegProcedure.Call#result fcinfo.result()} or set
+		 * {@link RegProcedure.Call#isNull fcinfo.isNull(true)} (which, in this
+		 * context, produces a row of all nulls). If there is no result
+		 * to store, the method should return {@link Result#END Result.END}:
+		 * no row will be produced, and the result set is considered complete.
+		 *<p>
+		 * If the method has exactly one row to return, it may store the values
+		 * and return {@link Result#SINGLE Result.SINGLE}: the result will be
+		 * considered to be just that one row. None of the rest of the
+		 * set-returning protocol will be involved, and
+		 * {@link SRFNext#close close()} will not be called.
+		 *<p>
+		 * Otherwise, the method should return
+		 * {@link Result#MULTIPLE Result.MULTIPLE} after storing each row, and
+		 * conclude by returning {@link Result#END Result.END} from the final
+		 * call (without storing anything).
+		 *<p>
+		 * It is a protocol violation to return
+		 * {@link Result#SINGLE Result.SINGLE} from any but the very first call.
+		 *<p>
+		 * The arguments in
+		 * {@link RegProcedure.Call#arguments fcinfo.arguments()} will not be
+		 * changing as the rows of a single result are retrieved. Any argument
+		 * values that will be referred to repeatedly may be worth fetching once
+		 * in the {@link SRFFirst#firstCall firstCall} method and their Java
+		 * representations captured in this object, rather than fetching and
+		 * converting them repeatedly.
+		 */
+		Result nextResult(Call fcinfo) throws SQLException;
+
+		/**
+		 * Used to indicate the state of the result sequence on return from
+		 * a single call in the {@code ValuePerCall} protocol.
+		 */
+		enum Result
+		{
+			/**
+			 * There is exactly one row and this call has returned it.
+			 *<p>
+			 * None of the rest of the set-returning protocol will be involved,
+			 * and {@link SRFNext#close close()} will not be called.
+			 */
+			SINGLE,
+
+			/**
+			 * This call has returned one of possibly multiple rows, and
+			 * another call should be made to retrieve the next row if any.
+			 */
+			MULTIPLE,
+
+			/**
+			 * This call has no row to return and the result sequence
+			 * is complete.
+			 */
+			END
+		}
 	}
 
 	/**

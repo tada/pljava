@@ -39,6 +39,7 @@ import org.postgresql.pljava.PLJavaBasedLanguage;
 import org.postgresql.pljava.PLJavaBasedLanguage.InlineBlocks;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routines;
+import org.postgresql.pljava.PLJavaBasedLanguage.SRFTemplate;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
 import org.postgresql.pljava.PLJavaBasedLanguage.TriggerFunction;
 import org.postgresql.pljava.PLJavaBasedLanguage.Triggers;
@@ -1741,6 +1742,11 @@ class LookupImpl implements RegProcedure.Lookup
 
 		class ReturnSetInfoImpl implements ResultInfo.ReturnSetInfo
 		{
+			@Override
+			public List<Class<? extends SRFTemplate>> allowedModes()
+			{
+				throw notyet();
+			}
 		}
 	}
 

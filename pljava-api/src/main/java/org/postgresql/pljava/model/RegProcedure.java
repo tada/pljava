@@ -23,6 +23,7 @@ import static org.postgresql.pljava.model.CatalogObject.Factory.*;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
+import org.postgresql.pljava.PLJavaBasedLanguage.SRFTemplate;
 import org.postgresql.pljava.TargetList.Projection;
 
 import org.postgresql.pljava.annotation.Function.Effects;
@@ -326,6 +327,10 @@ extends
 		 * and present a coherent picture.
 		 */
 
+		/**
+		 * Common base of interfaces that can be returned by
+		 * {@link Call#context() Call.context()}.
+		 */
 		interface Context
 		{
 			/**
@@ -419,10 +424,26 @@ extends
 			}
 		}
 
+		/**
+		 * Common base of interfaces that can be returned by
+		 * {@link Call#resultInfo() Call.resultInfo()}.
+		 */
 		interface ResultInfo
 		{
+			/**
+			 * Supplied when the routine is being called with the expectation
+			 * of a set (not just a single value or row) return.
+			 */
 			interface ReturnSetInfo extends ResultInfo
 			{
+				/**
+				 * List indicating the set-returning interfaces the caller
+				 * is prepared to accept.
+				 *<p>
+				 * Ordering can reflect the caller's preference,
+				 * with a more-preferred interface earlier in the list.
+				 */
+				List<Class<? extends SRFTemplate>> allowedModes();
 			}
 		}
 	}
