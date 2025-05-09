@@ -27,6 +27,7 @@ import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
 
 import org.postgresql.pljava.PLJavaBasedLanguage.InlineBlocks;
+import org.postgresql.pljava.PLJavaBasedLanguage.ReturningSets;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routines;
 import org.postgresql.pljava.PLJavaBasedLanguage.Routine;
 import org.postgresql.pljava.PLJavaBasedLanguage.Template;
@@ -180,8 +181,14 @@ import org.postgresql.pljava.model.TupleTableSlot;
 " TRANSFORM FOR TYPE line, FOR TYPE box, FOR TYPE lseg" +
 " LANGUAGE glot64 AS 'SSBjb3VsZCB1c2UgdHJhbnNmb3JtcyEK'",
 
-"SELECT javatest.usingtransforms()"
+"SELECT javatest.usingtransforms()",
+
+"CREATE FUNCTION setof3() RETURNS SETOF INT" +
+" LANGUAGE glot64 AS 'Mw==' /* 3 */",
+
+"SELECT javatest.setof3() LIMIT 2"
 }, remove = {
+"DROP FUNCTION javatest.setof3()",
 "DROP FUNCTION javatest.usingtransforms()",
 "DROP TRANSFORM FOR lseg LANGUAGE glot64",
 "DROP TRANSFORM FOR box LANGUAGE glot64",
@@ -202,7 +209,8 @@ import org.postgresql.pljava.model.TupleTableSlot;
 "DROP LANGUAGE glot64",
 "DROP FUNCTION javatest.glot64_validator(oid)"
 })
-public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
+public class Glot64
+implements InlineBlocks, Routines, ReturningSets, Triggers, UsingTransforms
 {
 	private final ProceduralLanguage pl;
 
@@ -309,7 +317,21 @@ public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 		 * and has no interaction with database state, so the judgment call can
 		 * be made (as here) to include this check even when checkBody is false.
 		 */
-		compile(subject.src());
+		String compiled = compile(subject.src());
+
+		if ( subject.returnsSet() )
+		{
+			try
+			{
+				Integer.parseInt(compiled);
+			}
+			catch ( NumberFormatException e )
+			{
+				throw new SQLSyntaxErrorException(
+					"the body of a Glot64 set-returning function must compile" +
+					" to an integer", "42P13", e);
+			}
+		}
 
 		System.out.printf("ok\n");
 	}
@@ -523,6 +545,52 @@ public class Glot64 implements InlineBlocks, Routines, Triggers, UsingTransforms
 					subifc, maybeAtomic,
 					compiled // here we 'execute' the 'compiled' routine :)
 				);
+			};
+		};
+	}
+
+	/**
+	 * Prepares a template for a set-returning Glot64 function.
+	 *<p>
+	 * The source of any set-returning Glot64 function must "compile" to
+	 * the string representation of an integer.
+	 *<p>
+	 * The generated routine will ignore any arguments, and produce a number of
+	 * rows (of, for now, nothing, as {@code TupleTableSlot} isn't writable yet)
+	 * equal to the integer. If the integer is negative, the return of a single
+	 * (non-set) result is exercised. 
+	 */
+	@Override
+	public SRFTemplate prepareSRF(RegProcedure<?> target, PLJavaBased memo)
+	throws SQLException
+	{
+		int rowsToReturn = Integer.parseInt(compile(target.src()));
+
+		return (SRFTemplate.ValuePerCall) flinfo ->
+		{
+			return fcinfo ->
+			{
+				return new SRFNext()
+				{
+					private int rowsLeft = rowsToReturn;
+
+					@Override
+					public void close()
+					{
+						System.out.println("ValuePerCall result closed");
+					}
+
+					@Override
+					public SRFNext.Result nextResult(Call fcinfo)
+					{
+						if ( 0 > rowsLeft )
+							return SRFNext.Result.SINGLE;
+						if ( 0 == rowsLeft )
+							return SRFNext.Result.END;
+						-- rowsLeft;
+						return SRFNext.Result.MULTIPLE;
+					}
+				};
 			};
 		};
 	}
