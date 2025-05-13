@@ -1,0 +1,22 @@
+var searchData=
+[
+  ['backend_2ec_0',['Backend.c',['../d8/d1b/Backend_8c.html',1,'']]],
+  ['backend_5fsetjavaloglevel_1',['Backend_setJavaLogLevel',['../d8/d1b/Backend_8c.html#a83e5ebd8380a7104791546fc0322d340',1,'Backend.c']]],
+  ['backend_5fwarnjep411_2',['Backend_warnJEP411',['../d8/d1b/Backend_8c.html#acaa4670f8c1eb6d6d666acdc4e1636e5',1,'Backend.c']]],
+  ['begin_5fcall_3',['BEGIN_CALL',['../d3/d5a/JNICalls_8c.html#a73de67fcf601541377e810c17650e2b9',1,'JNICalls.c']]],
+  ['begin_5fcall_5fmonitor_5fheld_4',['BEGIN_CALL_MONITOR_HELD',['../d3/d5a/JNICalls_8c.html#abd455ec6e2708e87a5e0326f2174ca6d',1,'JNICalls.c']]],
+  ['begin_5fjava_5',['BEGIN_JAVA',['../d3/d5a/JNICalls_8c.html#a49de1260521280da8008b126c083554a',1,'JNICalls.c']]],
+  ['beginnative_6',['beginNative',['../d3/d5a/JNICalls_8c.html#a51aa3fd3f0208792cfc26751ac839f0b',1,'JNICalls.c']]],
+  ['beginnativenoerrcheck_7',['beginNativeNoErrCheck',['../d3/d5a/JNICalls_8c.html#aa408020e606a0615ee1ccd23ecc9288b',1,'JNICalls.c']]],
+  ['bigdecimal_2ec_8',['BigDecimal.c',['../d1/d5e/BigDecimal_8c.html',1,'']]],
+  ['bigdecimal_5finitialize_9',['bigdecimal_initialize',['../d1/d5e/BigDecimal_8c.html#a6579eae57f3aa98bf7cf3fb17a6ee6ad',1,'BigDecimal_initialize(void):&#160;BigDecimal.c'],['../d3/dca/Type_8c.html#a6579eae57f3aa98bf7cf3fb17a6ee6ad',1,'BigDecimal_initialize(void):&#160;BigDecimal.c']]],
+  ['bigdecimal_5fobtain_10',['BigDecimal_obtain',['../d1/d5e/BigDecimal_8c.html#aa67b6ae710d6ec48cd2f439cea636923',1,'BigDecimal.c']]],
+  ['bool_5fguc_11',['BOOL_GUC',['../d8/d1b/Backend_8c.html#a67e38a11e7c08c324d9c8ef406d4e1c2',1,'Backend.c']]],
+  ['boolarrayoid_12',['BOOLARRAYOID',['../d3/dca/Type_8c.html#a54f79e5f1decb92f103c22629fb15721',1,'Type.c']]],
+  ['boolean_2ec_13',['Boolean.c',['../d6/dd3/Boolean_8c.html',1,'']]],
+  ['boolean_5finitialize_14',['boolean_initialize',['../d6/dd3/Boolean_8c.html#a1d4bfff18480221115041985b6f859be',1,'Boolean_initialize(void):&#160;Boolean.c'],['../d3/dca/Type_8c.html#a1d4bfff18480221115041985b6f859be',1,'Boolean_initialize(void):&#160;Boolean.c']]],
+  ['byte_2ec_15',['Byte.c',['../d9/dfa/Byte_8c.html',1,'']]],
+  ['byte_5farray_2ec_16',['byte_array.c',['../d4/d48/byte__array_8c.html',1,'']]],
+  ['byte_5farray_5finitialize_17',['byte_array_initialize',['../d4/d48/byte__array_8c.html#a240b720a86fdfa0574da724feb2a7714',1,'byte_array_initialize(void):&#160;byte_array.c'],['../d3/dca/Type_8c.html#a240b720a86fdfa0574da724feb2a7714',1,'byte_array_initialize(void):&#160;byte_array.c']]],
+  ['byte_5finitialize_18',['byte_initialize',['../d9/dfa/Byte_8c.html#a77ec719815a5d47545c736aaba5eb2a6',1,'Byte_initialize(void):&#160;Byte.c'],['../d3/dca/Type_8c.html#a77ec719815a5d47545c736aaba5eb2a6',1,'Byte_initialize(void):&#160;Byte.c']]]
+];

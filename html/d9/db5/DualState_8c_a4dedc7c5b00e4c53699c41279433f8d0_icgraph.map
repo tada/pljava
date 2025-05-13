@@ -1,0 +1,33 @@
+<map id="Java_org_postgresql_pljava_internal_DualState_00024SinglePfree__1pfree" name="Java_org_postgresql_pljava_internal_DualState_00024SinglePfree__1pfree">
+<area shape="rect" id="Node000001" title=" " alt="" coords="941,164,1123,219"/>
+<area shape="rect" id="Node000002" href="$d9/db5/DualState_8c.html#a8d801b0a312cffe3bff0b46e7a5bb6e8" title=" " alt="" coords="719,179,893,204"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="927,194,894,194,894,189,927,189"/>
+<area shape="rect" id="Node000003" href="$d8/d1b/Backend_8c.html#ac1df8c0fa25768dd0de490127eb894e6" title=" " alt="" coords="540,179,671,204"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="705,194,671,194,671,189,705,189"/>
+<area shape="rect" id="Node000004" href="$d8/d1b/Backend_8c.html#a41964073f7e490c598598f219de9606e" title=" " alt="" coords="393,179,492,204"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="526,194,492,194,492,189,526,189"/>
+<area shape="rect" id="Node000005" href="$d8/d1b/Backend_8c.html#a29e1a0b0688ac19dbde93824e4ae1a59" title=" " alt="" coords="228,5,300,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="429,167,397,105,373,72,344,44,322,32,299,25,301,20,324,28,347,40,377,69,402,102,434,164"/>
+<area shape="rect" id="Node000006" href="$d8/d1b/Backend_8c.html#a9cbb2a371195bb22f404fd9910d1436e" title=" " alt="" coords="208,55,320,80"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="423,170,389,130,344,94,319,82,321,77,347,89,393,127,427,166"/>
+<area shape="rect" id="Node000007" href="$d8/d1b/Backend_8c.html#a1277cef3aef64b77b88878cf83d5724a" title=" " alt="" coords="183,104,345,129"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="407,174,344,143,312,132,314,127,346,138,410,170"/>
+<area shape="rect" id="Node000008" href="$d8/d1b/Backend_8c.html#a54ecef1f816b5662e19fac6f7ea3f8bb" title=" " alt="" coords="183,153,345,179"/>
+<area shape="poly" id="edge7_Node000004_Node000008" title=" " alt="" coords="380,185,345,180,346,175,380,180"/>
+<area shape="rect" id="Node000009" href="$d8/d1b/Backend_8c.html#afd0a2e48ec1b9c86c5dd07ee5f734fa8" title=" " alt="" coords="183,203,345,228"/>
+<area shape="poly" id="edge8_Node000004_Node000009" title=" " alt="" coords="380,202,346,207,345,202,380,197"/>
+<area shape="rect" id="Node000010" href="$d8/d1b/Backend_8c.html#a3af9b4a4b0b466102f653080d2e7ad1f" title=" " alt="" coords="183,252,345,277"/>
+<area shape="poly" id="edge9_Node000004_Node000010" title=" " alt="" coords="407,213,346,242,311,254,309,249,344,237,405,208"/>
+<area shape="rect" id="Node000011" href="$d8/d1b/Backend_8c.html#a892bcd3e4f63977cc8b90e3e31974535" title=" " alt="" coords="198,301,330,327"/>
+<area shape="poly" id="edge10_Node000004_Node000011" title=" " alt="" coords="426,217,392,255,347,291,319,304,317,299,344,286,388,251,422,213"/>
+<area shape="rect" id="Node000014" href="$d8/d1b/Backend_8c.html#a65144c70313a704b5ba376ffe2e4fa10" title=" " alt="" coords="207,351,321,376"/>
+<area shape="poly" id="edge13_Node000004_Node000014" title=" " alt="" coords="434,218,401,279,377,312,347,340,323,353,320,349,344,336,373,308,397,276,429,215"/>
+<area shape="rect" id="Node000012" href="$d8/d1b/Backend_8c.html#a149f96da8ffb4412ebab795d11a9363f" title=" " alt="" coords="9,252,131,277"/>
+<area shape="poly" id="edge11_Node000011_Node000012" title=" " alt="" coords="200,301,120,280,122,275,201,295"/>
+<area shape="rect" id="Node000013" href="$d8/d1b/Backend_8c.html#aff8517f9c34bbbf01ad9cb9f8b8fc825" title=" " alt="" coords="5,301,135,327"/>
+<area shape="poly" id="edge12_Node000011_Node000013" title=" " alt="" coords="184,317,135,317,135,311,184,311"/>
+<area shape="rect" id="Node000015" href="$d8/d1b/Backend_8c.html#ab0c4cd941202a415ffad7e744e8baf0c" title=" " alt="" coords="19,351,121,376"/>
+<area shape="poly" id="edge14_Node000014_Node000015" title=" " alt="" coords="193,366,121,366,121,361,193,361"/>
+<area shape="rect" id="Node000016" href="$d8/d1b/Backend_8c.html#af5381c5b0b0a84097ce4a70339f67705" title=" " alt="" coords="15,400,125,425"/>
+<area shape="poly" id="edge15_Node000014_Node000016" title=" " alt="" coords="201,382,122,402,120,397,200,377"/>
+</map>
