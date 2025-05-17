@@ -30,6 +30,11 @@
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/SQLOutputToTuple.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 /*
  * This code, as currently constituted, makes these assumptions that limit how
  * Java can implement a (scalar) UDT:
@@ -561,3 +566,4 @@ UDT UDT_registerUDT(jclass clazz, Oid typeId, Form_pg_type pgType,
 	Type_registerType(className, (Type)udt);
 	return udt;
 }
+/** @} */

@@ -34,6 +34,11 @@
 #include <funcapi.h>
 #include <utils/typcache.h>
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 #if PG_VERSION_NUM >= 160000
 #define PG_FUNCNAME_MACRO __func__
 #endif
@@ -1417,3 +1422,4 @@ JNIEXPORT void JNICALL
 
 	END_NATIVE
 }
+/** @} */

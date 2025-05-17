@@ -26,6 +26,11 @@
 #include "pljava/type/Tuple.h"
 #include "pljava/type/Relation.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_Relation_class;
 static jmethodID s_Relation_init;
 
@@ -293,3 +298,4 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 	}
 	return result;
 }
+/** @} */

@@ -22,6 +22,11 @@
 #include "pljava/DualState.h"
 #include "pljava/Exception.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 #define LOCAL_FRAME_SIZE 128
 
 static jmethodID    s_Invocation_onExit;
@@ -303,3 +308,4 @@ Java_org_postgresql_pljava_jdbc_Invocation__1register(JNIEnv* env, jobject _this
 		"mismanaged PL/Java invocation stack");
 	END_NATIVE
 }
+/** @} */

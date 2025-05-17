@@ -19,6 +19,11 @@
 #include "pljava/type/ErrorData.h"
 #include "pljava/type/String.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_ErrorData_class;
 static jmethodID s_ErrorData_init;
 static jmethodID s_ErrorData_getNativePointer;

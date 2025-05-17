@@ -30,6 +30,11 @@
 #include <miscadmin.h>
 #endif
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 /* Class 07 - Dynamic SQL Error */
 #define ERRCODE_PARAMETER_COUNT_MISMATCH	MAKE_SQLSTATE('0','7', '0','0','1')
 
@@ -340,3 +345,4 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 	END_NATIVE
 	return result;
 }
+/** @} */

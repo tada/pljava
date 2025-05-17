@@ -23,38 +23,109 @@ could be useful if we added proper documentation to the functions.
 - Run `doxygen` in this directory
 - Copy the resulting files to final location.
 
+## Topics - Datum
+
+These files handle the actual conversion between the java class and PostgreSQL
+value (Datum). In general they should have minimal dependence on JNI (methods or
+structures) but in some cases this is unavoidable, esp. with collections and
+coercion.
+
+### Files
+
+- `type/BigDecimal.c`
+- `type/Boolean.c`
+- `type/Byte.c`
+- `type/Date.c`
+- `type/Double.c`
+- `type/Float.c`
+- `type/Integer.c`
+- `type/Long.c`
+- `type/Short.c`
+- `type/String.c`
+- `type/Time.c`
+- `type/Timestamp.c`
+- `type/UDT.c`
+- `type/Void.c`
+
+#### Collections
+
+- `type/Array.c`
+- `type/byte_array.c`
+- `type/Composite.c`
+
+#### Coercerion
+
+- `type/Coerce.c`
+
+#### Other native PostgreSQL types
+
+PostgreSQL provides a large number of additional native types,
+in both the core and other extensions. Examples are `money`,
+`UUID`, `CIDR` (for IP networks). Unfortunately the code needs
+additional information in order to reliably recognize these
+types.
+
+This isn't a total loss - any database object can be converted
+to and from a string - but it complicates the java code since
+not all Classes can be reliably constructed from a String due
+to hidden internal state. The classic examples are `Float` and
+`Double` since they include hidden resolution. (These values
+can be safely converted if you use their methods that convert
+their internal bits format to a int or long value.)
+
+### Topics - JNI
+
+These files contain JNIEXPORT functions. They should be
+further categories, e.g., files that handle data vs. files
+that handle the database connection.
+
+- `Backend.c`
+- `DualState.c`
+- `ExecutionPlan.c`
+- `Function.c`
+- `Invocation.c`
+- `JNICalls.c`
+- `PgSavepoint.c`
+- `SPI.c`
+- `SQLOutputToChunk.c`
+- `Session.c`
+- `SubXactListener.c`
+- `TypeOid.c`
+- `VarlenaWrapper.c`
+- `XactListener.c`
+- `type/AclId.c`
+- `type/ErrorData.c`
+- `type/Oid.c`
+- `type/Portal.c`
+- `type/Relation.c`
+- `type/SQLXMLImpl.c`
+- `type/SingleRowReader.c`
+- `type/TriggerData.c`
+- `type/Tuple.c`
+- `type/TupleDesc.c`
+
+## Remaining files
+
+About a third of the files don't fit into either category b
+
 ## Pre-release Ideas
 
 Ideas that we may wish to include before the next release.
 
-### Groups
+### Have directories match topics
 
-Doxygen can group related information. In this case natural groups
-are:
+I know there's a major refactoring going on but it might be helpful
+for anyone looking at the 'old' version later to move the files into
+subdirectories that match the skills required to modify them - even
+if that requires adding a bit of glue.
 
-- SQL type implementations (everything under `type`)
-- SQL function implementations
-  - SQLInputFromTuple.c
-  - SQLOutputToTuple.c
-  - etc
-- User-defined SQL types
-  - UDT.c
-  - FDW.c (future...)
-- PostgreSQL objects
-  - ExecutionPlan.c (?)
-  - PgObject.c
-  - PgSavepoint.c
-  - Session.c (?)
-  - TypeOid.c
-- JNI and Backend-specific implementations
-  - Backend.c
-  - JNICalls.c
-  - SPI.c
+It's basically a "here there be dragons" warning. The "Datum" should
+be pretty straightforward given any knowledge of the database's API -
+even if that means moving the collections and coercion elsewhere.
 
-I'm not sure where some of the files should go, e.g.,
-Function, Invocation, Iterator, etc., and it's possible
-that the JNI and backend-specific files should be in
-separate groups.
+In constrast the "JNI" (or "JNIEXPORT") would be a clear warning
+that you need to take great care since it's what's directly interacting
+with the backend. 
 
 ### Documentation pages
 
@@ -62,16 +133,6 @@ We can insert both standalone and group-specific `@page`
 and `@subpage`. This allows us to have documentation with
 a tighter focus on individual aspects of the overall package
 or specific groups or files.
-
-In some cases this may be nothing more than a few links
-to external documentation. E.g., `type` should only require
-a few external links since the standard types are well-defined.
-At most it might include an example of how to add a
-PostgreSQL-specific type like `uuid`, `cidr` or `money`.
-
-In other cases the documentation should go into details
-into how the information is actually passed between the
-database and JNI layers.
 
 ### Read-only FDW
 

@@ -32,6 +32,11 @@
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 #if PG_VERSION_NUM < 90600
 #define GetOldestSnapshot() NULL
 #endif
@@ -529,3 +534,4 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Output_00024State__1next
 
 	return dbb;
 }
+/** @} */

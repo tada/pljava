@@ -27,6 +27,11 @@
 
 #include "org_postgresql_pljava_jdbc_SingleRowReader.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass s_SingleRowReader_class;
 static jmethodID s_SingleRowReader_init;
 
@@ -133,3 +138,4 @@ Java_org_postgresql_pljava_jdbc_SingleRowReader__1getObject(JNIEnv* env, jclass 
 	}
 	return result;
 }
+/** @} */

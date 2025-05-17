@@ -25,6 +25,11 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Oid.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_TupleDesc_class;
 static jmethodID s_TupleDesc_init;
 
@@ -302,3 +307,4 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jclass cls, 
 
 	return result;
 }
+/** @} */

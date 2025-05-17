@@ -21,6 +21,11 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Timestamp.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 #define EPOCH_DIFF (((uint32)86400) * (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE))
 
 /*
@@ -494,3 +499,4 @@ void Timestamp_initialize(void)
 	Type_registerType2(InvalidOid, "java.time.OffsetDateTime",
 		_OffsetDateTime_obtain);
 }
+/** @} */

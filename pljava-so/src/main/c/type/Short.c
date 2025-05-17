@@ -15,6 +15,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_shortClass;
 static jclass    s_Short_class;
 static jmethodID s_Short_init;
@@ -143,3 +148,4 @@ void Short_initialize(void)
 	Type_registerType("short", t_short);
 	Type_registerType("java.lang.Short", t_Short);
 }
+/** @} */
