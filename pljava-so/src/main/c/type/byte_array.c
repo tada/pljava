@@ -13,6 +13,11 @@
 #include "pljava/Exception.h"
 #include "pljava/type/Type_priv.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static jclass s_byteArray_class;
 static jclass s_BlobValue_class;
 static jmethodID s_BlobValue_length;
@@ -87,4 +92,4 @@ void byte_array_initialize(void)
 	s_BlobValue_length = PgObject_getJavaMethod(s_BlobValue_class, "length", "()J");
 	s_BlobValue_getContents = PgObject_getJavaMethod(s_BlobValue_class, "getContents", "(Ljava/nio/ByteBuffer;)V");
 }
-
+/** @} */

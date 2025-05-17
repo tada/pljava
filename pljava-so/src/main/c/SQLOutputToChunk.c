@@ -11,6 +11,11 @@
 
 #include "org_postgresql_pljava_jdbc_SQLOutputToChunk.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_SQLOutputToChunk_class;
 static jmethodID s_SQLOutputToChunk_init;
 static jmethodID s_SQLOutputToChunk_close;
@@ -110,3 +115,4 @@ done:
 	END_NATIVE
 	return bb;
 }
+/** @} */

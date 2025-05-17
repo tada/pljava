@@ -22,6 +22,11 @@
 #include "pljava/type/ErrorData.h"
 #include "pljava/type/String.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 JNIEnv* jniEnv;
 jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
@@ -1750,3 +1755,5 @@ static void _noopUpdater(jobject loader)
 void _noopRestorer()
 {
 }
+
+/** @} /*

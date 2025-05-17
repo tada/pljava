@@ -16,6 +16,11 @@
 
 #include "pljava/type/Type_priv.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 /*
  * void primitive type.
  */
@@ -51,3 +56,4 @@ void Void_initialize(void)
 	cls->coerceObject = _void_coerceObject;
 	Type_registerType("void", TypeClass_allocInstance(cls, VOIDOID));
 }
+/** @{ */

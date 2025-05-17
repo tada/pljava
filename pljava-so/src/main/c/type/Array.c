@@ -14,6 +14,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 void arraySetNull(bits8* bitmap, int offset, bool flag)
 {
 	if(bitmap != 0)
@@ -189,4 +194,4 @@ Type Array_fromOid2(Oid typeId, Type elementType, DatumCoercer coerceDatum, Obje
 		self->objectType = Array_fromOid(typeId, Type_getObjectType(elementType));
 	return self;
 }
-
+/** @} */

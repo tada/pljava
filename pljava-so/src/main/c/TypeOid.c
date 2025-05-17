@@ -16,6 +16,11 @@
 #include "pljava/pljava.h"
 #include "org_postgresql_pljava_jdbc_TypeOid.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 /*
  * A compilation unit with no run-time purpose, merely to hold a bunch of
  * StaticAssertStmts to confirm at compile time that we haven't fat-fingered
@@ -53,3 +58,4 @@ JNIEXPORT void JNICALL Java_org_postgresql_pljava_jdbc_TypeOid__1dummy(JNIEnv * 
 	CONFIRMCONST(PG_NODE_TREEOID);
 	CONFIRMCONST(TRIGGEROID);
 }
+/** @} */

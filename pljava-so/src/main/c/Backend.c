@@ -59,6 +59,11 @@
 #include "pljava/SPI.h"
 #include "pljava/type/String.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 /* Include the 'magic block' that PostgreSQL 8.2 and up will use to ensure
  * that a module is not loaded into an incompatible server.
  */ 
@@ -2392,3 +2397,4 @@ Java_org_postgresql_pljava_internal_Backend_00024EarlyNatives__1defineClass(JNIE
 	(*env)->ReleaseStringUTFChars(env, name, utfName);
 	return newcls;
 }
+/** @} */

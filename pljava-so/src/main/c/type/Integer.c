@@ -15,6 +15,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_intClass;
 static jclass    s_Integer_class;
 static jmethodID s_Integer_init;
@@ -144,3 +149,5 @@ void Integer_initialize(void)
 	Type_registerType("int", t_int);
 	Type_registerType("java.lang.Integer", t_Integer);
 }
+
+/** @} */
