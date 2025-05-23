@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -9,16 +9,15 @@
  * Contributors:
  *   Chapman Flack
  */
-package org.postgresql.pljava.example.polyglot;
-
-import org.postgresql.pljava.annotation.SQLAction;
 
 /**
- * An empty class that only carries {@link SQLAction SQLAction} annotations to
- * set up the main PL/Java dispatcher functions and (meta)"language".
+ * Examples that illustrate how to build new Procedural Language implementations
+ * in PL/Java.
  *<p>
- * Naturally, these will eventually be automated as part of
- * {@code CREATE EXTENSION pljava}, but for now, they are just here.
+ * The {@code SQLAction} annotation here creates the {@code pljavahandler}
+ * language needed for the other examples, and will eventually disappear when
+ * the creation actions are incorporated into PL/Java's installation.
+ * @author Chapman Flack
  */
 @SQLAction(provides="pljavahandler language", install={
 "DO LANGUAGE plpgsql '" +
@@ -92,6 +91,6 @@ import org.postgresql.pljava.annotation.SQLAction;
 "DROP FUNCTION sqlj.pljavaDispatchValidator()",
 "DROP FUNCTION sqlj.pljavaDispatchValidator(oid)"
 })
-public abstract class DispatcherSQL
-{
-}
+package org.postgresql.pljava.example.polyglot;
+
+import org.postgresql.pljava.annotation.SQLAction;
