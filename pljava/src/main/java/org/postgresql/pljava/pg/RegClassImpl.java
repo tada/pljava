@@ -21,6 +21,7 @@ import java.sql.SQLException;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import java.util.function.Function;
 
@@ -34,8 +35,6 @@ import static org.postgresql.pljava.pg.ModelConstants.Anum_pg_class_reltype;
 import static org.postgresql.pljava.pg.ModelConstants.RELOID; // syscache
 import static org.postgresql.pljava.pg.ModelConstants.CLASS_TUPLE_SIZE;
 
-import static org.postgresql.pljava.pg.adt.ArrayAdapter
-	.FLAT_STRING_LIST_INSTANCE;
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import org.postgresql.pljava.pg.adt.NameAdapter;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
@@ -531,11 +530,11 @@ implements
 		return s.get(Att.RELISPARTITION, BOOLEAN_INSTANCE);
 	}
 
-	private static List<String> options(RegClassImpl o) throws SQLException
+	private static Map<Simple,String> options(RegClassImpl o)
+	throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return
-			s.get(Att.RELOPTIONS, FLAT_STRING_LIST_INSTANCE);
+		return s.get(Att.RELOPTIONS, ArrayAdapters.RELOPTIONS_INSTANCE);
 	}
 
 	/* API methods */
@@ -771,12 +770,12 @@ implements
 	// minmxid
 
 	@Override
-	public List<String> options()
+	public Map<Simple,String> options()
 	{
 		try
 		{
 			MethodHandle h = m_slots[SLOT_OPTIONS];
-			return (List<String>)h.invokeExact(this, h);
+			return (Map<Simple,String>)h.invokeExact(this, h);
 		}
 		catch ( Throwable t )
 		{

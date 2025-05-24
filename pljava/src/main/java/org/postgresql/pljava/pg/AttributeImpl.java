@@ -20,6 +20,7 @@ import java.sql.SQLException;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import static java.util.Objects.requireNonNull;
 
 import java.util.function.Function;
@@ -199,8 +200,8 @@ implements
 	static final int SLOT_LOCAL;
 	static final int SLOT_INHERITANCECOUNT;
 	static final int SLOT_COLLATION;
-	// static final int SLOT_OPTIONS; -- add this
-	// static final int SLOT_FDWOPTIONS; -- add this
+	static final int SLOT_OPTIONS;
+	static final int SLOT_FDWOPTIONS;
 	// static final int SLOT_MISSINGVALUE; -- add this
 
 	static final int NSLOTS;
@@ -253,6 +254,8 @@ implements
 			.withDependent(           "local", SLOT_LOCAL            = i++)
 			.withDependent("inheritanceCount", SLOT_INHERITANCECOUNT = i++)
 			.withDependent(       "collation", SLOT_COLLATION        = i++)
+			.withDependent(         "options", SLOT_OPTIONS          = i++)
+			.withDependent(      "fdwoptions", SLOT_FDWOPTIONS       = i++)
 
 			.build();
 		NSLOTS = i;
@@ -270,6 +273,8 @@ implements
 		static final Attribute ATTISLOCAL;
 		static final Attribute ATTINHCOUNT;
 		static final Attribute ATTCOLLATION;
+		static final Attribute ATTOPTIONS;
+		static final Attribute ATTFDWOPTIONS;
 
 		static
 		{
@@ -283,7 +288,9 @@ implements
 				"attgenerated",
 				"attislocal",
 				"attinhcount",
-				"attcollation"
+				"attcollation",
+				"attoptions",
+				"attfdwoptions"
 			).iterator();
 
 			ATTACL        = itr.next();
@@ -296,6 +303,8 @@ implements
 			ATTISLOCAL    = itr.next();
 			ATTINHCOUNT   = itr.next();
 			ATTCOLLATION  = itr.next();
+			ATTOPTIONS    = itr.next();
+			ATTFDWOPTIONS = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
 		}
@@ -442,6 +451,20 @@ implements
 	{
 		TupleTableSlot s = o.partialTuple();
 		return s.get(Att.ATTCOLLATION, REGCOLLATION_INSTANCE);
+	}
+
+	private static Map<Simple,String> options(AttributeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(Att.ATTOPTIONS, ArrayAdapters.RELOPTIONS_INSTANCE);
+	}
+
+	private static Map<Simple,String> fdwoptions(AttributeImpl o)
+	throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(Att.ATTFDWOPTIONS, ArrayAdapters.RELOPTIONS_INSTANCE);
 	}
 
 	/* private methods using cache slots like API methods do */
@@ -693,8 +716,34 @@ implements
 		}
 	}
 
-	// options
-	// fdwoptions
+	@Override
+	public Map<Simple,String> options()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_OPTIONS];
+			return (Map<Simple,String>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public Map<Simple,String> fdwoptions()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_FDWOPTIONS];
+			return (Map<Simple,String>)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
 	// missingValue
 
 	@Override

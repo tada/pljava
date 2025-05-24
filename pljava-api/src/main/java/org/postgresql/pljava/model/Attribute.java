@@ -11,6 +11,8 @@
  */
 package org.postgresql.pljava.model;
 
+import java.util.Map;
+
 import org.postgresql.pljava.model.CatalogObject.*;
 
 import static org.postgresql.pljava.model.CatalogObject.Factory.*;
@@ -71,8 +73,8 @@ extends
 	boolean local();
 	int inheritanceCount();
 	RegCollation collation();
-	// options
-	// fdwoptions
+	Map<Simple,String> options();
+	Map<Simple,String> fdwoptions();
 	// missingValue
 
 	/**

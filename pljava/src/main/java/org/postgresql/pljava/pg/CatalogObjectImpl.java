@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.Optional;
@@ -1488,6 +1489,54 @@ public class CatalogObjectImpl implements CatalogObject
 							}
 						}
 						return List.of(modes);
+					}
+				});
+
+		/**
+		 * {@code Map<Identifier.Simple,String>} from an array of {@code TEXT}
+		 * that represents 'reloptions' (as used on relations, attributes, and
+		 * foreign wrappers / servers / tables, at least).
+		 *<p>
+		 * The {@code String} value is never expected to be null (PostgreSQL's
+		 * {@code transformRelOptions} will have substituted {@code true} where
+		 * an option with no value was parsed), and this adapter will
+		 * <em>assume</em> the first {@code '='} in each element delimits the
+		 * key from the value (that is, that no key can be an SQL delimited
+		 * identifier containing {@code '='}, though PostgreSQL as of 17 does
+		 * not enforce that).
+		 */
+		ArrayAdapter<Map<Identifier.Simple,String>> RELOPTIONS_INSTANCE =
+			new ArrayAdapter<>(TextAdapter.INSTANCE,
+				new Adapter.Contract.Array<>()
+				{
+					@Override
+					public Map<Identifier.Simple,String> construct(
+						int nDims, int[] dimsAndBounds, As<String,?> adapter,
+						TupleTableSlot.Indexed slot)
+						throws SQLException
+					{
+						int n = slot.elements();
+						@SuppressWarnings("unchecked")
+						Map.Entry<Identifier.Simple,String>[] entries =
+							new Map.Entry[n];
+						for ( int i = 0; i < n; ++ i )
+						{
+							String s = slot.get(i, adapter);
+							int pos = s.indexOf('=');
+							try
+							{
+								entries[i] = Map.entry(
+									Identifier.Simple.fromCatalog(
+										s.substring(0, pos)),
+									s.substring(1 + pos));
+							}
+							catch ( StringIndexOutOfBoundsException e )
+							{
+								throw new AssertionError(
+									"transformed reloption with no =", e);
+							}
+						}
+						return Map.ofEntries(entries);
 					}
 				});
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -11,7 +11,7 @@
  */
 package org.postgresql.pljava.model;
 
-import java.util.List;
+import java.util.Map;
 
 import org.postgresql.pljava.model.CatalogObject.*;
 
@@ -114,13 +114,7 @@ extends
 	// rewrite
 	// frozenxid
 	// minmxid
-	/**
-	 * This is a list of {@code keyword=value} pairs and ought to have
-	 * a more specific return type.
-	 *<p>
-	 * XXX
-	 */
-	List<String> options();
+	Map<Simple,String> options();
 	// partbound
 
 	TupleDescriptor.Interned tupleDescriptor();
