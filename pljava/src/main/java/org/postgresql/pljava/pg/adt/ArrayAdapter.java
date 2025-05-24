@@ -326,7 +326,7 @@ public class ArrayAdapter<T> extends Adapter.Array<T>
 			IntBuffer dimsAndBounds =
 				mapFixedLength(bb, dimsOffset, dimsBoundsLength).asIntBuffer();
 
-			int nItems =
+			int nItems = 0 == nDims ? 0 :
 				IntStream.range(0, nDims).map(dimsAndBounds::get)
 				.reduce(1, Math::multiplyExact);
 
