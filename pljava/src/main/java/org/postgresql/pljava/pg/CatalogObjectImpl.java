@@ -728,6 +728,12 @@ public class CatalogObjectImpl implements CatalogObject
 		@Native public static final int ANYCOMPATIBLERANGEOID         = 5080;
 
 		/*
+		 * A relation ID that won't be used to construct a full-blown catalog
+		 * object, but used in RegClassImpl.
+		 */
+		@Native public static final int ForeignTableRelationId = 3118;
+
+		/*
 		 * Indices into arrays used for syscache invalidation callbacks.
 		 * One of these is a boolean native array the C callback can check
 		 * and return quickly if there is nothing from that cache to invalidate.

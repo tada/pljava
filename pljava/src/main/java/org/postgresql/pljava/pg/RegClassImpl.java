@@ -30,18 +30,28 @@ import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 
 import org.postgresql.pljava.model.*;
+import static org.postgresql.pljava.model.MemoryContext.CurrentMemoryContext;
 
 import org.postgresql.pljava.pg.CatalogObjectImpl.*;
+import static
+	org.postgresql.pljava.pg.CatalogObjectImpl.Factory.ForeignTableRelationId;
+
 import static org.postgresql.pljava.pg.ModelConstants.Anum_pg_class_reltype;
-import static org.postgresql.pljava.pg.ModelConstants.RELOID; // syscache
+import static org.postgresql.pljava.pg.ModelConstants.RELOID;        // syscache
+import static org.postgresql.pljava.pg.ModelConstants.FOREIGNTABLEREL; // "
 import static org.postgresql.pljava.pg.ModelConstants.CLASS_TUPLE_SIZE;
+
+import static org.postgresql.pljava.pg.TupleTableSlotImpl.heapTupleGetLightSlot;
 
 import org.postgresql.pljava.pg.adt.GrantAdapter;
 import org.postgresql.pljava.pg.adt.NameAdapter;
+import static org.postgresql.pljava.pg.adt.OidAdapter.AM_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGCLASS_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGNAMESPACE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.SERVER_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.TABLESPACE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.Primitives.*;
 import static org.postgresql.pljava.pg.adt.XMLAdapter.SYNTHETIC_INSTANCE;
 
@@ -221,6 +231,8 @@ implements
 	static final int SLOT_TUPLEDESCRIPTOR;
 	static final int SLOT_TYPE;
 	static final int SLOT_OFTYPE;
+	static final int SLOT_AM;
+	static final int SLOT_TABLESPACE;
 	static final int SLOT_TOASTRELATION;
 	static final int SLOT_HASINDEX;
 	static final int SLOT_ISSHARED;
@@ -237,6 +249,7 @@ implements
 	static final int SLOT_REPLIDENT;
 	static final int SLOT_ISPARTITION;
 	static final int SLOT_OPTIONS;
+	static final int SLOT_FOREIGN;
 	static final int NSLOTS;
 
 	static
@@ -269,6 +282,8 @@ implements
 			.withDependent( "tupleDescriptor", SLOT_TUPLEDESCRIPTOR  = i++)
 			.withDependent(            "type", SLOT_TYPE             = i++)
 			.withDependent(          "ofType", SLOT_OFTYPE           = i++)
+			.withDependent(    "accessMethod", SLOT_AM               = i++)
+			.withDependent(      "tablespace", SLOT_TABLESPACE       = i++)
 			.withDependent(   "toastRelation", SLOT_TOASTRELATION    = i++)
 			.withDependent(        "hasIndex", SLOT_HASINDEX         = i++)
 			.withDependent(        "isShared", SLOT_ISSHARED         = i++)
@@ -285,6 +300,7 @@ implements
 			.withDependent( "replicaIdentity", SLOT_REPLIDENT        = i++)
 			.withDependent(     "isPartition", SLOT_ISPARTITION      = i++)
 			.withDependent(         "options", SLOT_OPTIONS          = i++)
+			.withDependent(         "foreign", SLOT_FOREIGN          = i++)
 
 			.build();
 		NSLOTS = i;
@@ -297,6 +313,8 @@ implements
 		static final Attribute RELOWNER;
 		static final Attribute RELACL;
 		static final Attribute RELOFTYPE;
+		static final Attribute RELAM;
+		static final Attribute RELTABLESPACE;
 		static final Attribute RELTOASTRELID;
 		static final Attribute RELHASINDEX;
 		static final Attribute RELISSHARED;
@@ -323,6 +341,8 @@ implements
 				"relowner",
 				"relacl",
 				"reloftype",
+				"relam",
+				"reltablespace",
 				"reltoastrelid",
 				"relhasindex",
 				"relisshared",
@@ -347,6 +367,8 @@ implements
 			RELOWNER            = itr.next();
 			RELACL              = itr.next();
 			RELOFTYPE           = itr.next();
+			RELAM               = itr.next();
+			RELTABLESPACE       = itr.next();
 			RELTOASTRELID       = itr.next();
 			RELHASINDEX         = itr.next();
 			RELISSHARED         = itr.next();
@@ -366,6 +388,47 @@ implements
 			RELPARTBOUND        = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+	}
+
+	/**
+	 * A tiny class to just encapsulate the couple of extra attributes a foreign
+	 * table has, as an alternative to a full-blown ForeignTable catalog object.
+	 *<p>
+	 * This class eagerly populates both {@code server} and {@code options} when
+	 * constructed, so the {@code RegClass} needs just one slot holding this.
+	 */
+	static class Foreign
+	{
+		private static final RegClass FT;
+		private static final Attribute FTSERVER;
+		private static final Attribute FTOPTIONS;
+
+		static
+		{
+			FT = of(CLASSID, ForeignTableRelationId);
+			Iterator<Attribute> itr = FT.tupleDescriptor().project(
+				"ftserver",
+				"ftoptions"
+			).iterator();
+
+			FTSERVER  = itr.next();
+			FTOPTIONS = itr.next();
+
+			assert ! itr.hasNext() : "attribute initialization miscount";
+		}
+
+		final ForeignServer server;
+		final Map<Simple,String> options;
+
+		Foreign(int oid)
+		{
+			ByteBuffer heapTuple = _searchSysCacheCopy1(FOREIGNTABLEREL, oid);
+			TupleTableSlot tts = heapTupleGetLightSlot(
+				FT.tupleDescriptor(), heapTuple, CurrentMemoryContext());
+
+			server  = tts.get(FTSERVER, SERVER_INSTANCE);
+			options = tts.get(FTOPTIONS, ArrayAdapters.RELOPTIONS_INSTANCE);
 		}
 	}
 
@@ -486,6 +549,18 @@ implements
 		return s.get(Att.RELOFTYPE, REGTYPE_INSTANCE);
 	}
 
+	private static AccessMethod accessMethod(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(Att.RELAM, AM_INSTANCE);
+	}
+
+	private static Tablespace tablespace(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(Att.RELTABLESPACE, TABLESPACE_INSTANCE);
+	}
+
 	private static RegClass toastRelation(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
@@ -588,6 +663,14 @@ implements
 		return s.get(Att.RELOPTIONS, ArrayAdapters.RELOPTIONS_INSTANCE);
 	}
 
+	private static Foreign foreign(RegClassImpl o)
+	throws SQLException
+	{
+		if ( Kind.FOREIGN_TABLE != o.kind() )
+			return null;
+		return new Foreign(o.oid());
+	}
+
 	/* API methods */
 
 	@Override
@@ -632,9 +715,35 @@ implements
 		}
 	}
 
-	// am
+	@Override
+	public AccessMethod accessMethod()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_AM];
+			return (AccessMethod)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
 	// filenode
-	// tablespace
+
+	@Override
+	public Tablespace tablespace()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_TABLESPACE];
+			return (Tablespace)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
 
 	/* Of limited interest ... estimates used by planner
 	 *
@@ -882,6 +991,36 @@ implements
 		 */
 		TupleTableSlot s = cacheTuple();
 		return s.get(Att.RELPARTBOUND, SYNTHETIC_INSTANCE);
+	}
+
+	@Override
+	public ForeignServer foreignServer()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_FOREIGN];
+			Foreign f = (Foreign)h.invokeExact(this, h);
+			return null == f ? null : f.server;
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public Map<Simple,String> foreignOptions()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_FOREIGN];
+			Foreign f = (Foreign)h.invokeExact(this, h);
+			return null == f ? null : f.options;
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
 	}
 
 	private static Persistence persistenceFromCatalog(byte b)

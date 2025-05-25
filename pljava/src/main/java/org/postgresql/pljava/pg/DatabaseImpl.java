@@ -21,6 +21,8 @@ import java.util.List;
 
 import java.util.function.Function;
 
+import org.postgresql.pljava.Adapter.As;
+
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 
@@ -34,8 +36,10 @@ import org.postgresql.pljava.pg.adt.GrantAdapter;
 import static org.postgresql.pljava.pg.adt.NameAdapter.SIMPLE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.NameAdapter.AS_STRING_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
+import static org.postgresql.pljava.pg.adt.OidAdapter.TABLESPACE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.Primitives.BOOLEAN_INSTANCE;
 import static org.postgresql.pljava.pg.adt.Primitives.INT4_INSTANCE;
+import org.postgresql.pljava.pg.adt.TextAdapter;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
@@ -48,6 +52,9 @@ implements
 	AccessControlled<CatalogObject.Grant.OnDatabase>, Database
 {
 	private static final Function<MethodHandle[],MethodHandle[]> s_initializer;
+
+	private static final As<String,?> COLLCTYPEADAPTER =
+		PG_VERSION_NUM >= 150000 ? TextAdapter.INSTANCE : AS_STRING_INSTANCE;
 
 	/* Implementation of Addressed */
 
@@ -101,6 +108,7 @@ implements
 	static final int SLOT_TEMPLATE;
 	static final int SLOT_ALLOWCONNECTION;
 	static final int SLOT_CONNECTIONLIMIT;
+	static final int SLOT_TABLESPACE;
 	static final int NSLOTS;
 
 	static
@@ -129,6 +137,7 @@ implements
 			.withDependent(       "template", SLOT_TEMPLATE        = i++)
 			.withDependent("allowConnection", SLOT_ALLOWCONNECTION = i++)
 			.withDependent("connectionLimit", SLOT_CONNECTIONLIMIT = i++)
+			.withDependent(     "tablespace", SLOT_TABLESPACE      = i++)
 
 			.build()
 			/*
@@ -149,6 +158,7 @@ implements
 		static final Attribute DATISTEMPLATE;
 		static final Attribute DATALLOWCONN;
 		static final Attribute DATCONNLIMIT;
+		static final Attribute DATTABLESPACE;
 
 		static
 		{
@@ -161,7 +171,8 @@ implements
 				"datctype",
 				"datistemplate",
 				"datallowconn",
-				"datconnlimit"
+				"datconnlimit",
+				"dattablespace"
 			).iterator();
 
 			DATNAME       = itr.next();
@@ -173,6 +184,7 @@ implements
 			DATISTEMPLATE = itr.next();
 			DATALLOWCONN  = itr.next();
 			DATCONNLIMIT  = itr.next();
+			DATTABLESPACE = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
 		}
@@ -189,13 +201,13 @@ implements
 	private static String collate(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(Att.DATCOLLATE, AS_STRING_INSTANCE);
+		return s.get(Att.DATCOLLATE, COLLCTYPEADAPTER);
 	}
 
 	private static String ctype(DatabaseImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
-		return s.get(Att.DATCTYPE, AS_STRING_INSTANCE);
+		return s.get(Att.DATCTYPE, COLLCTYPEADAPTER);
 	}
 
 	private static boolean template(DatabaseImpl o) throws SQLException
@@ -214,6 +226,12 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return s.get(Att.DATCONNLIMIT, INT4_INSTANCE);
+	}
+
+	private static Tablespace tablespace(DatabaseImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return s.get(Att.DATTABLESPACE, TABLESPACE_INSTANCE);
 	}
 
 	/* API methods */
@@ -295,6 +313,20 @@ implements
 		{
 			MethodHandle h = m_slots[SLOT_CONNECTIONLIMIT];
 			return (int)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public Tablespace tablespace()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_TABLESPACE];
+			return (Tablespace)h.invokeExact(this, h);
 		}
 		catch ( Throwable t )
 		{

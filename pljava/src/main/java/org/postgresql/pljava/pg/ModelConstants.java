@@ -376,6 +376,7 @@ public abstract class ModelConstants
 
 	@Native private static final int IDX_FOREIGNDATAWRAPPEROID = 519;
 	@Native private static final int IDX_FOREIGNSERVEROID      = 520;
+	@Native private static final int IDX_FOREIGNTABLEREL       = 521;
 
 
 
@@ -573,6 +574,7 @@ public abstract class ModelConstants
 
 	public static final int FOREIGNDATAWRAPPEROID; // ForeignDataWrapperImpl
 	public static final int FOREIGNSERVEROID;      // ForeignServerImpl
+	public static final int FOREIGNTABLEREL;       // RegClassImpl
 
 
 
@@ -772,6 +774,7 @@ public abstract class ModelConstants
 
 			FOREIGNDATAWRAPPEROID = n.get(IDX_FOREIGNDATAWRAPPEROID);
 			FOREIGNSERVEROID      = n.get(IDX_FOREIGNSERVEROID);
+			FOREIGNTABLEREL       = n.get(IDX_FOREIGNTABLEREL);
 
 
 

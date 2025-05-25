@@ -35,6 +35,7 @@
 #include <catalog/pg_tablespace.h>
 #include <catalog/pg_foreign_data_wrapper.h>
 #include <catalog/pg_foreign_server.h>
+#include <catalog/pg_foreign_table.h>
 
 #include <commands/trigger.h>
 
@@ -279,6 +280,7 @@ static int32 constants[] = {
 	CONSTANT(TABLESPACEOID),
 	CONSTANT(FOREIGNDATAWRAPPEROID),
 	CONSTANT(FOREIGNSERVEROID),
+	CONSTANT(FOREIGNTABLEREL),
 
 
 
@@ -322,6 +324,7 @@ StaticAssertStmt((c) == \
 	CONFIRMCONST(           OperatorRelationId );
 	CONFIRMCONST(            TriggerRelationId );
 	CONFIRMCONST(          ExtensionRelationId );
+	CONFIRMCONST(       ForeignTableRelationId ); /* <-CatalogObjectImpl only */
 	CONFIRMCONST(          CollationRelationId );
 	CONFIRMCONST(          TransformRelationId );
 	CONFIRMCONST(       TSDictionaryRelationId );

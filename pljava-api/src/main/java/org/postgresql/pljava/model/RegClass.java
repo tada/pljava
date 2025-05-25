@@ -83,9 +83,16 @@ extends
 	 * associated with this relation.
 	 */
 	RegType ofType();
-	// am
-	// filenode
-	// tablespace
+
+	AccessMethod accessMethod();
+
+	/* Of limited interest ... used in forming pathname of relation on disk,
+	 * but in very fiddly ways and dependent on the access method.
+	 *
+	int filenode();
+	 */
+
+	Tablespace tablespace();
 
 	/* Of limited interest ... estimates used by planner
 	 *
@@ -128,6 +135,17 @@ extends
 	// minmxid
 	Map<Simple,String> options();
 	SQLXML partitionBound();
+
+	/**
+	 * The {@link ForeignServer} if this is a foreign table, otherwise null.
+	 */
+	ForeignServer foreignServer();
+
+	/**
+	 * Table options understood by the {@link #foreignServer foreign server}
+	 * if this is a foreign table, otherwise null.
+	 */
+	Map<Simple,String> foreignOptions();
 
 	TupleDescriptor.Interned tupleDescriptor();
 }
