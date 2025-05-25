@@ -31,6 +31,10 @@
 #include <catalog/pg_constraint.h>
 #include <catalog/pg_trigger.h>
 #include <catalog/pg_transform.h>
+#include <catalog/pg_am.h>
+#include <catalog/pg_tablespace.h>
+#include <catalog/pg_foreign_data_wrapper.h>
+#include <catalog/pg_foreign_server.h>
 
 #include <commands/trigger.h>
 
@@ -298,12 +302,16 @@ StaticAssertStmt((c) == \
 
 	CONFIRMCONST( InvalidOid );
 
+	CONFIRMCONST(   TableSpaceRelationId );
 	CONFIRMCONST(         TypeRelationId );
 	CONFIRMCONST(    AttributeRelationId );
 	CONFIRMCONST(    ProcedureRelationId );
 	CONFIRMCONST(     RelationRelationId );
 	CONFIRMCONST(       AuthIdRelationId );
 	CONFIRMCONST(     DatabaseRelationId );
+	CONFIRMCONST(ForeignServerRelationId );
+	CONFIRMCONST(ForeignDataWrapperRelationId );
+	CONFIRMCONST( AccessMethodRelationId );
 	CONFIRMCONST(   ConstraintRelationId );
 	CONFIRMCONST(     LanguageRelationId );
 	CONFIRMCONST(    NamespaceRelationId );

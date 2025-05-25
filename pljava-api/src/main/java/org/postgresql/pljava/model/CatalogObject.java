@@ -522,12 +522,16 @@ public interface CatalogObject
 		 * Within groups here, numerical order is as good as any. When adding a
 		 * constant here, add a corresponding CONFIRMCONST in ModelConstants.c.
 		 */
+		protected static final int   TableSpaceRelationId = 1213;
 		protected static final int         TypeRelationId = 1247;
 		protected static final int    AttributeRelationId = 1249;
 		protected static final int    ProcedureRelationId = 1255;
 		protected static final int     RelationRelationId = 1259;
 		protected static final int       AuthIdRelationId = 1260;
 		protected static final int     DatabaseRelationId = 1262;
+		protected static final int ForeignServerRelationId = 1417;
+		protected static final int ForeignDataWrapperRelationId = 2328;
+		protected static final int AccessMethodRelationId = 2601;
 		protected static final int   ConstraintRelationId = 2606;
 		protected static final int     LanguageRelationId = 2612;
 		protected static final int    NamespaceRelationId = 2615;
