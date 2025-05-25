@@ -517,6 +517,9 @@ public class CatalogObjectImpl implements CatalogObject
 			{
 				switch ( classId )
 				{
+				case TableSpaceRelationId:
+					fieldRead = Tablespace.CLASSID;
+					return TablespaceImpl::new;
 				case TypeRelationId:
 					fieldRead = RegType.CLASSID;
 					return typeConstructorFor(objId);
@@ -529,6 +532,15 @@ public class CatalogObjectImpl implements CatalogObject
 				case DatabaseRelationId:
 					fieldRead = Database.CLASSID;
 					return DatabaseImpl::new;
+				case ForeignServerRelationId:
+					fieldRead = ForeignServer.CLASSID;
+					return ForeignServerImpl::new;
+				case ForeignDataWrapperRelationId:
+					fieldRead = ForeignDataWrapper.CLASSID;
+					return ForeignDataWrapperImpl::new;
+				case AccessMethodRelationId:
+					fieldRead = AccessMethod.CLASSID;
+					return AccessMethodImpl::new;
 				case ConstraintRelationId:
 					fieldRead = Constraint.CLASSID;
 					return ConstraintImpl::new;

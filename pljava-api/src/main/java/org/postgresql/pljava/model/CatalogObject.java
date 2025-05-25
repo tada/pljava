@@ -522,26 +522,26 @@ public interface CatalogObject
 		 * Within groups here, numerical order is as good as any. When adding a
 		 * constant here, add a corresponding CONFIRMCONST in ModelConstants.c.
 		 */
-		protected static final int   TableSpaceRelationId = 1213;
-		protected static final int         TypeRelationId = 1247;
-		protected static final int    AttributeRelationId = 1249;
-		protected static final int    ProcedureRelationId = 1255;
-		protected static final int     RelationRelationId = 1259;
-		protected static final int       AuthIdRelationId = 1260;
-		protected static final int     DatabaseRelationId = 1262;
-		protected static final int ForeignServerRelationId = 1417;
+		protected static final int   TableSpaceRelationId       = 1213;
+		protected static final int         TypeRelationId       = 1247;
+		protected static final int    AttributeRelationId       = 1249;
+		protected static final int    ProcedureRelationId       = 1255;
+		protected static final int     RelationRelationId       = 1259;
+		protected static final int       AuthIdRelationId       = 1260;
+		protected static final int     DatabaseRelationId       = 1262;
+		protected static final int ForeignServerRelationId      = 1417;
 		protected static final int ForeignDataWrapperRelationId = 2328;
-		protected static final int AccessMethodRelationId = 2601;
-		protected static final int   ConstraintRelationId = 2606;
-		protected static final int     LanguageRelationId = 2612;
-		protected static final int    NamespaceRelationId = 2615;
-		protected static final int     OperatorRelationId = 2617;
-		protected static final int      TriggerRelationId = 2620;
-		protected static final int    ExtensionRelationId = 3079;
-		protected static final int    CollationRelationId = 3456;
-		protected static final int    TransformRelationId = 3576;
-		protected static final int TSDictionaryRelationId = 3600;
-		protected static final int     TSConfigRelationId = 3602;
+		protected static final int AccessMethodRelationId       = 2601;
+		protected static final int   ConstraintRelationId       = 2606;
+		protected static final int     LanguageRelationId       = 2612;
+		protected static final int    NamespaceRelationId       = 2615;
+		protected static final int     OperatorRelationId       = 2617;
+		protected static final int      TriggerRelationId       = 2620;
+		protected static final int    ExtensionRelationId       = 3079;
+		protected static final int    CollationRelationId       = 3456;
+		protected static final int    TransformRelationId       = 3576;
+		protected static final int TSDictionaryRelationId       = 3600;
+		protected static final int     TSConfigRelationId       = 3602;
 
 		/*
 		 * PG types good to have around because of corresponding JDBC types.

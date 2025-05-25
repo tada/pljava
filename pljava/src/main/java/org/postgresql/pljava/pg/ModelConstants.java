@@ -371,6 +371,11 @@ public abstract class ModelConstants
 	@Native private static final int IDX_CONSTROID      = 514;
 	@Native private static final int IDX_TRFOID         = 515;
 	@Native private static final int IDX_TRFTYPELANG    = 516;
+	@Native private static final int IDX_AMOID          = 517;
+	@Native private static final int IDX_TABLESPACEOID  = 518;
+
+	@Native private static final int IDX_FOREIGNDATAWRAPPEROID = 519;
+	@Native private static final int IDX_FOREIGNSERVEROID      = 520;
 
 
 
@@ -563,6 +568,11 @@ public abstract class ModelConstants
 	public static final int CONSTROID;       // ConstraintImpl
 	public static final int TRFOID;          // TransformImpl
 	public static final int TRFTYPELANG;     // "
+	public static final int AMOID;           // AccessMethodImpl
+	public static final int TABLESPACEOID;   // TablespaceImpl
+
+	public static final int FOREIGNDATAWRAPPEROID; // ForeignDataWrapperImpl
+	public static final int FOREIGNSERVEROID;      // ForeignServerImpl
 
 
 
@@ -757,6 +767,11 @@ public abstract class ModelConstants
 			CONSTROID      = n.get(IDX_CONSTROID);
 			TRFOID         = n.get(IDX_TRFOID);
 			TRFTYPELANG    = n.get(IDX_TRFTYPELANG);
+			AMOID          = n.get(IDX_AMOID);
+			TABLESPACEOID  = n.get(IDX_TABLESPACEOID);
+
+			FOREIGNDATAWRAPPEROID = n.get(IDX_FOREIGNDATAWRAPPEROID);
+			FOREIGNSERVEROID      = n.get(IDX_FOREIGNSERVEROID);
 
 
 

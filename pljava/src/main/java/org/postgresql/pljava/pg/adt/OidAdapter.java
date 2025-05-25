@@ -46,6 +46,10 @@ extends Adapter.As<T,Void>
 	public static final Addressed<Extension>          EXTENSION_INSTANCE;
 	public static final Addressed<ProceduralLanguage> PLANG_INSTANCE;
 	public static final Addressed<Transform>          TRANSFORM_INSTANCE;
+	public static final Addressed<AccessMethod>       AM_INSTANCE;
+	public static final Addressed<Tablespace>         TABLESPACE_INSTANCE;
+	public static final Addressed<ForeignDataWrapper> FDW_INSTANCE;
+	public static final Addressed<ForeignServer>      SERVER_INSTANCE;
 
 	static
 	{
@@ -104,6 +108,18 @@ extends Adapter.As<T,Void>
 
 		TRANSFORM_INSTANCE     = new  Addressed<>(configs[2],
 			Transform.CLASSID, Transform.class);
+
+		AM_INSTANCE            = new  Addressed<>(configs[2],
+			AccessMethod.CLASSID, AccessMethod.class);
+
+		TABLESPACE_INSTANCE    = new  Addressed<>(configs[2],
+			Tablespace.CLASSID, Tablespace.class);
+
+		FDW_INSTANCE           = new  Addressed<>(configs[2],
+			ForeignDataWrapper.CLASSID, ForeignDataWrapper.class);
+
+		SERVER_INSTANCE        = new  Addressed<>(configs[2],
+			ForeignServer.CLASSID, ForeignServer.class);
 	}
 
 	/**
