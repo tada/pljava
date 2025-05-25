@@ -376,13 +376,15 @@ implements
 	 * array, which is also stored in {@code m_tupDescHolder}.
 	 *<p>
 	 * The tuple descriptor for a relation can be retrieved from the PostgreSQL
-	 * {@code relcache} or {@code typcache}; it's the same descriptor, and the
+	 * {@code relcache}, or from the {@code typcache} if the relation has an
+	 * associated type; it's the same descriptor, and the
 	 * latter gets it from the former. Going through the {@code relcache} is
 	 * fussier, involving the lock manager every time, while using the
 	 * {@code typcache} can avoid that except in its cache-miss case.
 	 *<p>
 	 * Here, for every relation other than {@code pg_class} itself, we will
-	 * rely on the corresponding {@code RegType} to do the work. There is a bit
+	 * rely on the corresponding {@code RegType}, if there is one, to do
+	 * the work. There is a bit
 	 * of incest involved; it will construct the descriptor to rely on our
 	 * {@code SwitchPoint} for invalidation, and will poke the wrapper array
 	 * into our {@code m_tupDescHolder}.
@@ -393,11 +395,12 @@ implements
 	 * lives here; it is relation-cache invalidation that obsoletes a cataloged
 	 * tuple descriptor.
 	 *<p>
-	 * However, when the relation <em>is</em> {@code pg_class} itself, we rely
+	 * However, when the relation <em>is</em> {@code pg_class} itself, or is one
+	 * of the relation kinds without an associated type entry, we rely
 	 * on a bespoke JNI method to get the descriptor from the {@code relcache}.
-	 * The case occurs when we are looking up the descriptor to interpret our
-	 * own cache tuples, and the normal case's {@code type()} call won't work
-	 * before that's available.
+	 * The {@code pg_class} case occurs when we are looking up the descriptor to
+	 * interpret our own cache tuples, and the normal case's {@code type()} call
+	 * won't work before that's available.
 	 */
 	private static TupleDescriptor.Interned[] tupleDescriptor(RegClassImpl o)
 	{
@@ -415,23 +418,29 @@ implements
 
 		/*
 		 * In any case other than looking up our own tuple descriptor, we can
-		 * use type() to find the associated RegType and let it do the work.
+		 * use type() to find the associated RegType and let it, if valid,
+		 * do the work.
 		 */
 		if ( CLASSID != o )
 		{
-			o.type().tupleDescriptor(); // side effect: writes o.m_tupDescHolder
-			return o.m_tupDescHolder;
+			RegType t = o.type();
+			if ( t.isValid() )
+			{
+				t.tupleDescriptor(); // side effect: writes o.m_tupDescHolder
+				return o.m_tupDescHolder;
+			}
 		}
 
 		/*
-		 * It is the bootstrap case, looking up the pg_class tuple descriptor.
+		 * May be the bootstrap case, looking up the pg_class tuple descriptor,
+		 * or just a relation kind that does not have an associate type entry.
 		 * If we got here we need it, so we can call the Cataloged constructor
 		 * directly, rather than fromByteBuffer (which would first check whether
 		 * we need it, and bump its reference count only if so). Called
 		 * directly, the constructor expects the count already bumped, which
 		 * the _tupDescBootstrap method will have done for us.
 		 */
-		ByteBuffer bb = _tupDescBootstrap();
+		ByteBuffer bb = _tupDescBootstrap(o.oid());
 		bb.order(nativeOrder());
 		r = new TupleDescriptor.Interned[] {new TupleDescImpl.Cataloged(bb, o)};
 		return o.m_tupDescHolder = r;

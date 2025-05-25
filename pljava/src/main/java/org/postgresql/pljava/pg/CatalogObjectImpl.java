@@ -996,24 +996,26 @@ public class CatalogObjectImpl implements CatalogObject
 
 		/**
 		 * Return a byte buffer mapping the tuple descriptor
-		 * for {@code pg_class} itself, using only the PostgreSQL
+		 * for <var>relid</var>, using only the PostgreSQL
 		 * {@code relcache}.
 		 *<p>
 		 * Only to be called by {@code RegClassImpl}. Declaring it here allows
 		 * that class to be kept pure Java.
 		 *<p>
 		 * Other descriptor lookups on a {@code RegClass} are done by handing
-		 * off to its associated row {@code RegType}, which will look in
+		 * off to an associated row {@code RegType}, when there is one, which
+		 * will look in
 		 * the {@code typcache}. But finding the associated row {@code RegType}
 		 * isn't something {@code RegClass} can do before it has obtained this
-		 * crucial tuple descriptor for its own structure.
+		 * crucial tuple descriptor for its own structure, and also there are
+		 * relation kinds (index and toast, anyway) which have no type entry.
 		 *<p>
 		 * This method shall increment the reference count; the caller will pass
 		 * the byte buffer directly to a {@code TupleDescImpl} constructor,
 		 * which assumes that has already happened. The reference count shall be
 		 * incremented without registering the descriptor for leak warnings.
 		 */
-		static native ByteBuffer _tupDescBootstrap();
+		static native ByteBuffer _tupDescBootstrap(int relid);
 
 		private Addressed()
 		{

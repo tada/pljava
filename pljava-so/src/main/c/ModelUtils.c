@@ -549,7 +549,7 @@ void pljava_ModelUtils_initialize(void)
 		},
 		{
 		"_tupDescBootstrap",
-		"()Ljava/nio/ByteBuffer;",
+		"(I)Ljava/nio/ByteBuffer;",
 		Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstrap
 		},
 		{
@@ -983,17 +983,17 @@ Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1sysTableGetByOi
 /*
  * Class:     org_postgresql_pljava_pg_CatalogObjectImpl_Addressed
  * Method:    _tupDescBootstrap
- * Signature: ()Ljava/nio/ByteBuffer;
+ * Signature: (I)Ljava/nio/ByteBuffer;
  */
 JNIEXPORT jobject JNICALL
-Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstrap(JNIEnv* env, jobject _cls)
+Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1tupDescBootstrap(JNIEnv* env, jobject _cls, jint relid)
 {
 	Relation rel;
 	TupleDesc td;
 	jlong length;
 	jobject result = NULL;
 	BEGIN_NATIVE_AND_TRY
-	rel = relation_open(RelationRelationId, AccessShareLock);
+	rel = relation_open((Oid)relid, AccessShareLock);
 	td = RelationGetDescr(rel);
 	/*
 	 * Per contract, we return the tuple descriptor with its reference count
