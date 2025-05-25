@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import static java.nio.ByteOrder.nativeOrder;
 
 import java.sql.SQLException;
+import java.sql.SQLXML;
 
 import java.util.Iterator;
 import java.util.List;
@@ -42,6 +43,7 @@ import static org.postgresql.pljava.pg.adt.OidAdapter.REGNAMESPACE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.Primitives.*;
+import static org.postgresql.pljava.pg.adt.XMLAdapter.SYNTHETIC_INSTANCE;
 
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Qualified;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
@@ -222,6 +224,8 @@ implements
 	static final int SLOT_TOASTRELATION;
 	static final int SLOT_HASINDEX;
 	static final int SLOT_ISSHARED;
+	static final int SLOT_PERSISTENCE;
+	static final int SLOT_KIND;
 	static final int SLOT_NATTRIBUTES;
 	static final int SLOT_CHECKS;
 	static final int SLOT_HASRULES;
@@ -230,6 +234,7 @@ implements
 	static final int SLOT_ROWSECURITY;
 	static final int SLOT_FORCEROWSECURITY;
 	static final int SLOT_ISPOPULATED;
+	static final int SLOT_REPLIDENT;
 	static final int SLOT_ISPARTITION;
 	static final int SLOT_OPTIONS;
 	static final int NSLOTS;
@@ -267,6 +272,8 @@ implements
 			.withDependent(   "toastRelation", SLOT_TOASTRELATION    = i++)
 			.withDependent(        "hasIndex", SLOT_HASINDEX         = i++)
 			.withDependent(        "isShared", SLOT_ISSHARED         = i++)
+			.withDependent(     "persistence", SLOT_PERSISTENCE      = i++)
+			.withDependent(            "kind", SLOT_KIND             = i++)
 			.withDependent(     "nAttributes", SLOT_NATTRIBUTES      = i++)
 			.withDependent(          "checks", SLOT_CHECKS           = i++)
 			.withDependent(        "hasRules", SLOT_HASRULES         = i++)
@@ -275,6 +282,7 @@ implements
 			.withDependent(     "rowSecurity", SLOT_ROWSECURITY      = i++)
 			.withDependent("forceRowSecurity", SLOT_FORCEROWSECURITY = i++)
 			.withDependent(     "isPopulated", SLOT_ISPOPULATED      = i++)
+			.withDependent( "replicaIdentity", SLOT_REPLIDENT        = i++)
 			.withDependent(     "isPartition", SLOT_ISPARTITION      = i++)
 			.withDependent(         "options", SLOT_OPTIONS          = i++)
 
@@ -292,6 +300,8 @@ implements
 		static final Attribute RELTOASTRELID;
 		static final Attribute RELHASINDEX;
 		static final Attribute RELISSHARED;
+		static final Attribute RELPERSISTENCE;
+		static final Attribute RELKIND;
 		static final Attribute RELNATTS;
 		static final Attribute RELCHECKS;
 		static final Attribute RELHASRULES;
@@ -300,8 +310,10 @@ implements
 		static final Attribute RELROWSECURITY;
 		static final Attribute RELFORCEROWSECURITY;
 		static final Attribute RELISPOPULATED;
+		static final Attribute RELREPLIDENT;
 		static final Attribute RELISPARTITION;
 		static final Attribute RELOPTIONS;
+		static final Attribute RELPARTBOUND;
 
 		static
 		{
@@ -314,6 +326,8 @@ implements
 				"reltoastrelid",
 				"relhasindex",
 				"relisshared",
+				"relpersistence",
+				"relkind",
 				"relnatts",
 				"relchecks",
 				"relhasrules",
@@ -322,8 +336,10 @@ implements
 				"relrowsecurity",
 				"relforcerowsecurity",
 				"relispopulated",
+				"relreplident",
 				"relispartition",
-				"reloptions"
+				"reloptions",
+				"relpartbound"
 			).iterator();
 
 			RELNAME             = itr.next();
@@ -334,6 +350,8 @@ implements
 			RELTOASTRELID       = itr.next();
 			RELHASINDEX         = itr.next();
 			RELISSHARED         = itr.next();
+			RELPERSISTENCE      = itr.next();
+			RELKIND             = itr.next();
 			RELNATTS            = itr.next();
 			RELCHECKS           = itr.next();
 			RELHASRULES         = itr.next();
@@ -342,8 +360,10 @@ implements
 			RELROWSECURITY      = itr.next();
 			RELFORCEROWSECURITY = itr.next();
 			RELISPOPULATED      = itr.next();
+			RELREPLIDENT        = itr.next();
 			RELISPARTITION      = itr.next();
 			RELOPTIONS          = itr.next();
+			RELPARTBOUND        = itr.next();
 
 			assert ! itr.hasNext() : "attribute initialization miscount";
 		}
@@ -475,6 +495,20 @@ implements
 		return s.get(Att.RELISSHARED, BOOLEAN_INSTANCE);
 	}
 
+	private static Persistence persistence(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return persistenceFromCatalog(
+			s.get(Att.RELPERSISTENCE, INT1_INSTANCE));
+	}
+
+	private static Kind kind(RegClassImpl o) throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return kindFromCatalog(
+			s.get(Att.RELKIND, INT1_INSTANCE));
+	}
+
 	private static short nAttributes(RegClassImpl o) throws SQLException
 	{
 		TupleTableSlot s = o.cacheTuple();
@@ -522,6 +556,14 @@ implements
 	{
 		TupleTableSlot s = o.cacheTuple();
 		return s.get(Att.RELISPOPULATED, BOOLEAN_INSTANCE);
+	}
+
+	private static ReplicaIdentity replicaIdentity(RegClassImpl o)
+	throws SQLException
+	{
+		TupleTableSlot s = o.cacheTuple();
+		return replicaIdentityFromCatalog(
+			s.get(Att.RELREPLIDENT, INT1_INSTANCE));
 	}
 
 	private static boolean isPartition(RegClassImpl o) throws SQLException
@@ -634,8 +676,33 @@ implements
 		}
 	}
 
-	// persistence
-	// kind
+	@Override
+	public Persistence persistence()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_PERSISTENCE];
+			return (Persistence)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
+
+	@Override
+	public Kind kind()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_KIND];
+			return (Kind)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
 
 	@Override
 	public short nAttributes()
@@ -749,7 +816,19 @@ implements
 		}
 	}
 
-	// replident
+	@Override
+	public ReplicaIdentity replicaIdentity()
+	{
+		try
+		{
+			MethodHandle h = m_slots[SLOT_REPLIDENT];
+			return (ReplicaIdentity)h.invokeExact(this, h);
+		}
+		catch ( Throwable t )
+		{
+			throw unchecked(t);
+		}
+	}
 
 	@Override
 	public boolean isPartition()
@@ -783,5 +862,63 @@ implements
 		}
 	}
 
-	// partbound
+	@Override
+	public SQLXML partitionBound()
+	{
+		/*
+		 * Because of the JDBC rules that an SQLXML instance lasts no longer
+		 * than one transaction and can only be read once, it is not a good
+		 * candidate for caching. We will just fetch a new one from the cached
+		 * tuple as needed.
+		 */
+		TupleTableSlot s = cacheTuple();
+		return s.get(Att.RELPARTBOUND, SYNTHETIC_INSTANCE);
+	}
+
+	private static Persistence persistenceFromCatalog(byte b)
+	{
+		switch ( b )
+		{
+		case (byte)'p': return Persistence.PERMANENT;
+		case (byte)'u': return Persistence.UNLOGGED;
+		case (byte)'t': return Persistence.TEMPORARY;
+		}
+		throw unchecked(new SQLException(
+			"unrecognized Persistence type '" + (char)b + "' in catalog",
+			"XX000"));
+	}
+
+	private static Kind kindFromCatalog(byte b)
+	{
+		switch ( b )
+		{
+		case (byte)'r': return Kind.TABLE;
+		case (byte)'i': return Kind.INDEX;
+		case (byte)'S': return Kind.SEQUENCE;
+		case (byte)'t': return Kind.TOAST;
+		case (byte)'v': return Kind.VIEW;
+		case (byte)'m': return Kind.MATERIALIZED_VIEW;
+		case (byte)'c': return Kind.COMPOSITE_TYPE;
+		case (byte)'f': return Kind.FOREIGN_TABLE;
+		case (byte)'p': return Kind.PARTITIONED_TABLE;
+		case (byte)'I': return Kind.PARTITIONED_INDEX;
+		}
+		throw unchecked(new SQLException(
+			"unrecognized Kind type '" + (char)b + "' in catalog",
+			"XX000"));
+	}
+
+	private static ReplicaIdentity replicaIdentityFromCatalog(byte b)
+	{
+		switch ( b )
+		{
+		case (byte)'d': return ReplicaIdentity.DEFAULT;
+		case (byte)'n': return ReplicaIdentity.NOTHING;
+		case (byte)'f': return ReplicaIdentity.ALL;
+		case (byte)'i': return ReplicaIdentity.INDEX;
+		}
+		throw unchecked(new SQLException(
+			"unrecognized ReplicaIdentity type '" + (char)b + "' in catalog",
+			"XX000"));
+	}
 }

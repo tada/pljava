@@ -11,6 +11,8 @@
  */
 package org.postgresql.pljava.model;
 
+import java.sql.SQLXML;
+
 import java.util.Map;
 
 import org.postgresql.pljava.model.CatalogObject.*;
@@ -51,6 +53,16 @@ extends
 			return formObjectId(this, InvalidOid);
 		}
 	}
+
+	enum Persistence { PERMANENT, UNLOGGED, TEMPORARY }
+
+	enum Kind
+	{
+		TABLE, INDEX, SEQUENCE, TOAST, VIEW, MATERIALIZED_VIEW, COMPOSITE_TYPE,
+		FOREIGN_TABLE, PARTITIONED_TABLE, PARTITIONED_INDEX
+	}
+
+	enum ReplicaIdentity { DEFAULT, NOTHING, ALL, INDEX }
 
 	/**
 	 * The PostgreSQL type that is associated with this relation as its
@@ -99,8 +111,8 @@ extends
 	 * shared across all databases in the cluster.
 	 */
 	boolean isShared();
-	// persistence
-	// kind
+	Persistence persistence();
+	Kind kind();
 	short nAttributes();
 	short checks();
 	boolean hasRules();
@@ -109,13 +121,13 @@ extends
 	boolean rowSecurity();
 	boolean forceRowSecurity();
 	boolean isPopulated();
-	// replident
+	ReplicaIdentity replicaIdentity();
 	boolean isPartition();
 	// rewrite
 	// frozenxid
 	// minmxid
 	Map<Simple,String> options();
-	// partbound
+	SQLXML partitionBound();
 
 	TupleDescriptor.Interned tupleDescriptor();
 }
