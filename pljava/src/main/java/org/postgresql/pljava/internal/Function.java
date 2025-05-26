@@ -2019,8 +2019,9 @@ public class Function
 
 	/**
 	 * A class recording the bindings made in a ParameterizedType to the type
-	 * parameters in a GenericDeclaration<Class>. Implements {@code Type} so it
-	 * can be added to the {@code pending} queue in {@code specialization}.
+	 * parameters in a {@code GenericDeclaration<Class>}. Implements
+	 * {@code Type} so it can be added to the {@code pending} queue in
+	 * {@code specialization}.
 	 *<p>
 	 * In {@code specialization}, the tree of superclasses/superinterfaces will
 	 * be searched breadth-first, with all of a node's immediate supers enqueued
