@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -33,7 +33,11 @@
 #include "pljava/JNICalls.h"
 
 #if PG_VERSION_NUM < 90600
-#define GetOldestSnapshot() NULL
+#define get_toast_snapshot() NULL
+#elif PG_VERSION_NUM < 180000
+#define get_toast_snapshot() GetOldestSnapshot()
+#else
+#include <access/toast_internals.h>
 #endif
 
 #define _VL_TYPE struct varlena *
@@ -145,7 +149,7 @@ jobject pljava_VarlenaWrapper_Input(
 		goto justDetoastEagerly;
 	if ( VARATT_IS_EXTERNAL_ONDISK(vl) )
 	{
-		pin = GetOldestSnapshot();
+		pin = get_toast_snapshot();
 		if ( NULL == pin )
 		{
 			/*
