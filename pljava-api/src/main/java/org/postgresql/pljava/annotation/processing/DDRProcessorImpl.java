@@ -1749,7 +1749,7 @@ hunt:	for ( ExecutableElement ee : ees )
 	enum MethodShape
 	{
 		/**
-		 * Method has the shape {@code boolean foo(..., ResultSet)], which
+		 * Method has the shape {@code boolean foo(..., ResultSet)}, which
 		 * could be an ordinary method with an incoming record parameter and
 		 * boolean return, or a composite-returning method whose last
 		 * a writable ResultSet supplied by PL/Java for the return value.
@@ -5628,7 +5628,7 @@ hunt:	for ( ExecutableElement ee : ees )
 		 * already in the form of a {@code DBType}.
 		 *
 		 * @param k Class representing the Java type
-		 * @param DBType representing the SQL type to be used
+		 * @param type DBType representing the SQL type to be used
 		 */
 		void addMap(Class<?> k, DBType type)
 		{
