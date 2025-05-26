@@ -1453,10 +1453,7 @@ public class S9 implements ResultSetProvider.Large
 	 * preconfigured as the Syntax Rules dictate.
 	 * @param pt The single-row ResultSet representing the passed parameters
 	 * and context item, if any.
-	 * @param nameToIndex A Map, supplied empty, that on return will map
-	 * variable names for the dynamic context to column indices in {@code pt}.
-	 * If a context item was supplied, its index will be entered in the map
-	 * with the null key.
+	 * @param namespaces namespace keys and values to be declared.
 	 */
 	private static XQueryCompiler createStaticContextWithPassedTypes(
 		Binding.Assemblage pt, Iterable<Map.Entry<String,String>> namespaces)
@@ -1507,10 +1504,10 @@ public class S9 implements ResultSetProvider.Large
 
 	/**
 	 * Check that something's type is "convertible to XML(SEQUENCE)
-	 * according to the Syntax Rules of ... <XML cast specification>."
+	 * according to the Syntax Rules of ... {@code <XML cast specification>}."
 	 * That turns out not to be a very high bar; not much is excluded
 	 * by those rules except collection, row, structured, or
-	 * reference typed <value expression>s.
+	 * reference typed {@code <value expression>}s.
 	 * @param jdbcType The {@link Types JDBC type} to be checked.
 	 * @param what A string to include in the exception message if the
 	 * check fails.
