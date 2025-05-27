@@ -24,7 +24,7 @@
 #include <libpq/pqformat.h>
 #include <funcapi.h>
 
-#include "pljava/type/UDT_priv.h"
+#include "pljava/type/FDW_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
 #include "pljava/Function.h"
@@ -34,43 +34,77 @@
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/SQLOutputToTuple.h"
 
+/**
+ * Totally ignore the details...
+ *
+ * Assume I'm reading a zip or jar file...
+ */
 
-Datum UDT_input(UDT udt, PG_FUNCTION_ARGS)
+
+/**
+ * (TBD..)
+ */
+Datum FDW_scan_plan(FDW_Table fdw, PG_FUNCTION_ARGS)
 {
-	jstring jstr;
-	jobject obj;
-	char* txt;
+    // return object that will be stored as 'scan_state' and
+    // used in subsequent calls
+	Datum datum = NULL;
 
-	if(!UDT_isScalar(udt))
-		ereport(ERROR, (
-			errcode(ERRCODE_CANNOT_COERCE),
-			errmsg("UDT with Oid %d is not scalar", Type_getOid((Type)udt))));
+	return datum;
+}
 
-	noTypmodYet(udt, fcinfo);
+/**
+ * Jave method that verifies the zip file exists and readable.
+ * It returns a 'scan_state' object that will be provided in
+ * all subsequent calls.
+ */
+Datum FDW_scan_open(FDW_Table fdw, PG_FUNCTION_ARGS)
+{
+	jobject obj = NULL;
 
-	txt = PG_GETARG_CSTRING(0);
+    // placeholder
+	// txt = PG_GETARG_CSTRING(0);
+	// jstr = String_createJavaStringFromNTS(txt);
 
-	if(Type_getLength((Type)udt) == -2)
-	{
-		/*
-		 * ASSUMPTION 1 is in play here. UDT_input is passed a cstring holding
-		 * the human-used external representation, and, just because this UDT is
-		 * also declared with length -2, that external representation is being
-		 * copied directly here as the internal representation, without even
-		 * invoking any of the UDT's code.
-		 */
-		if(txt != 0)
-			txt = pstrdup(txt);
-		PG_RETURN_CSTRING(txt);
-	}
-	/*
-	 * Length != -2 so we do the expected: call parse to construct a Java object
-	 * from the external representation, then _UDT_coerceObject to get the
-	 * internal representation from the object.
-	 */
-	jstr = String_createJavaStringFromNTS(txt);
-	obj  = pljava_Function_udtParseInvoke(udt->parse, jstr, udt->sqlTypeName);
-	JNI_deleteLocalRef(jstr);
+    // the action
+	// obj  = pljava_Function_fdwParseInvoke(fdw->parse, jstr, fdw->sqlTypeName);
+	// JNI_deleteLocalRef(jstr);
 
-	return _UDT_coerceObject((Type)udt, obj);
+	return _FDW_coerceObject((Type)fdw, obj);
+}
+
+/**
+ * Call java method that opens the zip file and reads the first (or next)
+ * record. The java method is provided the 'scan_state' from above,
+ * it's where the open InputStream would be kept, etc. The java function
+ * must return something that can be passed to the existing ResultSet
+ * code. (Probably.) I don't think we need to require the java code
+ * to return an actual ResultSet because that requires a ton of unnecessary
+ * methods - it's probably enough to use a Map<>.
+ *
+ * How we'll handle pl/java-implemented UDT is left as an exercise for
+ * the user.
+ */
+Datum FDW_scan_next(FDW_Table fdw, PG_FUNCTION_ARGS)
+{
+	jobject obj = NULL;
+
+    // call java
+    // use existing ResultSet logic?
+
+	return _FDW_coerceObject((Type)fdw, obj);
+}
+
+/**
+ * Call java method that closes the zip file and releases any other
+ * resources.
+ */
+Datum FDW_scan_close(FDW_Table fdw, PG_FUNCTION_ARGS)
+{
+	jobject obj = NULL;
+
+    // call java
+    // delete internal reference to scan_state
+
+	return _FDW_coerceObject((Type)fdw, obj);
 }
