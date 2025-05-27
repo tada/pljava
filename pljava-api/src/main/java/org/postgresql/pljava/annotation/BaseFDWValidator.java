@@ -22,12 +22,18 @@ import java.sql.SQLData; // referred to in javadoc
 /**
  * Annotation on a PL/Java class that will ...
  *
+ * This assumes a Builder pattern built on top of the
+ * FdwValidator API.
+ *
  * Note: we need to handle wrapper, server, and table with
  * correct precedence.
  *
- * Note: we will want method-level annotations as well.
+ * Note: we may not need method level annotations since we
+ * only need to worry about two methods and they can be
+ * specified here.
  */
 @Target(ElementType.TYPE) @Retention(RetentionPolicy.CLASS) @Documented
 public @interface BaseFDW
 {
+    Class<? extends Relation> relationClass();
 }

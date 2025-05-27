@@ -20,15 +20,82 @@ import java.lang.annotation.Target;
 import java.sql.SQLData; // referred to in javadoc
 
 /**
- * Annotation on a PL/Java class that will ...
+ * Annotation on a PL/Java method that will ...
  *
- * Note: we need to handle wrapper, server, and table with
- * correct precedence.
- *
- * Note: we will want method-level annotations as well.
+ * Would this be better handled via a standardized interface?
+ * Or by breaking the enums apart and using logic later?...
  */
-@Target(ElementType.TYPE) @Retention(RetentionPolicy.CLASS) @Documented
-public @interface BaseFDW
+@Target(ElementType.METHOD) @Retention(RetentionPolicy.CLASS) @Documented
+public @interface BaseFDWMethod
 {
-    Class<? extends Relation> relationClass();
+    enum Operation {
+        // initialization...
+        GET_REL_SIZE,
+        GET_PATHS,
+
+        // preparation and cleanup
+        SCAN_PLAN,
+        SCAN_OPEN,
+        SCAN_CLOSE,
+        SCAN_EXPLAIN,
+
+        INSERT_PLAN,
+        INSERT_OPEN,
+        INSERT_CLOSE,
+
+        MODIFY_PLAN,
+        MODIFY_OPEN,
+        MODIFY_CLOSE,
+        MODIFY_EXPLAIN,
+
+        DIRECT_PLAN,
+        DIRECT_OPEN,
+        DIRECT_CLOSE,
+        DIRECT_EXPLAIN,
+
+        GET_SCAN_BATCH_SIZE,
+        GET_MODIFY_BATCH_SIZE,
+        GET_DIRECT_BATCH_SIZE,
+
+        // actual data transfer
+        NEXT,
+        RESET,
+
+        INSERT,
+        INSERT_BATCH,
+
+        UPDATE,
+        DELETE,
+        TRUNCATE,
+
+        // some of the rest...
+        SUPPORTS_PARALLEL_SCANS,
+        SUPPORTS_ASYNCHRONOUS_EXECUTION,
+
+        VACUUM,
+        ANALYZE,
+
+        IMPORT_SCHEMA_STATEMENT,
+
+        //...
+    };
+
+    Operation operation();
+
+    // an alternative...
+    enum Step {
+        PLAN,
+        OPEN,
+        CLOSE,
+        EXPLAIN
+    };
+
+    enum Operation1 {
+        SCAN,
+        INSERT,
+        UPDATE,
+        DELETE
+        // TRUNCATE
+    };
+
 }

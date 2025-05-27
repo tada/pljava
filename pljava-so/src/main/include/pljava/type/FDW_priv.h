@@ -12,11 +12,11 @@
  *
  * @author Thomas Hallgren
  */
-#ifndef __pljava_type_UDT_priv_h
-#define __pljava_type_UDT_priv_h
+#ifndef __pljava_type_FDW_priv_h
+#define __pljava_type_FDW_priv_h
 
 #include "pljava/type/Type_priv.h"
-#include "pljava/type/UDT.h"
+#include "pljava/type/FDW.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,34 +26,57 @@ extern "C" {
  * @author Thomas Hallgren
  **************************************************************************/
 
-struct UDT_
+/**
+ * This forms a tree since each wrapper may have multiple servers and
+ * each server may have multiple tables.
+ *
+ * It goes without saying that each table can have multiple concurrent
+ * queries even if the database backend only allows one to execute at any
+ * time.
+ */
+
+struct FDW_
 {
-	/*
-	 * The UDT "class" extends Type so the first
-	 * entry must be the Type_ structure. This enables us
-	 * to cast the String to a Type.
-	 */
-	struct Type_ Type_extension;
+    const char *fdw_name;
+}
 
-	jstring   sqlTypeName;
-	bool      hasTupleDesc;
-	jobject parse;
-	jobject readSQL;
+struct FDW_Server
+{
+    struct FDW_ *fdw;
+    const char *server_name;
+}
 
-	/*
-	 * At first glance, one might not retain writeSQL and toString handles
-	 * per-UDT, as they are both inherited methods common to all UDTs and so
-	 * do not depend on the class of the receiver. What these jobjects hold,
-	 * though, is an Invocable, which carries an AccessControlContext, which is
-	 * chosen at resolution time per-UDT or per-function, so they must be here.
-	 */
-	jobject writeSQL;
-	jobject toString;
-};
 
-extern Datum _UDT_coerceObject(Type self, jobject jstr);
+struct FDW_Table
+{
+    struct FDW_Server *server;
+    const char *table_name;
+}
+}
 
-extern jvalue _UDT_coerceDatum(Type self, Datum value);
+struct FDW_Plan_State
+{
+    struct FDW_Table table;
+}
+
+struct FDW_Scan_State
+{
+    struct FDW_Table table;
+}
+
+// ???
+struct FDW_Modify_State
+{
+    struct FDW_Table table;
+}
+
+// ???
+struct FDW_Direct_State
+{
+    struct FDW_Table table;
+}
+
+extern jvalue _FDW_coerceDatum(Type self, Datum value);
 
 #ifdef __cplusplus
 }
