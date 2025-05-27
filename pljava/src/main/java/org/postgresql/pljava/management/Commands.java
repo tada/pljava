@@ -1237,7 +1237,6 @@ public class Commands
 	 * jar.
 	 * 
 	 * @param jarName The name to check.
-	 * @throws IOException
 	 */
 	private static void assertJarName(String jarName) throws SQLException
 	{
@@ -1406,7 +1405,7 @@ public class Commands
 	/**
 	 * Returns the Oid for the given Schema.
 	 * 
-	 * @param schemaName The name of the schema.
+	 * @param schema The name of the schema.
 	 * @return The Oid of the given schema or <code>null</code> if no such
 	 *         schema is found.
 	 * @throws SQLException

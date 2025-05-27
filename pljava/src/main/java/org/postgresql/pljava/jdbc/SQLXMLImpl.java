@@ -4215,7 +4215,8 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		}
 
 		/**
-		 * Common factor of subclass {@link #lax() lax()} instance methods.
+		 * Common factor of subclass {@link #lax(boolean) lax(boolean)}
+		 * instance methods.
 		 *<p>
 		 * The work is done here, but the instance methods are implemented
 		 * per-subclass to avoid unchecked casting of 'this'.
