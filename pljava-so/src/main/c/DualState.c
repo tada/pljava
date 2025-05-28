@@ -296,7 +296,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleMemContextDelete__1memC
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	MemoryContextDelete(JLongGet(void *, pointer));
+	MemoryContextDelete(JLongGet(MemoryContext, pointer));
 	END_NATIVE
 }
 
@@ -312,7 +312,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeTupleDesc__1freeTup
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	FreeTupleDesc(JLongGet(void *, pointer));
+	FreeTupleDesc(JLongGet(TupleDesc, pointer));
 	END_NATIVE
 }
 
@@ -328,7 +328,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleHeapFreeTuple__1heapFre
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	heap_freetuple(JLongGet(void *, pointer));
+	heap_freetuple(JLongGet(HeapTuple, pointer));
 	END_NATIVE
 }
 
@@ -344,7 +344,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeErrorData__1freeErr
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	FreeErrorData(JLongGet(void *, pointer));
+	FreeErrorData(JLongGet(ErrorData *, pointer));
 	END_NATIVE
 }
 
@@ -362,7 +362,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePl
 	BEGIN_NATIVE_NO_ERRCHECK
 	PG_TRY();
 	{
-		SPI_freeplan(JLongGet(void *, pointer));
+		SPI_freeplan(JLongGet(SPIPlanPtr, pointer));
 	}
 	PG_CATCH();
 	{
@@ -395,7 +395,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 		 */
 		if ( NULL != currentInvocation && ! currentInvocation->errorOccurred
 			&& ! currentInvocation->inExprContextCB )
-			SPI_cursor_close(JLongGet(void *, pointer));
+			SPI_cursor_close(JLongGet(Portal, pointer));
 	}
 	PG_CATCH();
 	{
