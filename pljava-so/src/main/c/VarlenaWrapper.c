@@ -117,10 +117,10 @@ jobject pljava_VarlenaWrapper_Input(
 	MemoryContext mc;
 	MemoryContext prevcxt;
 	_VL_TYPE vl;
-	Ptr2Long p2lro;
-	Ptr2Long p2lcxt;
-	Ptr2Long p2lpin;
-	Ptr2Long p2ldatum;
+	jlong jro;
+	jlong jcxt;
+	jlong jpin;
+	jlong jdatum;
 	Size parked;
 	Size actual;
 	Snapshot pin = NULL;
@@ -183,19 +183,14 @@ justDetoastEagerly:
 constructResult:
 	MemoryContextSwitchTo(prevcxt);
 
-	p2lro.longVal = 0L;
-	p2lcxt.longVal = 0L;
-	p2lpin.longVal = 0L;
-	p2ldatum.longVal = 0L;
-
-	p2lro.ptrVal = ro;
-	p2lcxt.ptrVal = mc;
-	p2lpin.ptrVal = pin;
-	p2ldatum.ptrVal = vl;
+	jro = PointerGetJLong(ro);
+	jcxt = PointerGetJLong(mc);
+	jpin = PointerGetJLong(pin);
+	jdatum = PointerGetJLong(vl);
 
 	vr = JNI_newObjectLocked(s_VarlenaWrapper_Input_class,
 		s_VarlenaWrapper_Input_init, pljava_DualState_key(),
-		p2lro.longVal, p2lcxt.longVal, p2lpin.longVal, p2ldatum.longVal,
+		jro, jcxt, jpin, jdatum,
 		(jlong)parked, (jlong)actual, dbb);
 
 	if ( NULL != dbb )
@@ -222,9 +217,9 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 	jobject vos;
 	jobject dbb;
 	MemoryContext mc;
-	Ptr2Long p2lro;
-	Ptr2Long p2lcxt;
-	Ptr2Long p2ldatum;
+	jlong jro;
+	jlong jcxt;
+	jlong jdatum;
 
 	mc = AllocSetContextCreate(parent, "PL/Java VarlenaWrapper.Output",
 		 ALLOCSET_START_SMALL_SIZES);
@@ -246,13 +241,9 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 	evosh->tail->next = evosh->tail;
 	/* evosh->tail->size will be filled in by _nextBuffer() later */
 
-	p2lro.longVal = 0L;
-	p2lcxt.longVal = 0L;
-	p2ldatum.longVal = 0L;
-
-	p2lro.ptrVal = ro;
-	p2lcxt.ptrVal = mc;
-	p2ldatum.ptrVal = DatumGetPointer(EOHPGetRWDatum(&(evosh->hdr)));
+	jro = PointerGetJLong(ro);
+	jcxt = PointerGetJLong(mc);
+	jdatum = PointerGetJLong(DatumGetPointer(EOHPGetRWDatum(&(evosh->hdr))));
 
 	/*
 	 * The data bytes begin right after the node header struct.
@@ -261,7 +252,7 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
 
 	vos = JNI_newObjectLocked(s_VarlenaWrapper_Output_class,
 			s_VarlenaWrapper_Output_init, pljava_DualState_key(),
-			p2lro.longVal, p2lcxt.longVal, p2ldatum.longVal, dbb);
+			jro, jcxt, jdatum, dbb);
 	JNI_deleteLocalRef(dbb);
 
 	return vos;
@@ -277,12 +268,12 @@ jobject pljava_VarlenaWrapper_Output(MemoryContext parent, ResourceOwner ro)
  */
 Datum pljava_VarlenaWrapper_adopt(jobject vlw)
 {
-	Ptr2Long p2l;
+	jlong adopted;
 
-	p2l.longVal = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
+	adopted = JNI_callLongMethodLocked(vlw, s_VarlenaWrapper_adopt,
 					pljava_DualState_key());
 
-	return PointerGetDatum(p2l.ptrVal);
+	return PointerGetDatum(JLongGet(Pointer, adopted));
 }
 
 static Size VOS_get_flat_size(ExpandedObjectHeader *eohptr)
@@ -396,11 +387,8 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1unreg
   (JNIEnv *env, jobject _this, jlong snapshot, jlong ro)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2lsnap;
-	Ptr2Long p2lro;
-	p2lsnap.longVal = snapshot;
-	p2lro.longVal = ro;
-	UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
+	UnregisterSnapshotFromOwner(
+		JLongGet(Snapshot, snapshot), JLongGet(ResourceOwner, ro));
 	END_NATIVE
 }
 
@@ -413,36 +401,26 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoast
   (JNIEnv *env, jobject _this, jlong vl, jlong cxt, jlong snap, jlong resOwner)
 {
-	Ptr2Long p2lvl;
-	Ptr2Long p2lcxt;
-	Ptr2Long p2lsnap;
-	Ptr2Long p2lro;
-	Ptr2Long p2ldetoasted;
+	_VL_TYPE vlp = JLongGet(_VL_TYPE, vl);
 	_VL_TYPE detoasted;
 	MemoryContext prevcxt;
 	jobject dbb = NULL;
 
 	BEGIN_NATIVE_NO_ERRCHECK
 
-	p2lvl.longVal = vl;
-	p2lcxt.longVal = cxt;
-	p2lsnap.longVal = snap;
-	p2lro.longVal = resOwner;
+	prevcxt = MemoryContextSwitchTo(JLongGet(MemoryContext, cxt));
 
-	prevcxt = MemoryContextSwitchTo((MemoryContext)p2lcxt.ptrVal);
-
-	detoasted = (_VL_TYPE) PG_DETOAST_DATUM_COPY(PointerGetDatum(p2lvl.ptrVal));
-	p2ldetoasted.longVal = 0L;
-	p2ldetoasted.ptrVal = detoasted;
+	detoasted = (_VL_TYPE) PG_DETOAST_DATUM_COPY(PointerGetDatum(vlp));
 
 	MemoryContextSwitchTo(prevcxt);
 
 	JNI_setLongField(_this,
-		s_VarlenaWrapper_Input_State_varlena, p2ldetoasted.longVal);
-	pfree(p2lvl.ptrVal);
+		s_VarlenaWrapper_Input_State_varlena, PointerGetJLong(detoasted));
+	pfree(vlp);
 
 	if ( 0 != snap )
-		UnregisterSnapshotFromOwner(p2lsnap.ptrVal, p2lro.ptrVal);
+		UnregisterSnapshotFromOwner(
+			JLongGet(Snapshot, snap), JLongGet(ResourceOwner, resOwner));
 
 	dbb = JNI_newDirectByteBuffer(
 		VARDATA(detoasted), VARSIZE_ANY_EXHDR(detoasted));
@@ -468,24 +446,18 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1detoa
 JNIEXPORT jlong JNICALL Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Input_00024State__1fetch
   (JNIEnv *env, jobject _this, jlong varlena, jlong memContext)
 {
-	Ptr2Long p2lvl;
-	Ptr2Long p2lcxt;
+	_VL_TYPE vl = JLongGet(_VL_TYPE, varlena);
 	MemoryContext prevcxt;
-	_VL_TYPE fetched;
-
-	p2lvl.longVal = varlena;
-	p2lcxt.longVal = memContext;
+	_VL_TYPE fetched = NULL;
 
 	BEGIN_NATIVE_NO_ERRCHECK;
-	prevcxt = MemoryContextSwitchTo((MemoryContext) p2lcxt.ptrVal);
-	fetched = detoast_external_attr((_VL_TYPE) p2lvl.ptrVal);
-	pfree(p2lvl.ptrVal);
-	p2lvl.longVal = 0L;
-	p2lvl.ptrVal = fetched;
+	prevcxt = MemoryContextSwitchTo(JLongGet(MemoryContext, memContext));
+	fetched = detoast_external_attr(vl);
+	pfree(vl);
 	MemoryContextSwitchTo(prevcxt);
 	END_NATIVE;
 
-	return p2lvl.longVal;
+	return PointerGetJLong(fetched);
 }
 
 /*
@@ -500,12 +472,8 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Output_00024State__1next
 {
 	ExpandedVarlenaOutputStreamHeader *evosh;
 	ExpandedVarlenaOutputStreamNode *node;
-	Ptr2Long p2l;
-	Datum d;
+	Datum d = PointerGetDatum(JLongGet(Pointer, varlenaPtr));
 	jobject dbb = NULL;
-
-	p2l.longVal = varlenaPtr;
-	d = PointerGetDatum(p2l.ptrVal);
 
 	evosh = (ExpandedVarlenaOutputStreamHeader *)DatumGetEOHP(d);
 	evosh->tail->size  = currentBufPosition;

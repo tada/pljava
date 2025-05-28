@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -25,15 +25,12 @@ static jmethodID s_ErrorData_getNativePointer;
 
 jobject pljava_ErrorData_getCurrentError(void)
 {
-	Ptr2Long p2l;
 	jobject jed;
 
 	MemoryContext curr = MemoryContextSwitchTo(JavaMemoryContext);
 	ErrorData* errorData = CopyErrorData();
 	MemoryContextSwitchTo(curr);
 
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = errorData;
 	/*
 	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by
 	 * a nativeRelease call; that's appropriate (for now) as the ErrorData copy
@@ -41,15 +38,14 @@ jobject pljava_ErrorData_getCurrentError(void)
 	 * unreachability from the Java side will free it.
 	 */
 	jed = JNI_newObjectLocked(s_ErrorData_class, s_ErrorData_init,
-		pljava_DualState_key(), (jlong)0, p2l.longVal);
+		pljava_DualState_key(), (jlong)0, PointerGetJLong(errorData));
 	return jed;
 }
 
 ErrorData* pljava_ErrorData_getErrorData(jobject jed)
 {	
-	Ptr2Long p2l;
-	p2l.longVal = JNI_callLongMethod(jed, s_ErrorData_getNativePointer);
-	return (ErrorData*)p2l.ptrVal;
+	return JLongGet(ErrorData *,
+		JNI_callLongMethod(jed, s_ErrorData_getNativePointer));
 }
 
 /* Make this datatype available to the postgres system.
@@ -159,9 +155,7 @@ void pljava_ErrorData_initialize(void)
 JNIEXPORT jint JNICALL
 Java_org_postgresql_pljava_internal_ErrorData__1getErrorLevel(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return ((ErrorData*)p2l.ptrVal)->elevel;
+	return JLongGet(ErrorData *, _this)->elevel;
 }
 
 /*
@@ -173,9 +167,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getMes
 {
 	jstring result = 0;
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->message);
+	result =
+		String_createJavaStringFromNTS(JLongGet(ErrorData *, _this)->message);
 	END_NATIVE
 	return result;
 }
@@ -192,12 +185,10 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getSql
 	char buf[6];
 	int errCode;
 	int idx;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
 
 	/* unpack MAKE_SQLSTATE code
 	 */
-	errCode = ((ErrorData*)p2l.ptrVal)->sqlerrcode;
+	errCode = JLongGet(ErrorData *, _this)->sqlerrcode;
 	for (idx = 0; idx < 5; ++idx)
 	{
 		buf[idx] = (char)PGUNSIXBIT(errCode); /*why not cast in macro?*/
@@ -217,9 +208,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getSql
  */
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isOutputToServer(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jboolean)((ErrorData*)p2l.ptrVal)->output_to_server;
+	return (jboolean)JLongGet(ErrorData *, _this)->output_to_server;
 }
 
 /*
@@ -229,9 +218,7 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isOut
  */
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isOutputToClient(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jboolean)((ErrorData*)p2l.ptrVal)->output_to_client;
+	return (jboolean)JLongGet(ErrorData *, _this)->output_to_client;
 }
 
 /*
@@ -242,9 +229,7 @@ JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isOut
 JNIEXPORT jboolean JNICALL Java_org_postgresql_pljava_internal_ErrorData__1isShowFuncname(JNIEnv* env, jclass cls, jlong _this)
 {
 #if PG_VERSION_NUM < 140000
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jboolean)((ErrorData*)p2l.ptrVal)->show_funcname;
+	return (jboolean)JLongGet(ErrorData *, _this)->show_funcname;
 #else
 	return JNI_FALSE;
 #endif
@@ -259,9 +244,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getFil
 {
 	jstring result = 0;
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->filename);
+	result =
+		String_createJavaStringFromNTS(JLongGet(ErrorData *, _this)->filename);
 	END_NATIVE
 	return result;
 }
@@ -273,9 +257,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getFil
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getLineno(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jint)((ErrorData*)p2l.ptrVal)->lineno;
+	return (jint)JLongGet(ErrorData *, _this)->lineno;
 }
 
 /*
@@ -287,9 +269,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getFun
 {
 	jstring result = 0;
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->funcname);
+	result =
+		String_createJavaStringFromNTS(JLongGet(ErrorData *, _this)->funcname);
 	END_NATIVE
 	return result;
 }
@@ -303,9 +284,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getDet
 {
 	jstring result = 0;
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->detail);
+	result =
+		String_createJavaStringFromNTS(JLongGet(ErrorData *, _this)->detail);
 	END_NATIVE
 	return result;
 }
@@ -319,9 +299,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getHin
 {
 	jstring result = 0;
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->hint);
+	result =
+		String_createJavaStringFromNTS(JLongGet(ErrorData *, _this)->hint);
 	END_NATIVE
 	return result;
 }
@@ -335,9 +314,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getCon
 {
 	jstring result = 0;
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->context);
+	result =
+		String_createJavaStringFromNTS(JLongGet(ErrorData *, _this)->context);
 	END_NATIVE
 	return result;
 }
@@ -349,9 +327,7 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getCon
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getCursorPos(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jint)((ErrorData*)p2l.ptrVal)->cursorpos;
+	return (jint)JLongGet(ErrorData *, _this)->cursorpos;
 }
 
 /*
@@ -361,9 +337,7 @@ JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getCursor
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getInternalPos(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jint)((ErrorData*)p2l.ptrVal)->internalpos;
+	return (jint)JLongGet(ErrorData *, _this)->internalpos;
 }
 
 /*
@@ -376,9 +350,8 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getInt
 	jstring result = 0;
 
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	result = String_createJavaStringFromNTS(((ErrorData*)p2l.ptrVal)->internalquery);
+	result = String_createJavaStringFromNTS(
+		JLongGet(ErrorData *, _this)->internalquery);
 	END_NATIVE
 
 	return result;
@@ -391,7 +364,5 @@ JNIEXPORT jstring JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getInt
  */
 JNIEXPORT jint JNICALL Java_org_postgresql_pljava_internal_ErrorData__1getSavedErrno(JNIEnv* env, jclass cls, jlong _this)
 {
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	return (jint)((ErrorData*)p2l.ptrVal)->saved_errno;
+	return (jint)JLongGet(ErrorData *, _this)->saved_errno;
 }

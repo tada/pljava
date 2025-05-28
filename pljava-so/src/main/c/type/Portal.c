@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -40,19 +40,12 @@ static jmethodID s_Portal_init;
 jobject pljava_Portal_create(Portal portal, jobject jplan)
 {
 	jobject jportal;
-	Ptr2Long p2l;
-	Ptr2Long p2lro;
 	if(portal == 0)
 		return NULL;
 
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = portal;
-
-	p2lro.longVal = 0L;
-	p2lro.ptrVal = portal->resowner;
-
 	jportal = JNI_newObjectLocked(s_Portal_class, s_Portal_init,
-		pljava_DualState_key(), p2lro.longVal, p2l.longVal, jplan);
+		pljava_DualState_key(),
+		PointerGetJLong(portal->resowner), PointerGetJLong(portal), jplan);
 
 	return jportal;
 }
@@ -122,9 +115,7 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass cl
 	jlong result = 0;
 	if(_this != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jlong)((Portal)p2l.ptrVal)->portalPos;
+		result = (jlong)JLongGet(Portal, _this)->portalPos;
 	}
 	return result;
 }
@@ -141,7 +132,6 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
 		STACK_BASE_VARS
 		STACK_BASE_PUSH(env)
 
@@ -155,11 +145,10 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		 */
 		pljava_DualState_cleanEnqueuedInstances();
 
-		p2l.longVal = _this;
 		PG_TRY();
 		{
 			Invocation_assertConnect();
-			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE,
+			SPI_cursor_fetch(JLongGet(Portal, _this), forward == JNI_TRUE,
 				(long)count);
 			result = (jlong)SPI_processed;
 		}
@@ -186,9 +175,7 @@ Java_org_postgresql_pljava_internal_Portal__1getName(JNIEnv* env, jclass clazz, 
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = String_createJavaStringFromNTS(((Portal)p2l.ptrVal)->name);
+		result = String_createJavaStringFromNTS(JLongGet(Portal, _this)->name);
 		END_NATIVE
 	}
 	return result;
@@ -206,9 +193,7 @@ Java_org_postgresql_pljava_internal_Portal__1getTupleDesc(JNIEnv* env, jclass cl
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = pljava_TupleDesc_create(((Portal)p2l.ptrVal)->tupDesc);
+		result = pljava_TupleDesc_create(JLongGet(Portal, _this)->tupDesc);
 		END_NATIVE
 	}
 	return result;
@@ -225,9 +210,7 @@ Java_org_postgresql_pljava_internal_Portal__1isAtStart(JNIEnv* env, jclass clazz
 	jboolean result = JNI_FALSE;
 	if(_this != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jboolean)((Portal)p2l.ptrVal)->atStart;
+		result = (jboolean)JLongGet(Portal, _this)->atStart;
 	}
 	return result;
 }
@@ -243,9 +226,7 @@ Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jclass clazz, 
 	jboolean result = JNI_FALSE;
 	if(_this != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jboolean)((Portal)p2l.ptrVal)->atEnd;
+		result = (jboolean)JLongGet(Portal, _this)->atEnd;
 	}
 	return result;
 }
@@ -262,15 +243,14 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
 		STACK_BASE_VARS
 		STACK_BASE_PUSH(env)
 
-		p2l.longVal = _this;
 		PG_TRY();
 		{
 			Invocation_assertConnect();
-			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (long)count);
+			SPI_cursor_move(
+				JLongGet(Portal, _this), forward == JNI_TRUE, (long)count);
 			result = (jlong)SPI_processed;
 		}
 		PG_CATCH();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -134,10 +134,8 @@ static void StringKey_init(StringKey self, const char* keyVal)
  */
 static uint32 _OpaqueKey_hashCode(HashKey self)
 {
-	Ptr2Long p2l;
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = ((OpaqueKey)self)->key;
-	return (uint32)(p2l.longVal >> 3);
+	uintptr_t p = (uintptr_t) ((OpaqueKey)self)->key;
+	return (uint32)(p >> 3);
 }
 
 /*
