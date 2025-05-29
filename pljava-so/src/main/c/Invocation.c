@@ -230,9 +230,9 @@ void Invocation_popInvocation(bool wasException)
 	{
 		jthrowable ex = (jthrowable)JNI_getStaticObjectField(
 			s_Invocation_class, s_Invocation_s_unhandled);
+		bool already_hit = Exception_isPGUnhandled(ex);
 		JNI_setStaticObjectField(
 			s_Invocation_class, s_Invocation_s_unhandled, NULL);
-		bool already_hit = Exception_isPGUnhandled(ex);
 
 		JNI_exceptionStacktraceAtLevel(ex,
 			wasException ? DEBUG2 : already_hit ? WARNING : DEBUG1);
