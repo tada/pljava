@@ -692,6 +692,7 @@ classMismatch:
 	ereport(ERROR, (errmsg(
 		"PL/Java UDT with oid %u declares input/output/send/recv functions "
 		"in more than one class", typeId)));
+	pg_unreachable(); /* MSVC otherwise is not convinced */
 }
 
 static Function Function_create(
