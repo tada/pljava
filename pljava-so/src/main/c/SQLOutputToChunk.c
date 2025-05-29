@@ -1,8 +1,14 @@
 /*
- * Copyright (c) 2004, 2005, 2006 TADA AB - Taby Sweden
- * Distributed under the terms shown in the file COPYRIGHT
- * found in the root folder of this project or at
- * http://eng.tada.se/osprojects/COPYRIGHT.html
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Tada AB
+ *   Chapman Flack
  *
  * @author Thomas Hallgren
  */
@@ -19,14 +25,11 @@ static jmethodID s_Buffer_position;
 jobject SQLOutputToChunk_create(StringInfo data, bool isJavaBasedScalar)
 {
 	jobject dbb;
-	Ptr2Long p2l;
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = data;
 	dbb = JNI_newDirectByteBuffer(data->data, data->maxlen);
 	if ( 0 < data->len )
 		JNI_callObjectMethodLocked(dbb, s_Buffer_position, data->len);
 	return JNI_newObject(s_SQLOutputToChunk_class, s_SQLOutputToChunk_init,
-		p2l.longVal, dbb, isJavaBasedScalar ? JNI_TRUE : JNI_FALSE);
+		PointerGetJLong(data), dbb, isJavaBasedScalar ? JNI_TRUE : JNI_FALSE);
 }
 
 void SQLOutputToChunk_close(jobject stream)
@@ -77,15 +80,11 @@ void SQLOutputToChunk_initialize(void)
 JNIEXPORT jobject JNICALL Java_org_postgresql_pljava_jdbc_SQLOutputToChunk__1ensureCapacity
   (JNIEnv *env, jclass cls, jlong hdl, jobject bb, jint pos, jint needed)
 {
-	Ptr2Long p2l;
-	StringInfo str;
+	StringInfo str = JLongGet(StringInfo, hdl);
 	char *oldp;
 	int oldmax;
 
 	BEGIN_NATIVE
-	p2l.ptrVal = (void *)0; /* ensure that the rest is zeroed out */
-	p2l.longVal = hdl;
-	str = (StringInfo)p2l.ptrVal;
 	str->len = pos;
 	oldp = str->data;
 	oldmax = str->maxlen;

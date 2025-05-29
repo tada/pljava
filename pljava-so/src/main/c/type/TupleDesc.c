@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -49,11 +49,8 @@ jobject pljava_TupleDesc_create(TupleDesc td)
 jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 {
 	jobject jtd;
-	Ptr2Long tdH;
 
 	td = CreateTupleDescCopyConstr(td);
-	tdH.longVal = 0L; /* ensure that the rest is zeroed out */
-	tdH.ptrVal = td;
 	/*
 	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by a
 	 * nativeRelease call; that's appropriate (for now) as the TupleDesc copy is
@@ -62,7 +59,7 @@ jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 	 * XXX what about invalidating if DDL alters the column layout?
 	 */
 	jtd = JNI_newObjectLocked(s_TupleDesc_class, s_TupleDesc_init,
-		pljava_DualState_key(), (jlong)0, tdH.longVal, (jint)td->natts);
+		pljava_DualState_key(), (jlong)0, PointerGetJLong(td), (jint)td->natts);
 	return jtd;
 }
 
@@ -152,9 +149,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnName(JNIEnv* env, jclas
 	PG_TRY();
 	{
 		char* name;
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		name = SPI_fname((TupleDesc)p2l.ptrVal, (int)index);
+		name = SPI_fname(JLongGet(TupleDesc, _this), (int)index);
 		if(name == 0)
 		{
 			Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,
@@ -189,11 +184,9 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getColumnIndex(JNIEnv* env, jcla
 	char* name = String_createNTS(colName);
 	if(name != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
 		PG_TRY();
 		{
-			result = SPI_fnumber((TupleDesc)p2l.ptrVal, name);
+			result = SPI_fnumber(JLongGet(TupleDesc, _this), name);
 			if(result == SPI_ERROR_NOATTRIBUTE)
 			{
 				Exception_throw(ERRCODE_UNDEFINED_COLUMN,
@@ -222,14 +215,12 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 	jobject result = 0;
 
 	BEGIN_NATIVE
-	Ptr2Long p2l;
-	p2l.longVal = _this;
 	PG_TRY();
 	{
 		jint   idx;
 		HeapTuple tuple;
 		MemoryContext curr;
-		TupleDesc self = (TupleDesc)p2l.ptrVal;
+		TupleDesc self = JLongGet(TupleDesc, _this);
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
 		bool*  nulls   = palloc(count * sizeof(bool));
@@ -278,11 +269,9 @@ Java_org_postgresql_pljava_internal_TupleDesc__1getOid(JNIEnv* env, jclass cls, 
 	jobject result = 0;
 	
 	BEGIN_NATIVE
-	Ptr2Long p2l;
-	p2l.longVal = _this;
 	PG_TRY();
 	{
-		Oid typeId = SPI_gettypeid((TupleDesc)p2l.ptrVal, (int)index);
+		Oid typeId = SPI_gettypeid(JLongGet(TupleDesc, _this), (int)index);
 		if(!OidIsValid(typeId))
 		{
 			Exception_throw(ERRCODE_INVALID_DESCRIPTOR_INDEX,

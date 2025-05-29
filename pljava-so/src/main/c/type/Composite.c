@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -59,13 +59,11 @@ static jobject _createWriter(jobject tupleDesc)
 
 static HeapTuple _getTupleAndClear(jobject jrps)
 {
-	Ptr2Long p2l;
-
 	if(jrps == 0)
 		return 0;
 
-	p2l.longVal = JNI_callLongMethod(jrps, s_SingleRowWriter_getTupleAndClear);
-	return (HeapTuple)p2l.ptrVal;
+	return JLongGet(HeapTuple,
+		 JNI_callLongMethod(jrps, s_SingleRowWriter_getTupleAndClear));
 }
 
 /*
