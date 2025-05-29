@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -27,11 +27,14 @@ jmethodID Class_getCanonicalName;
 
 jclass    ServerException_class;
 jmethodID ServerException_getErrorData;
-jmethodID ServerException_init;
+jmethodID ServerException_obtain;
 
 jclass    Throwable_class;
 jmethodID Throwable_getMessage;
 jmethodID Throwable_printStackTrace;
+
+static jclass    UnhandledPGException_class;
+static jmethodID UnhandledPGException_obtain;
 
 jclass    IllegalArgumentException_class;
 jmethodID IllegalArgumentException_init;
@@ -45,6 +48,11 @@ jmethodID UnsupportedOperationException_init;
 
 jclass    NoSuchFieldError_class;
 jclass    NoSuchMethodError_class;
+
+bool Exception_isPGUnhandled(jthrowable ex)
+{
+	return JNI_isInstanceOf(ex, UnhandledPGException_class);
+}
 
 void
 Exception_featureNotSupported(const char* requestedFeature, const char* introVersion)
@@ -161,6 +169,22 @@ void Exception_throwSPI(const char* function, int errCode)
 			SPI_result_code_string(errCode));
 }
 
+void Exception_throw_unhandled()
+{
+	jobject ex;
+	PG_TRY();
+	{
+		ex = JNI_callStaticObjectMethodLocked(
+			UnhandledPGException_class, UnhandledPGException_obtain);
+		JNI_throw(ex);
+	}
+	PG_CATCH();
+	{
+		elog(WARNING, "Exception while generating exception");
+	}
+	PG_END_TRY();
+}
+
 void Exception_throw_ERROR(const char* funcName)
 {
 	jobject ex;
@@ -170,7 +194,8 @@ void Exception_throw_ERROR(const char* funcName)
 	
 		FlushErrorState();
 	
-		ex = JNI_newObject(ServerException_class, ServerException_init, ed);
+		ex = JNI_callStaticObjectMethodLocked(
+			ServerException_class, ServerException_obtain, ed);
 		currentInvocation->errorOccurred = true;
 
 		elog(DEBUG2, "Exception in function %s", funcName);
@@ -216,7 +241,17 @@ extern void Exception_initialize2(void);
 void Exception_initialize2(void)
 {
 	ServerException_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ServerException"));
-	ServerException_init = PgObject_getJavaMethod(ServerException_class, "<init>", "(Lorg/postgresql/pljava/internal/ErrorData;)V");
+	ServerException_obtain = PgObject_getStaticJavaMethod(
+		ServerException_class, "obtain",
+		"(Lorg/postgresql/pljava/internal/ErrorData;)"
+		"Lorg/postgresql/pljava/internal/ServerException;");
 
 	ServerException_getErrorData = PgObject_getJavaMethod(ServerException_class, "getErrorData", "()Lorg/postgresql/pljava/internal/ErrorData;");
+
+	UnhandledPGException_class = (jclass)JNI_newGlobalRef(
+		PgObject_getJavaClass(
+			"org/postgresql/pljava/internal/UnhandledPGException"));
+	UnhandledPGException_obtain = PgObject_getStaticJavaMethod(
+		UnhandledPGException_class, "obtain",
+		"()Lorg/postgresql/pljava/internal/UnhandledPGException;");
 }
