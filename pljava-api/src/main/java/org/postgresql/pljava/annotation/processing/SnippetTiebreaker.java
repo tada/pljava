@@ -12,9 +12,13 @@
  */
 package org.postgresql.pljava.annotation.processing;
 
+import java.util.Arrays;
 import java.util.Comparator;
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.nullsFirst;
 
-import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
+import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 
 /**
  * Resolve ties in {@code Snippet} ordering in an arbitrary but deterministic
@@ -22,34 +26,23 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
  */
 class SnippetTiebreaker implements Comparator<Vertex<Snippet>>
 {
-	@Override
-	public int compare( Vertex<Snippet> o1, Vertex<Snippet> o2)
+	private static final Comparator<Vertex<Snippet>> VCMP;
+
+	static
 	{
-		Snippet s1 = o1.payload;
-		Snippet s2 = o2.payload;
-		int diff;
-		Identifier.Simple s1imp = s1.implementorName();
-		Identifier.Simple s2imp = s2.implementorName();
-		if ( null != s1imp  &&  null != s2imp )
-		{
-			diff = s1imp.pgFolded().compareTo( s2imp.pgFolded());
-			if ( 0 != diff )
-				return diff;
-		}
-		else
-			return null == s1imp ? -1 : 1;
-		String[] ds1 = s1.deployStrings();
-		String[] ds2 = s2.deployStrings();
-		diff = ds1.length - ds2.length;
-		if ( 0 != diff )
-			return diff;
-		for ( int i = 0 ; i < ds1.length ; ++ i )
-		{
-			diff = ds1[i].compareTo( ds2[i]);
-			if ( 0 != diff )
-				return diff;
-		}
-		assert s1 == s2 : "Two distinct Snippets compare equal by tiebreaker";
-		return 0;
+		Comparator<Snippet> scmp =
+			comparing(Snippet::implementorName,
+				nullsFirst(comparing(Simple::pgFolded, naturalOrder()))
+			)
+			.thenComparing(Snippet::deployStrings,   Arrays::compare)
+			.thenComparing(Snippet::undeployStrings, Arrays::compare);
+
+		VCMP = comparing(v -> v.payload, scmp);
+	}
+
+	@Override
+	public int compare(Vertex<Snippet> o1, Vertex<Snippet> o2)
+	{
+		return VCMP.compare(o1, o2);
 	}
 }

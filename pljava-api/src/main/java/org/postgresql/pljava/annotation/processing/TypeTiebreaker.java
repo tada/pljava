@@ -13,6 +13,7 @@
 package org.postgresql.pljava.annotation.processing;
 
 import java.util.Comparator;
+import static java.util.Comparator.comparing;
 import java.util.Map;
 
 import javax.lang.model.type.TypeMirror;
@@ -24,22 +25,23 @@ import javax.lang.model.type.TypeMirror;
 class TypeTiebreaker
 implements Comparator<Vertex<Map.Entry<TypeMirror, DBType>>>
 {
+	private static final Comparator<Vertex<Map.Entry<TypeMirror, DBType>>> VCMP;
+
+	static
+	{
+		Comparator<Map.Entry<TypeMirror, DBType>> ecmp =
+			comparing(
+				(Map.Entry<TypeMirror, DBType> e) -> e.getValue().toString())
+			.thenComparing(e -> e.getKey().toString());
+
+		VCMP = comparing(v -> v.payload, ecmp);
+	}
+
 	@Override
 	public int compare(
 		Vertex<Map.Entry<TypeMirror, DBType>> o1,
 		Vertex<Map.Entry<TypeMirror, DBType>> o2)
 	{
-		Map.Entry<TypeMirror, DBType> m1 = o1.payload;
-		Map.Entry<TypeMirror, DBType> m2 = o2.payload;
-		int diff =
-			m1.getValue().toString().compareTo( m2.getValue().toString());
-		if ( 0 != diff )
-			return diff;
-		diff = m1.getKey().toString().compareTo( m2.getKey().toString());
-		if ( 0 != diff )
-			return diff;
-		assert
-			m1 == m2 : "Two distinct type mappings compare equal by tiebreaker";
-		return 0;
+		return VCMP.compare(o1, o2);
 	}
 }
