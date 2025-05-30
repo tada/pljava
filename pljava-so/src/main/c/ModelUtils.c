@@ -1223,7 +1223,7 @@ Java_org_postgresql_pljava_pg_LookupImpl__1cacheReference(JNIEnv* env, jobject _
 JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_pg_LookupImpl__1get_1fn_1expr_1variadic(JNIEnv* env, jobject _cls, jobject fcinfo_b)
 {
-	bool result;
+	bool result = false;
 	FunctionCallInfo fcinfo = (*env)->GetDirectBufferAddress(env, fcinfo_b);
 	if ( NULL == fcinfo )
 		return JNI_FALSE; /* shouldn't happen; there's probably an exception */
