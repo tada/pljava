@@ -80,7 +80,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.Text;
 
-import static org.postgresql.pljava.internal.Session.implServerCharset;
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
+
 import org.postgresql.pljava.internal.VarlenaWrapper;
 
 import java.sql.SQLFeatureNotSupportedException;
@@ -103,6 +104,8 @@ import java.sql.SQLDataException;
 
 import java.io.FilterOutputStream;
 import java.io.OutputStreamWriter;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static javax.xml.transform.OutputKeys.ENCODING;
 import javax.xml.transform.Transformer;
@@ -177,13 +180,22 @@ import org.xml.sax.SAXParseException;
 
 /* ... for SQLXMLImpl.Readable.Synthetic */
 
+import java.io.StringWriter;
+import javax.xml.transform.TransformerConfigurationException;
+import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 import org.postgresql.pljava.internal.VarlenaXMLRenderer;
 import static org.postgresql.pljava.jdbc.TypeOid.PG_NODE_TREEOID;
+
+/* ... for new model / adapter interoperability */
+
+import org.postgresql.pljava.adt.spi.Datum;
+import org.postgresql.pljava.model.RegType;
+import org.postgresql.pljava.pg.DatumImpl;
 
 /**
  * Implementation of {@link SQLXML} for the SPI connection.
  */
-public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
+public abstract class SQLXMLImpl<V extends Datum> implements SQLXML
 {
 	private static final VarHandle s_backingVH;
 	protected volatile V m_backing;
@@ -193,7 +205,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		try
 		{
 			s_backingVH = lookup().findVarHandle(
-				SQLXMLImpl.class, "m_backing", VarlenaWrapper.class);
+				SQLXMLImpl.class, "m_backing", Datum.class);
 		}
 		catch ( ReflectiveOperationException e )
 		{
@@ -323,10 +335,29 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	}
 
 	/**
+	 * Create readable SQLXML instance over a {@code Datum.Input}, recording
+	 * the source type.
+	 *<p>
+	 * The source type can be used to detect efforts to store this value into
+	 * a destination of a different type, and apply a verifier for type safety.
+	 */
+	public static <T extends InputStream & Datum> SQLXML newReadable(
+		Datum.Input<T> datum, RegType pgType, boolean synthetic)
+	throws SQLException
+	{
+		int oid = pgType.oid();
+
+		if ( synthetic )
+			return new Readable.Synthetic(datum, oid);
+
+		return new Readable.PgXML<>(datum, oid);
+	}
+
+	/**
 	 * Create a new, initially empty and writable, SQLXML instance, whose
 	 * backing memory will in a transaction-scoped PostgreSQL memory context.
 	 */
-	static SQLXML newWritable()
+	public static SQLXML newWritable()
 	{
 		return doInPG(() -> _newWritable());
 	}
@@ -343,12 +374,12 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	 * @param sx The SQLXML object to be adopted.
 	 * @param oid The PostgreSQL type ID the native code is expecting;
 	 * see Readable.adopt for why that can matter.
-	 * @return The underlying {@code VarlenaWrapper} (which has its own
+	 * @return The underlying {@code Datum} (which has its own
 	 * {@code adopt} method the native code will call next.
 	 * @throws SQLException if this {@code SQLXML} instance is not in the
 	 * proper state to be adoptable.
 	 */
-	private static VarlenaWrapper adopt(SQLXML sx, int oid) throws SQLException
+	private static Datum adopt(SQLXML sx, int oid) throws SQLException
 	{
 		if ( sx instanceof Readable.PgXML || sx instanceof Writable )
 			return ((SQLXMLImpl)sx).adopt(oid);
@@ -364,15 +395,15 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 	/**
 	 * Allow native code to claim complete control over the
-	 * underlying {@code VarlenaWrapper} and dissociate it from Java.
+	 * underlying {@code Datum} and dissociate it from Java.
 	 * @param oid The PostgreSQL type ID the native code is expecting;
 	 * see Readable.adopt for why that can matter.
-	 * @return The underlying {@code VarlenaWrapper} (which has its own
+	 * @return The underlying {@code Datum} (which has its own
 	 * {@code adopt} method the native code will call next.
 	 * @throws SQLException if this {@code SQLXML} instance is not in the
 	 * proper state to be adoptable.
 	 */
-	protected abstract VarlenaWrapper adopt(int oid) throws SQLException;
+	protected abstract Datum adopt(int oid) throws SQLException;
 
 	/**
 	 * Return a description of this object useful for debugging (not the raw
@@ -402,7 +433,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		@SuppressWarnings("unchecked") // javac 24 first to warn here
 		V backing = (V)s_backingVH.getAcquire(this);
 		if ( null != backing )
-			return backing.toString(o);
+			return ((DatumImpl)backing).toString(o);
 		Class<?> c = o.getClass();
 		String cn = c.getCanonicalName();
 		int pnl = c.getPackageName().length();
@@ -512,7 +543,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		int markLimit = 1048576; // don't assume a markable stream's economical
 		if ( ! is.markSupported() )
 			is = new BufferedInputStream(is);
-		else if ( is instanceof VarlenaWrapper ) // a VarlenaWrapper is, though
+		else if ( is instanceof Datum ) // a Datum is, though
 			markLimit = Integer.MAX_VALUE;
 
 		InputStream msis = new MarkableSequenceInputStream(pfis, rais, is);
@@ -695,13 +726,13 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 
 
-	static abstract class Readable<V extends VarlenaWrapper>
+	static abstract class Readable<V extends Datum>
 	extends SQLXMLImpl<V>
 	{
 		private static final VarHandle s_readableVH;
 		protected volatile boolean m_readable = true;
 		protected final int m_pgTypeID;
-		protected Charset m_serverCS = implServerCharset();
+		protected Charset m_serverCS = SERVER_ENCODING.charset();
 		protected boolean m_wrapped = false;
 
 		static
@@ -720,25 +751,17 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		/**
 		 * Create a readable instance, when called by native code (the
 		 * constructor is otherwise private, after all), passing an initialized
-		 * {@code VarlenaWrapper} and the PostgreSQL type ID from which it has
+		 * {@code Datum} and the PostgreSQL type ID from which it has
 		 * been created.
-		 * @param vwi The already-created wrapper for reading the varlena from
+		 * @param di The already-created wrapper for reading the varlena from
 		 * native memory.
 		 * @param oid The PostgreSQL type ID from which this instance is being
 		 * created (for why it matters, see {@code adopt}).
 		 */
-		private Readable(V vwi, int oid) throws SQLException
+		private Readable(V di, int oid) throws SQLException
 		{
-			super(vwi);
+			super(di);
 			m_pgTypeID = oid;
-			if ( null == m_serverCS )
-			{
-				free();
-				throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
-					"Charset found to match server encoding; perhaps set " +
-					"org.postgresql.server.encoding system property to a " +
-					"valid Java charset name for the same encoding?", "0A000");
-			}
 		}
 
 		private V backingAndClearReadable() throws SQLException
@@ -937,17 +960,17 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		protected String toString(Object o)
 		{
 			return String.format("%s %sreadable %swrapped",
-				super.toString(o), (boolean)s_readableVH.getAcquire()
+				super.toString(o), (boolean)s_readableVH.getAcquire(this)
 					? "" : "not ", m_wrapped ? "" : "not ");
 		}
 
-		static class PgXML
-		extends Readable<VarlenaWrapper.Input.Stream>
+		static class PgXML<T extends InputStream & Datum>
+		extends Readable<T>
 		{
-			private PgXML(VarlenaWrapper.Input vwi, int oid)
+			private PgXML(Datum.Input<T> di, int oid)
 			throws SQLException
 			{
-				super(vwi.new Stream(), oid);
+				super(di.inputStream(), oid);
 			}
 
 			/**
@@ -979,18 +1002,17 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			 * with the PostgreSQL types.
 			 */
 			@Override
-			protected VarlenaWrapper adopt(int oid) throws SQLException
+			protected Datum adopt(int oid) throws SQLException
 			{
-				VarlenaWrapper.Input.Stream vw = (VarlenaWrapper.Input.Stream)
-					s_backingVH.getAndSet(this, null);
+				T is = (T)s_backingVH.getAndSet(this, null);
 				if ( ! (boolean)s_readableVH.getAcquire(this) )
 					throw new SQLNonTransientException(
 						"SQLXML object has already been read from", "55000");
-				if ( null == vw )
+				if ( null == is )
 					backingIfNotFreed(); /* shorthand to throw the exception */
 				if ( m_pgTypeID != oid )
-					vw.verify(new Verifier());
-				return vw;
+					is.verify(new Verifier()::verify);
+				return is;
 			}
 
 			/*
@@ -1000,7 +1022,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			 */
 			@Override
 			protected InputStream toBinaryStream(
-				VarlenaWrapper.Input.Stream backing, boolean neverWrap)
+				T backing, boolean neverWrap)
 			throws SQLException, IOException
 			{
 				boolean[] wrapped = { false };
@@ -1012,7 +1034,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			@Override
 			protected Reader toCharacterStream(
-				VarlenaWrapper.Input.Stream backing, boolean neverWrap)
+				T backing, boolean neverWrap)
 			throws SQLException, IOException
 			{
 				InputStream is = toBinaryStream(backing, neverWrap);
@@ -1021,7 +1043,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			@Override
 			protected Adjusting.XML.SAXSource toSAXSource(
-				VarlenaWrapper.Input.Stream backing)
+				T backing)
 			throws SQLException, SAXException, IOException
 			{
 				InputStream is = toBinaryStream(backing, false);
@@ -1030,7 +1052,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			@Override
 			protected Adjusting.XML.StAXSource toStAXSource(
-				VarlenaWrapper.Input.Stream backing)
+				T backing)
 			throws SQLException, XMLStreamException, IOException
 			{
 				InputStream is = toBinaryStream(backing, false);
@@ -1039,7 +1061,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 			@Override
 			protected Adjusting.XML.DOMSource toDOMSource(
-				VarlenaWrapper.Input.Stream backing)
+				T backing)
 			throws
 				SQLException, SAXException, IOException,
 				ParserConfigurationException
@@ -1051,19 +1073,19 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 
 		static class Synthetic extends Readable<VarlenaXMLRenderer>
 		{
-			private Synthetic(VarlenaWrapper.Input vwi, int oid)
+			private Synthetic(Datum.Input di, int oid)
 			throws SQLException
 			{
-				super(xmlRenderer(oid, vwi), oid);
+				super(xmlRenderer(oid, di), oid);
 			}
 
 			private static VarlenaXMLRenderer xmlRenderer(
-				int oid, VarlenaWrapper.Input vwi)
+				int oid, Datum.Input di)
 			throws SQLException
 			{
 				switch ( oid )
 				{
-				case PG_NODE_TREEOID: return new PgNodeTreeAsXML(vwi);
+				case PG_NODE_TREEOID: return new PgNodeTreeAsXML(di);
 				default:
 					throw new SQLNonTransientException(
 						"no synthetic SQLXML support for Oid " + oid, "0A000");
@@ -1071,7 +1093,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			}
 
 			@Override
-			protected VarlenaWrapper adopt(int oid) throws SQLException
+			protected Datum adopt(int oid) throws SQLException
 			{
 				throw new SQLFeatureNotSupportedException(
 					"adopt() on a synthetic SQLXML not yet supported", "0A000");
@@ -1105,6 +1127,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				return new AdjustingSAXSource(backing, new InputSource());
 			}
 
+			@Override
 			protected Adjusting.XML.StAXSource toStAXSource(
 				VarlenaXMLRenderer backing)
 			throws SQLException, XMLStreamException, IOException
@@ -1114,6 +1137,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 					"0A000");
 			}
 
+			@Override
 			protected Adjusting.XML.DOMSource toDOMSource(
 				VarlenaXMLRenderer backing)
 			throws
@@ -1123,6 +1147,47 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				throw new SQLFeatureNotSupportedException(
 					"synthetic SQLXML as DOMSource not yet supported",
 					"0A000");
+			}
+
+			/**
+			 * Until there is better support for {@code toBinaryStream} and
+			 * {@code toCharacterStream}, at least supply a working brute-force
+			 * {@code toString} to support quick examination of values.
+			 */
+			@Override
+			public String getString() throws SQLException
+			{
+				XMLReader backing =
+					((Readable<VarlenaXMLRenderer>)this)
+						.backingAndClearReadable();
+				if ( null == backing )
+					throw new SQLNonTransientException(
+						"Attempted use of getString on " +
+						"an unreadable SQLXML object", "55000");
+
+				SAXTransformerFactory saxtf = (SAXTransformerFactory)
+					SAXTransformerFactory.newDefaultInstance();
+				try
+				{
+					TransformerHandler th = saxtf.newTransformerHandler();
+					StringWriter w = new StringWriter();
+					th.setResult(new StreamResult(w));
+
+					backing.setContentHandler(th);
+					backing.setDTDHandler(th);
+					backing.setProperty(
+						SAX2PROPERTY.LEXICAL_HANDLER.propertyUri(), th);
+					backing.parse(new InputSource());
+					return w.toString();
+				}
+				catch ( TransformerConfigurationException | IOException |
+					SAXException e )
+				{
+					/*
+					 * None of the above should really happen here.
+					 */
+					throw unchecked(e);
+				}
 			}
 		}
 	}
@@ -1232,7 +1297,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 	{
 		private static final VarHandle s_writableVH;
 		private volatile boolean m_writable = true;
-		private Charset m_serverCS = implServerCharset();
+		private Charset m_serverCS = SERVER_ENCODING.charset();
 		private DOMResult m_domResult;
 
 		static
@@ -1251,18 +1316,6 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		private Writable(VarlenaWrapper.Output vwo) throws SQLException
 		{
 			super(vwo);
-			if ( null == m_serverCS )
-			{
-				try
-				{
-					vwo.free();
-				}
-				catch ( IOException ioe ) { }
-				throw new SQLFeatureNotSupportedException("SQLXML: no Java " +
-					"Charset found to match server encoding; perhaps set " +
-					"org.postgresql.server.encoding system property to a " +
-					"valid Java charset name for the same encoding?", "0A000");
-			}
 		}
 
 		private VarlenaWrapper.Output backingAndClearWritable()
@@ -1503,7 +1556,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		protected String toString(Object o)
 		{
 			return String.format("%s %swritable", super.toString(o),
-				(boolean)s_writableVH.getAcquire() ? "" : "not ");
+				(boolean)s_writableVH.getAcquire(this) ? "" : "not ");
 		}
 	}
 
@@ -1548,7 +1601,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 		{
 			boolean[] wrapped = { false };
 			is = correctedDeclStream(
-				is, false, implServerCharset(), wrapped);
+				is, false, SERVER_ENCODING.charset(), wrapped);
 
 			/*
 			 * The supplied XMLReader is never set up to do unwrapping, which is
@@ -3477,7 +3530,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 			boolean canOmitVersion = true; // no declaration => 1.0
 			byte[] version = new byte[] { '1', '.', '0' };
 			boolean canOmitEncoding =
-				null == serverCharset || "UTF-8".equals(serverCharset.name());
+				null == serverCharset || UTF_8.equals(serverCharset);
 			boolean canOmitStandalone = true;
 
 			byte[] parseResult = m_save.toByteArray();
@@ -3635,7 +3688,7 @@ public abstract class SQLXMLImpl<V extends VarlenaWrapper> implements SQLXML
 				}
 			}
 
-			if ( ! strict  ||  "UTF-8".equals(serverCharset.name()) )
+			if ( ! strict  ||  UTF_8.equals(serverCharset) )
 				return;
 			throw new SQLDataException(
 				"XML does not declare a character set, and server encoding " +

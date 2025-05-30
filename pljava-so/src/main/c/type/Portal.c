@@ -22,6 +22,7 @@
 #include "pljava/Exception.h"
 #include "pljava/Invocation.h"
 #include "pljava/HashMap.h"
+#include "pljava/ModelUtils.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Portal.h"
@@ -30,6 +31,10 @@
 #if defined(NEED_MISCADMIN_FOR_STACK_BASE)
 #include <miscadmin.h>
 #endif
+
+#define CONFIRMCONST(c) \
+StaticAssertStmt((c) == (org_postgresql_pljava_internal_Portal_##c), \
+	"Java/C value mismatch for " #c)
 
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
@@ -44,8 +49,8 @@ jobject pljava_Portal_create(Portal portal, jobject jplan)
 		return NULL;
 
 	jportal = JNI_newObjectLocked(s_Portal_class, s_Portal_init,
-		pljava_DualState_key(),
-		PointerGetJLong(portal->resowner), PointerGetJLong(portal), jplan);
+		PointerGetJLong(portal->resowner),
+		PointerGetJLong(portal->portalContext), PointerGetJLong(portal), jplan);
 
 	return jportal;
 }
@@ -57,6 +62,16 @@ void pljava_Portal_initialize(void)
 	JNINativeMethod methods[] =
 	{
 		{
+		"_getTupleDescriptor",
+		"(J)Lorg/postgresql/pljava/model/TupleDescriptor;",
+		Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor
+		},
+		{
+		"_makeTupleTableSlot",
+		"(JLorg/postgresql/pljava/model/TupleDescriptor;)Lorg/postgresql/pljava/pg/TupleTableSlotImpl;",
+		Java_org_postgresql_pljava_internal_Portal__1makeTupleTableSlot
+		},
+		{
 		"_getName",
 		"(J)Ljava/lang/String;",
 		Java_org_postgresql_pljava_internal_Portal__1getName
@@ -65,6 +80,11 @@ void pljava_Portal_initialize(void)
 		"_getPortalPos",
 		"(J)J",
 	  	Java_org_postgresql_pljava_internal_Portal__1getPortalPos
+		},
+		{
+		"_getTupleDescriptor",
+		"(J)Lorg/postgresql/pljava/model/TupleDescriptor;",
+		Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor
 		},
 		{
 		"_getTupleDesc",
@@ -97,12 +117,69 @@ void pljava_Portal_initialize(void)
 	s_Portal_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Portal"));
 	PgObject_registerNatives2(s_Portal_class, methods);
 	s_Portal_init = PgObject_getJavaMethod(s_Portal_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
+		"(JJJLorg/postgresql/pljava/internal/ExecutionPlan;)V");
+
+	/*
+	 * Statically assert that the Java code has the right values for these.
+	 * I would rather have this at the top, but these count as statements and
+	 * would trigger a declaration-after-statment warning.
+	 */
+	CONFIRMCONST(FETCH_FORWARD);
+	CONFIRMCONST(FETCH_BACKWARD);
+	CONFIRMCONST(FETCH_ABSOLUTE);
+	CONFIRMCONST(FETCH_RELATIVE);
+
+	/*
+	 * Many SPI functions are declared with 'long' parameters and while
+	 * FETCH_ALL is declared as LONG_MAX everywhere, it's not the same value
+	 * everywhere (Windows has 32-bit longs), so this can't just be a fixed Java
+	 * constant with CONFIRMCONST here. May as well check that the assumption
+	 * FETCH_ALL == LONG_MAX still holds, though.
+	 */
+	StaticAssertStmt((FETCH_ALL) == (LONG_MAX), "Unexpected FETCH_ALL value");
 }
 
 /****************************************
  * JNI methods
  ****************************************/
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    _getTupleDescriptor
+ * Signature: (J)Lorg/postgresql/pljava/model/TupleDescriptor;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor(JNIEnv* env, jclass clazz, jlong _this)
+{
+	jobject result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		result = pljava_TupleDescriptor_create(
+			JLongGet(Portal, _this)->tupDesc, InvalidOid);
+		END_NATIVE
+	}
+	return result;
+}
+
+/*
+ * Class:     org_postgresql_pljava_internal_Portal
+ * Method:    _makeTupleTableSlot
+ * Signature: (JLorg/postgresql/pljava/model/TupleDescriptor;)Lorg/postgresql/pljava/pg/TupleTableSlotImpl;
+ */
+JNIEXPORT jobject JNICALL
+Java_org_postgresql_pljava_internal_Portal__1makeTupleTableSlot(JNIEnv* env, jclass clazz, jlong _this, jobject jtd)
+{
+	jobject result = 0;
+	if(_this != 0)
+	{
+		BEGIN_NATIVE
+		result = pljava_TupleTableSlot_create(JLongGet(Portal, _this)->tupDesc,
+			jtd, &TTSOpsHeapTuple, InvalidOid);
+		END_NATIVE
+	}
+	return result;
+}
 
 /*
  * Class:     org_postgresql_pljava_internal_Portal

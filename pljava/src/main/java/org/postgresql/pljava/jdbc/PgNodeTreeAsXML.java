@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
  * Portions Copyright (c) 1996-2019, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 import org.xml.sax.SAXException;
 
-import org.postgresql.pljava.internal.VarlenaWrapper;
+import org.postgresql.pljava.adt.spi.Datum;
 import org.postgresql.pljava.internal.VarlenaXMLRenderer;
 
 /**
@@ -39,7 +39,7 @@ import org.postgresql.pljava.internal.VarlenaXMLRenderer;
  */
 public class PgNodeTreeAsXML extends VarlenaXMLRenderer
 {
-	PgNodeTreeAsXML(VarlenaWrapper.Input vwi) throws SQLException
+	PgNodeTreeAsXML(Datum.Input vwi) throws SQLException
 	{
 		super(vwi);
 	}

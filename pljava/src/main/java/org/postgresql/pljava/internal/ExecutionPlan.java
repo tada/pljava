@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -79,10 +79,10 @@ public class ExecutionPlan
 	private static class State
 	extends DualState.SingleSPIfreeplan<ExecutionPlan>
 	{
-		private State(
-			DualState.Key cookie, ExecutionPlan jep, long ro, long ep)
+		private State(ExecutionPlan jep, long ep)
 		{
-			super(cookie, jep, ro, ep);
+			/* null as Lifespan: the saved plan isn't transient */
+			super(jep, null, ep);
 		}
 
 		/**
@@ -145,6 +145,10 @@ public class ExecutionPlan
 		}
 	};
 
+	/**
+	 * The actual (but treated as opaque {@code Object} key used in the plan
+	 * cache.
+	 */
 	static final class PlanKey
 	{
 		private final int m_hashCode;
@@ -200,11 +204,10 @@ public class ExecutionPlan
 			: cacheSize));
 	}
 
-	private ExecutionPlan(DualState.Key cookie, long resourceOwner,
-		Object planKey, long spiPlan)
+	private ExecutionPlan(Object planKey, long spiPlan)
 	{
 		m_key = planKey;
-		m_state = new State(cookie, this, resourceOwner, spiPlan);
+		m_state = new State(this, spiPlan);
 	}
 
 	/**

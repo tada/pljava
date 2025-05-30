@@ -122,6 +122,8 @@ import org.postgresql.pljava.annotation.Trigger;
 import org.postgresql.pljava.annotation.BaseUDT;
 import org.postgresql.pljava.annotation.MappedUDT;
 
+import org.postgresql.pljava.model.CatalogObject;
+
 import org.postgresql.pljava.sqlgen.Lexicals;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 
@@ -5477,6 +5479,8 @@ hunt:	for ( ExecutableElement ee : ees )
 			this.addMap(OffsetTime.class, "pg_catalog", "timetz");
 			this.addMap(LocalDateTime.class, "pg_catalog", "timestamp");
 			this.addMap(OffsetDateTime.class, "pg_catalog", "timestamptz");
+
+			this.addMap(CatalogObject.class, "pg_catalog", "oid");
 		}
 
 		private boolean mappingsFrozen()

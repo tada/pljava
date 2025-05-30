@@ -17,6 +17,8 @@ import java.lang.invoke.VarHandle;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 
+import java.nio.ByteBuffer;
+
 import java.sql.SQLException;
 
 import java.util.ArrayDeque;
@@ -27,6 +29,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import static java.util.Objects.requireNonNull;
 import java.util.Queue;
 
 import java.util.concurrent.CancellationException;
@@ -41,7 +44,14 @@ import static java.lang.management.ManagementFactory.getPlatformMBeanServer;
 import javax.management.ObjectName;
 import javax.management.JMException;
 
+import org.postgresql.pljava.Lifespan;
+
+import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
+import org.postgresql.pljava.internal.LifespanImpl.Addressed;
+
 import org.postgresql.pljava.mbeans.DualStateStatistics;
+
+import org.postgresql.pljava.model.MemoryContext;
 
 /**
  * Base class for object state with corresponding Java and native components.
@@ -74,25 +84,18 @@ import org.postgresql.pljava.mbeans.DualStateStatistics;
  *<p>
  * A subclass calls {@link #releaseFromJava releaseFromJava} to signal an event
  * of the first kind. Events of the second kind are, naturally, detected by the
- * Java garbage collector. To detect events of the third kind, a resource owner
+ * Java garbage collector. To detect events of the third kind, a lifespan
  * must be associated with the instance.
  *<p>
- * A parameter to the {@code DualState} constructor is a {@code ResourceOwner},
- * a PostgreSQL implementation concept introduced in PG 8.0. A
+ * A parameter to the {@code DualState} constructor is a {@code Lifespan}. A
  * {@code nativeStateReleased} event occurs when the corresponding
- * {@code ResourceOwner} is released in PostgreSQL.
- *<p>
- * However, this class does not require the {@code resourceOwner} parameter to
- * be, in all cases, a pointer to a PostgreSQL {@code ResourceOwner}. It is
- * treated simply as an opaque {@code long} value, to be compared to a value
- * passed at release time (as if in a {@code ResourceOwner} callback). Other
- * values (such as pointers to other allocated structures, which of course
- * cannot match any PG {@code ResourceOwner} existing at the same time) can also
- * be used. In PostgreSQL 9.5 and later, a {@code MemoryContext} could be used,
- * with its address passed to a {@code MemoryContextCallback} for release. For
- * state that is scoped to a single invocation of a PL/Java function, the
- * address of the {@code Invocation} can be used. Such references can be
- * considered "generalized" resource owners.
+ * {@code Lifespan} is released in PostgreSQL. PostgreSQL {@code ResourceOwner}
+ * and {@code MemoryContext} are two types of object that can serve
+ * as lifespans. A PL/Java {@code Invocation} object may also be used, to mark
+ * the lifespans of function arguments and other data expected to live at least
+ * for the duration of a function call. The lifespan argument can be null,
+ * for an object allocated in an immortal context and managed only by its
+ * {@code javaStateReleased} or {@code javaStateUnreachable} methods.
  *<p>
  * Java code may execute in multiple threads, but PostgreSQL is not
  * multi-threaded; at any given time, there is no more than one thread that may
@@ -161,7 +164,7 @@ import org.postgresql.pljava.mbeans.DualStateStatistics;
  * native state until the pin is released.
  *<p>
  * If either the native state or the Java state has been released already (by
- * the resource owner callback or an explicit call to {@code releaseFromJava},
+ * the lifespan callback or an explicit call to {@code releaseFromJava},
  * respectively), {@code pin()} will detect that and throw the appropriate
  * exception. Otherwise, the state is safe to make use of until {@code unpin}.
  * A subclass can customize the messages or {@code SQLSTATE} codes for the
@@ -189,8 +192,8 @@ import org.postgresql.pljava.mbeans.DualStateStatistics;
  * The exclusive counterparts to {@code pin} and {@code unpin} are
  * {@link #lock lock} and {@link #unlock(int,boolean) unlock}, which are not
  * expected to be used as widely. The chief use of {@code lock}/{@code unlock}
- * is around the call to {@code nativeStateReleased} when handling a resource
- * owner callback from PostgreSQL. They can be used in subclasses to surround
+ * is around the call to {@code nativeStateReleased} when handling a lifespan
+ * callback from PostgreSQL. They can be used in subclasses to surround
  * modifications to the state, as needed. A {@code lock} will block until all
  * earlier-acquired pins are released; subsequent pins block until the lock is
  * released. Only the PG thread may use {@code lock}/{@code unlock}. An
@@ -240,17 +243,14 @@ import org.postgresql.pljava.mbeans.DualStateStatistics;
  *  <li>Instance construction
  *  <li>Reference queue processing (instances found unreachable by Java's
  *  garbage collector, or enqueued following {@code releaseFromJava})
- *  <li>Exit of a resource owner's scope
+ *  <li>Exit of a lifespan's scope
  *  </ul>
  * <li>There is only one PG thread, or only one at a time.
  * <li>Construction of any {@code DualState} instance is to take place only on
- * the PG thread. The requirement to pass any
- * constructor a {@code DualState.Key} instance, obtainable by native code, is
- * intended to reinforce that convention. It is not abuse-proof, or intended as
- * a security mechanism, but only a guard against programming mistakes.
+ * the PG thread.
  * <li>Reference queue processing takes place only at chosen points where a
  * thread enters or exits native code, on the PG thread.
- * <li>Resource-owner callbacks originate in native code, on the PG thread.
+ * <li>Lifespan callbacks originate in native code, on the PG thread.
  * </ul>
  */
 public abstract class DualState<T> extends WeakReference<T>
@@ -294,23 +294,10 @@ public abstract class DualState<T> extends WeakReference<T>
 	private static final IdentityHashMap<DualState,DualState>
 		s_unscopedInstances = new IdentityHashMap<>();
 
-	/**
-	 * All native-scoped instances are added to this structure upon creation.
-	 *<p>
-	 * The hash map takes a resource owner to the doubly-linked list of
-	 * instances it owns. The list is implemented directly with the two list
-	 * fields here (rather than by a Collections class), so that an instance can
-	 * be unlinked with no searching in the case of {@code javaStateUnreachable}
-	 * or {@code javaStateReleased}, where the instance to be unlinked is
-	 * already at hand. The list head is of a dummy {@code DualState} subclass.
-	 */
-	private static final Map<Long,DualState.ListHead> s_scopedInstances =
-		new HashMap<>();
-
-	/** Backward link in per-resource-owner list. */
+	/** Backward link in per-lifespan list. */
 	private DualState m_prev;
 
-	/** Forward link in per-resource-owner list. */
+	/** Forward link in per-lifespan list. */
 	private DualState m_next;
 
 	/**
@@ -541,27 +528,42 @@ public abstract class DualState<T> extends WeakReference<T>
 	/** Thread local record of when the PG thread is invoking callbacks. */
 	private static final CleanupTracker s_inCleanup = new CleanupTracker();
 
+	/** Flag for cleanup entry/exit from the Java side */
+	private static final int CLEAN_JAVA   = 1;
+
+	/** Flag for cleanup entry/exit from the native side */
+	private static final int CLEAN_NATIVE = 2;
+
 	/** Thread local boolean with pairing enter/exit operations. */
-	static final class CleanupTracker extends ThreadLocal<Boolean>
+	static final class CleanupTracker extends ThreadLocal<Integer>
 	{
-		boolean enter()
+		boolean enter(int how)
 		{
 			assert Backend.threadMayEnterPG() : m("inCleanup.enter thread");
-			assert ! inCleanup() : m("inCleanup.enter re-entered");
-			set(Boolean.TRUE);
+			int got = get();
+			assert got < Integer.MAX_VALUE >>> 2 :
+				m("inCleanup.enter too many entries");
+			set((got << 2) | how);
 			return true;
 		}
 
-		boolean exit()
+		boolean exit(int how)
 		{
-			assert inCleanup() : m("inCleanup.exit mispaired");
-			set(Boolean.FALSE);
+			int got = get();
+			assert (got&3) == how : m("inCleanup.exit mispaired");
+			set(got >>> 2);
 			return true;
 		}
 
 		boolean inCleanup()
 		{
-			return Boolean.TRUE == get();
+			return 0 != get();
+		}
+
+		@Override
+		protected Integer initialValue()
+		{
+			return 0;
 		}
 	}
 
@@ -605,23 +607,6 @@ public abstract class DualState<T> extends WeakReference<T>
 		catch ( JMException e ) { /* XXX */ }
 	}
 
-	/**
-	 * Pointer value of the {@code ResourceOwner} this instance belongs to,
-	 * if any.
-	 */
-	protected final long m_resourceOwner;
-
-	/**
-	 * Check that a cookie is valid, throwing an unchecked exception otherwise.
-	 */
-	protected static void checkCookie(Key cookie)
-	{
-		assert Backend.threadMayEnterPG();
-		if ( ! Key.class.isInstance(cookie) )
-			throw new UnsupportedOperationException(
-				"Operation on DualState instance without cookie");
-	}
-
 	/** Flag held in lock state showing the native state has been released. */
 	private static final int NATIVE_RELEASED = 0x80000000;
 	/** Flag held in lock state showing the Java state has been released. */
@@ -653,7 +638,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	/**
 	 * Return the argument; convenient breakpoint target for failed assertions.
 	 */
-	static <T> T m(T detail)
+	public static <T> T m(T detail)
 	{
 		return detail;
 	}
@@ -667,30 +652,24 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * some confidence that constructor parameters representing native values
 	 * are for real, and also that the construction is taking place on a thread
 	 * holding the native lock, keeping the concurrency story simple.
-	 * @param cookie Capability held by native code to invoke {@code DualState}
-	 * constructors.
 	 * @param referent The Java object whose state this instance represents.
-	 * @param resourceOwner Pointer value of the native {@code ResourceOwner}
+	 * @param lifespan {@link Lifespan Lifespan}
 	 * whose release callback will indicate that this object's native state is
-	 * no longer valid. If zero (a NULL pointer in C), it indicates that the
+	 * no longer valid. If null, it indicates that the
 	 * state is held in long-lived native memory (such as JavaMemoryContext),
 	 * and can only be released via {@code javaStateUnreachable} or
 	 * {@code javaStateReleased}.
 	 */
-	protected DualState(Key cookie, T referent, long resourceOwner)
+	protected DualState(T referent, Lifespan lifespan)
 	{
 		super(referent, s_releasedInstances);
 
-		checkCookie(cookie);
-
 		long scoped = 0L;
-
-		m_resourceOwner = resourceOwner;
 
 		assert Backend.threadMayEnterPG() : m("DualState construction");
 		/*
 		 * The following stanza publishes 'this' into one of the static data
-		 * structures, for resource-owner-scoped or non-native-scoped instances,
+		 * structures, for lifespan-scoped or non-native-scoped instances,
 		 * respectively. That may look like escape of 'this' from an unfinished
 		 * constructor, but the structures are private, and only manipulated
 		 * during construction and release, always on the thread cleared to
@@ -700,15 +679,10 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * That will happen after this constructor returns, so the reference is
 		 * safely published.
 		 */
-		if ( 0 != resourceOwner )
+		if ( null != lifespan )
 		{
 			scoped = 1L;
-			DualState.ListHead head = s_scopedInstances.get(resourceOwner);
-			if ( null == head )
-			{
-				head = new DualState.ListHead(resourceOwner);
-				s_scopedInstances.put(resourceOwner, head);
-			}
+			ListHead head = (ListHead)lifespan;
 			m_prev = head;
 			m_next = ((DualState)head).m_next;
 			m_prev.m_next = m_next.m_prev = this;
@@ -721,25 +695,24 @@ public abstract class DualState<T> extends WeakReference<T>
 
 	/**
 	 * Private constructor only for dummy instances to use as the list heads
-	 * for per-resource-owner lists.
+	 * for per-lifespan lists.
 	 */
-	private DualState(T referent, long resourceOwner)
+	private DualState(T referent)
 	{
 		super(referent); // as a WeakReference subclass, must have a referent
 		super.clear();   // but nobody ever said for how long.
-		m_resourceOwner = resourceOwner;
 		m_prev = m_next = this;
 		m_waiters = null;
 	}
 
 	/**
-	 * Method that will be called when the associated {@code ResourceOwner}
+	 * Method that will be called when the associated {@code Lifespan}
 	 * is released, indicating that the native portion of the state
 	 * is no longer valid. The implementing class should clean up
 	 * whatever is appropriate to that event.
 	 *<p>
 	 * This object's exclusive {@code lock()}  will always be held when this
-	 * method is called during resource owner release. The class whose state
+	 * method is called during lifespan release. The class whose state
 	 * this is must use {@link #pin() pin()}, followed by
 	 * {@link #unpin() unpin()} in a {@code finally} block, around every
 	 * (ideally short) block of code that could refer to the native state.
@@ -768,7 +741,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * live-instances data structures; that will have been done just before
 	 * this method is called.
 	 * @param nativeStateLive true is passed if the instance's "native state" is
-	 * still considered live, that is, no resource-owner callback has been
+	 * still considered live, that is, no lifespan callback has been
 	 * invoked to stamp it invalid (nor has it been "adopted").
 	 */
 	protected void javaStateUnreachable(boolean nativeStateLive)
@@ -795,7 +768,7 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * This default implementation calls {@code javaStateUnreachable}, which, in
 	 * typical cases, will have the same cleanup to do.
 	 * @param nativeStateLive true is passed if the instance's "native state" is
-	 * still considered live, that is, no resource-owner callback has been
+	 * still considered live, that is, no lifespan callback has been
 	 * invoked to stamp it invalid (nor has it been "adopted").
 	 */
 	protected void javaStateReleased(boolean nativeStateLive)
@@ -983,6 +956,49 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * Obtains a pin on this state, returning an
+	 * {@link AutoCloseable AutoCloseable} instance that can be used in a
+	 * {@code try}-with resources statement to ensure it is unpinned.
+	 * @throws SQLException if the native state or the Java state has been
+	 * released.
+	 */
+	public final Pinned pinned() throws SQLException
+	{
+		pin();
+		return this::unpin;
+	}
+
+	/**
+	 * Obtains a pin on this state, returning an
+	 * {@link AutoCloseable AutoCloseable} instance that can be used in a
+	 * {@code try}-with resources statement to ensure it is unpinned.
+	 * @throws IllegalStateException for use where a checked exception is not
+	 * wanted, any resulting SQLException will be wrapped in
+	 * IllegalStateException
+	 */
+	public final Pinned pinnedNoChecked()
+	{
+		try
+		{
+			return pinned();
+		}
+		catch ( SQLException e )
+		{
+			throw new IllegalStateException(e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * A subinterface of {@link AutoCloseable AutoCloseable} whose {@code close}
+	 * method throws no checked exceptions.
+	 */
+	@FunctionalInterface
+	public interface Pinned extends AutoCloseable
+	{
+		public void close();
+	}
+
+	/**
 	 * Obtain a pin on this state, if it is still valid, blocking if necessary
 	 * until release of a lock.
 	 *<p>
@@ -1000,6 +1016,27 @@ public abstract class DualState<T> extends WeakReference<T>
 	public final boolean pinUnlessReleased()
 	{
 		return !z(_pin());
+	}
+
+	/**
+	 * Runs <var>r</var> with this state pinned, unless the state has already
+	 * been released, completing normally without running <var>r</var> in that
+	 * case.
+	 */
+	public final <E extends Throwable> void unlessReleased(
+		Checked.Runnable<E> r)
+	throws E
+	{
+		if ( pinUnlessReleased() )
+			return;
+		try
+		{
+			r.run();
+		}
+		finally
+		{
+			unpin();
+		}
 	}
 
 	/**
@@ -1054,8 +1091,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * null for most DualState instances, and be 'inflated' by having a
 		 * queue installed when first needed. That requires a null check here.
 		 */
-		if ( null != m_waiters )
-			m_waiters.add(thr);
+		Queue<Thread> queue = m_waiters;
+		if ( null != queue )
+			queue.add(thr);
 		else
 		{
 			/*
@@ -1527,12 +1565,10 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * nor {@code JAVA_RELEASED} flag may be set. This method is non-blocking
 	 * and will simply throw an exception if these preconditions are not
 	 * satisfied.
-	 * @param cookie Capability held by native code to invoke special
-	 * {@code DualState} methods.
 	 */
-	protected final void adoptionLock(Key cookie) throws SQLException
+	protected final void adoptionLock() throws SQLException
 	{
-		checkCookie(cookie);
+		assert threadMayEnterPG() : m("adoptionLock thread");
 		s_mutatorThread = Thread.currentThread();
 		assert pinnedByCurrentThread() : m("adoptionLock without pin");
 		int s = 1; // must be: quiescent (our pin only), unreleased
@@ -1556,12 +1592,10 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * and {@code JAVA_RELEASED} flags set. When the calling code releases the
 	 * prior pin it was expected to hold, the {@code javaStateReleased} callback
 	 * will execute. A value of false will be passed to both callbacks.
-	 * @param cookie Capability held by native code to invoke special
-	 * {@code DualState} methods.
 	 */
-	protected final void adoptionUnlock(Key cookie) throws SQLException
+	protected final void adoptionUnlock() throws SQLException
 	{
-		checkCookie(cookie);
+		assert threadMayEnterPG() : m("adoptionUnlock thread");
 		int s = NATIVE_RELEASED | JAVA_RELEASED | MUTATOR_HOLDS
 				| 1 << WAITERS_SHIFT;
 		int t = NATIVE_RELEASED | JAVA_RELEASED | 1;
@@ -1647,7 +1681,7 @@ public abstract class DualState<T> extends WeakReference<T>
 
 	/**
 	 * Produce a string describing this state object in a way useful for
-	 * debugging, with such information as the associated {@code ResourceOwner}
+	 * debugging, with such information as the associated {@code Lifespan}
 	 * and whether the state is fresh or stale.
 	 *<p>
 	 * This method calls {@link #toString(Object)} passing {@code this}.
@@ -1684,71 +1718,101 @@ public abstract class DualState<T> extends WeakReference<T>
 		Class<?> c = (null == o ? this : o).getClass();
 		String cn = c.getCanonicalName();
 		int pnl = c.getPackageName().length();
-		return String.format("%s owner:%x %s",
-			cn.substring(1 + pnl), m_resourceOwner,
+		return String.format("%s lifespan:%s %s",
+			cn.substring(1 + pnl), lifespan(),
 			z((int)s_stateVH.getVolatile(this) & NATIVE_RELEASED)
 				? "fresh" : "stale");
 	}
 
 	/**
-	 * Called only from native code by the {@code ResourceOwner} callback when a
-	 * resource owner is being released. Must identify the live instances that
-	 * have been registered to that owner, if any, and call their
+	 * Return the {@code Lifespan} with which this instance is associated.
+	 *<p>
+	 * As it is only needed for infrequent operations like {@code toString},
+	 * this is implemented simply by walking the circular list of owned objects
+	 * back to the list head.
+	 * @return the owning Lifespan, or null for an unscoped instance
+	 */
+	private Lifespan lifespan()
+	{
+		if ( this instanceof ListHead )
+			return (Lifespan)this;
+		if ( null == m_prev )
+			return null;
+		for ( DualState t = m_prev; t != this; t = t.m_prev )
+			if ( t instanceof ListHead )
+				return (Lifespan)t;
+		throw new AssertionError(m("degenerate owned-object list"));
+	}
+
+	/**
+	 * Called only on the PG thread when a
+	 * lifespan is being released. Must identify the live instances that
+	 * have been registered to that lifespan, if any, and call their
 	 * {@link #nativeStateReleased nativeStateReleased} methods.
-	 * @param resourceOwner Pointer value identifying the resource owner being
-	 * released. Calls can be received for resource owners to which no instances
-	 * here have been registered.
+	 * @param lifespan The lifespan being released, whose implementation must
+	 * extend {@link ListHead ListHead}. Calls can be received for lifespans
+	 * to which no instances here have been registered.
 	 *<p>
 	 * Some state subclasses may have their nativeStateReleased methods called
 	 * from Java code, when it is clear the native state is no longer needed in
-	 * Java. That doesn't remove the state instance from s_scopedInstances,
+	 * Java. That doesn't unlink the state instance from its lifespan (if any)
 	 * though, so it will still eventually be seen by this loop and efficiently
 	 * removed by the iterator. Hence the {@code NATIVE_RELEASED} test, to avoid
 	 * invoking nativeStateReleased more than once.
 	 */
-	private static void resourceOwnerRelease(long resourceOwner)
+	private static void lifespanRelease(Lifespan lifespan)
 	{
 		long total = 0L, release = 0L;
 
-		assert Backend.threadMayEnterPG() : m("resourceOwnerRelease thread");
+		assert Backend.threadMayEnterPG() : m("lifespanRelease thread");
 
-		DualState head = s_scopedInstances.remove(resourceOwner);
+		DualState head = (ListHead)lifespan;
 		if ( null == head )
 			return;
 
 		DualState t = head.m_next;
-		head.m_prev = head.m_next = null;
-		for ( DualState s = t ; s != head ; s = t )
+		head.m_prev = head.m_next = head;
+
+		assert s_inCleanup.enter(CLEAN_NATIVE); //no-op when assertions disabled
+		try
 		{
-			t = s.m_next;
-			s.m_prev = s.m_next = null;
-			++ total;
-			/*
-			 * This lock() is part of DualState's contract with clients.
-			 * They are responsible for pinning the state instance
-			 * whenever they need the wrapped native state (which is verified
-			 * to still be valid at that time) and for the duration of whatever
-			 * operation needs access to that state. Taking this lock here
-			 * ensures the native state is blocked from vanishing while it is
-			 * actively in use.
-			 */
-			int state = s.lock(false);
-			try
+			for ( DualState s = t ; s != head ; s = t )
 			{
-				if ( z(NATIVE_RELEASED & state) )
+				t = s.m_next;
+				s.m_prev = s.m_next = null;
+				++ total;
+				/*
+				 * This lock() is part of DualState's contract with clients.
+				 * They are responsible for pinning the state instance whenever
+				 * they need the wrapped native state (which is verified to
+				 * still be valid at that time) and for the duration of whatever
+				 * operation needs access to that state. Taking this lock here
+				 * ensures the native state is blocked from vanishing while it
+				 * is actively in use.
+				 */
+				int state = s.lock(false);
+				try
 				{
-					++ release;
-					s.nativeStateReleased(
-						z(JAVA_RELEASED & state)  &&  null != s.referent());
+					if ( z(NATIVE_RELEASED & state) )
+					{
+						++ release;
+						s.nativeStateReleased(
+							z(JAVA_RELEASED & state)  &&  null != s.referent());
+					}
+				}
+				catch ( Throwable x ) { } /* JDK 9 Cleaner ignores exceptions */
+				finally
+				{
+					s.unlock(state, true);//true->ensure NATIVE_RELEASED is set.
 				}
 			}
-			finally
-			{
-				s.unlock(state, true); // true -> ensure NATIVE_RELEASED is set.
-			}
+		}
+		finally
+		{
+			assert s_inCleanup.exit(CLEAN_NATIVE);
 		}
 
-		s_stats.resourceOwnerPoll(release, total);
+		s_stats.lifespanPoll(release, total);
 	}
 
 	/**
@@ -1768,7 +1832,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		int nDeferred = s_deferredReleased.size();
 		boolean isDeferred;
 
-		assert s_inCleanup.enter(); // no-op when assertions disabled
+		assert s_inCleanup.enter(CLEAN_JAVA); // no-op when assertions disabled
 		try
 		{
 			for ( ;; )
@@ -1809,7 +1873,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		}
 		finally
 		{
-			assert s_inCleanup.exit();
+			assert s_inCleanup.exit(CLEAN_JAVA);
 		}
 
 		s_stats.referenceQueueDrain(total - release, release, total, reDefer);
@@ -1817,22 +1881,21 @@ public abstract class DualState<T> extends WeakReference<T>
 
 	/**
 	 * Remove this instance from the data structure holding it, for scoped
-	 * instances if it has a non-zero resource owner, otherwise for unscoped
+	 * instances if it is linked on a scoped list, otherwise for unscoped
 	 * instances.
 	 */
 	private void delist()
 	{
 		assert Backend.threadMayEnterPG() : m("DualState delist thread");
 
-		if ( 0 == m_resourceOwner )
+		if ( null == m_next )
 		{
 			if ( null != s_unscopedInstances.remove(this) )
 				s_stats.delistUnscoped();
 			return;
 		}
 
-		if ( null == m_prev  ||  null == m_next )
-			return;
+		// m_next is non-null, so m_prev had better be also.
 		if ( this == m_prev.m_next )
 			m_prev.m_next = m_next;
 		if ( this == m_next.m_prev )
@@ -1842,47 +1905,34 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
-	 * Magic cookie needed as a constructor parameter to confirm that
-	 * {@code DualState} subclass instances are being constructed from
-	 * native code.
+	 * An otherwise nonfunctional DualState subclass whose instances only serve
+	 * as list headers in per-lifespan lists of instances.
+	 *<p>
+	 * Implementations of {@link Lifespan Lifespan} extend this.
 	 */
-	public static final class Key
-	{
-		private static boolean constructed = false;
-		private Key()
-		{
-			synchronized ( Key.class )
-			{
-				if ( constructed )
-					throw new IllegalStateException("Duplicate DualState.Key");
-				constructed = true;
-			}
-		}
-	}
-
-	/**
-	 * Dummy DualState concrete class whose instances only serve as list
-	 * headers in per-resource-owner lists of instances.
-	 */
-	private static class ListHead extends DualState<String> // because why not?
+	public static abstract class ListHead
+	extends DualState<String> // because why not?
 	{
 		/**
-		 * Construct a {@code ListHead} instance. As a subclass of
-		 * {@code DualState}, it can't help having a resource owner field, so
-		 * may as well use it to store the resource owner that the list is for,
-		 * in case it's of interest in debugging.
-		 * @param owner The resource owner
+		 * Construct a {@code ListHead} instance.
+		 *<p>
+		 * The instance must be a concrete subtype of {@code Lifespan}.
 		 */
-		private ListHead(long owner)
+		protected ListHead()
 		{
-			super("", owner); // An instance needs an object to be its referent
+			super(""); // An instance needs some object to be its referent
+			assert this instanceof Lifespan : m(
+				getClass() + " does not implement Lifespan and may not " +
+				"extend DualState.ListHead");
 		}
 
-		@Override
-		public String toString(Object o)
+		/**
+		 * Walk the chain of objects owned by this lifespan, signaling
+		 * their release from native code.
+		 */
+		protected void lifespanRelease()
 		{
-			return String.format(
-				"DualState.ListHead for resource owner %x", m_resourceOwner);
+			DualState.lifespanRelease((Lifespan)this);
 		}
 	}
 
@@ -1902,9 +1952,9 @@ public abstract class DualState<T> extends WeakReference<T>
 		private final long m_guardedLong;
 
 		protected SingleGuardedLong(
-			Key cookie, T referent, long resourceOwner, long guardedLong)
+			T referent, Lifespan span, long guardedLong)
 		{
-			super(cookie, referent, resourceOwner);
+			super(referent, span);
 			m_guardedLong = guardedLong;
 		}
 
@@ -1934,15 +1984,64 @@ public abstract class DualState<T> extends WeakReference<T>
 	}
 
 	/**
+	 * A {@code DualState} subclass serving only to guard access to a single
+	 * nonnull {@code ByteBuffer} value.
+	 *<p>
+	 * Nothing in particular is done to the native resource at the time of
+	 * {@code javaStateReleased} or {@code javaStateUnreachable}; if it is
+	 * subject to reclamation, this class assumes it will be shortly, in the
+	 * normal operation of the native code. This can be appropriate for native
+	 * state that was set up by a native caller for a short lifetime, such as a
+	 * single function invocation.
+	 */
+	public static abstract class SingleGuardedBB<T> extends DualState<T>
+	{
+		private final ByteBuffer m_guardedBuffer;
+
+		protected SingleGuardedBB(
+			T referent, Lifespan span, ByteBuffer guardedBuffer)
+		{
+			super(referent, span);
+			m_guardedBuffer = requireNonNull(guardedBuffer);
+			assert guardedBuffer.isDirect() : "GuardedBB is not direct";
+		}
+
+		@Override
+		public String toString(Object o)
+		{
+			return
+				String.format(
+					formatString(), super.toString(o), m_guardedBuffer);
+		}
+
+		/**
+		 * Return a {@code printf} format string resembling
+		 * {@code "%s something(%s)"} where the second {@code %s} will be
+		 * the value being guarded; the "something" should indicate what the
+		 * value represents, or what will be done with it when released by Java.
+		 */
+		protected String formatString()
+		{
+			return "%s GuardedBB(%s)";
+		}
+
+		protected final ByteBuffer guardedBuffer()
+		{
+			assert pinnedByCurrentThread() : m("guardedBuffer() without pin");
+			return m_guardedBuffer;
+		}
+	}
+
+	/**
 	 * A {@code DualState} subclass whose only native resource releasing action
 	 * needed is {@code pfree} of a single pointer.
 	 */
 	public static abstract class SinglePfree<T> extends SingleGuardedLong<T>
 	{
 		protected SinglePfree(
-			Key cookie, T referent, long resourceOwner, long pfreeTarget)
+			T referent, Lifespan span, long pfreeTarget)
 		{
-			super(cookie, referent, resourceOwner, pfreeTarget);
+			super(referent, span, pfreeTarget);
 		}
 
 		@Override
@@ -1978,18 +2077,33 @@ public abstract class DualState<T> extends WeakReference<T>
 	 * native code is responsible for whatever happens to it next.
 	 */
 	public static abstract class SingleMemContextDelete<T>
-	extends SingleGuardedLong<T>
+	extends DualState<T>
 	{
+		private final MemoryContext m_context;
+
 		protected SingleMemContextDelete(
-			Key cookie, T referent, long resourceOwner, long memoryContext)
+			T referent, Lifespan span, MemoryContext cxt)
 		{
-			super(cookie, referent, resourceOwner, memoryContext);
+			super(referent, span);
+			m_context = cxt;
 		}
 
 		@Override
+		public String toString(Object o)
+		{
+			return
+				String.format(formatString(), super.toString(o), m_context);
+		}
+
 		public String formatString()
 		{
-			return "%s MemoryContextDelete(%x)";
+			return "%s MemoryContextDelete(%s)";
+		}
+
+		protected final MemoryContext memoryContext()
+		{
+			assert pinnedByCurrentThread() : m("memoryContext() without pin");
+			return m_context;
 		}
 
 		/**
@@ -2003,7 +2117,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		{
 			assert Backend.threadMayEnterPG();
 			if ( nativeStateLive )
-				_memContextDelete(guardedLong());
+				_memContextDelete(((Addressed)memoryContext()).address());
 		}
 
 		private native void _memContextDelete(long pointer);
@@ -2017,9 +2131,9 @@ public abstract class DualState<T> extends WeakReference<T>
 	extends SingleGuardedLong<T>
 	{
 		protected SingleFreeTupleDesc(
-			Key cookie, T referent, long resourceOwner, long ftdTarget)
+			T referent, Lifespan span, long ftdTarget)
 		{
-			super(cookie, referent, resourceOwner, ftdTarget);
+			super(referent, span, ftdTarget);
 		}
 
 		@Override
@@ -2053,9 +2167,9 @@ public abstract class DualState<T> extends WeakReference<T>
 	extends SingleGuardedLong<T>
 	{
 		protected SingleHeapFreeTuple(
-			Key cookie, T referent, long resourceOwner, long hftTarget)
+			T referent, Lifespan span, long hftTarget)
 		{
-			super(cookie, referent, resourceOwner, hftTarget);
+			super(referent, span, hftTarget);
 		}
 
 		@Override
@@ -2089,9 +2203,9 @@ public abstract class DualState<T> extends WeakReference<T>
 	extends SingleGuardedLong<T>
 	{
 		protected SingleFreeErrorData(
-			Key cookie, T referent, long resourceOwner, long fedTarget)
+			T referent, Lifespan span, long fedTarget)
 		{
-			super(cookie, referent, resourceOwner, fedTarget);
+			super(referent, span, fedTarget);
 		}
 
 		@Override
@@ -2119,15 +2233,65 @@ public abstract class DualState<T> extends WeakReference<T>
 
 	/**
 	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code SPI_freetuptable} of a single pointer.
+	 *<p>
+	 * Note: for now, the tuptable is freed only on {@code javaStateReleased}.
+	 * It turns out that {@code SPI_freetuptable}, since PG 9.4 (and backpatched
+	 * releases of 9.3) has contained code to raise a warning if the tuple table
+	 * being released does not belong to the <em>current</em> SPI connection.
+	 * When this class earlier did the free in {@code javaStateUnreachable},
+	 * that warning could be triggered on rare and irksome occasions if Java's
+	 * GC happened to find, during a nested invocation of some Java function,
+	 * that a tuple table from an outer invocation had become unreachable.
+	 *<p>
+	 * It would be conceivable to have {@code javaStateUnreachable} try to
+	 * determine if the current nest level matches that of the tuple table's
+	 * creation, and free it if so at least, otherwise leaking it to the
+	 * exit of the outer call. But for now it's also conceivable to just have it
+	 * do nothing, and let the context reset at invocation exit mop it up.
+	 */
+	public static abstract class SingleSPIfreetuptable<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleSPIfreetuptable(
+			T referent, Lifespan span, long fttTarget)
+		{
+			super(referent, span, fttTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s SPI_freetuptable(%x)";
+		}
+
+		/**
+		 * When the Java state is released, an {@code SPI_freetuptable}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateReleased(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_spiFreeTupTable(guardedLong());
+		}
+
+		private native void _spiFreeTupTable(long pointer);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
 	 * needed is {@code SPI_freeplan} of a single pointer.
 	 */
 	public static abstract class SingleSPIfreeplan<T>
 	extends SingleGuardedLong<T>
 	{
 		protected SingleSPIfreeplan(
-			Key cookie, T referent, long resourceOwner, long fpTarget)
+			T referent, Lifespan span, long fpTarget)
 		{
-			super(cookie, referent, resourceOwner, fpTarget);
+			super(referent, span, fpTarget);
 		}
 
 		@Override
@@ -2161,9 +2325,9 @@ public abstract class DualState<T> extends WeakReference<T>
 	extends SingleGuardedLong<T>
 	{
 		protected SingleSPIcursorClose(
-			Key cookie, T referent, long resourceOwner, long ccTarget)
+			T referent, Lifespan span, long ccTarget)
 		{
-			super(cookie, referent, resourceOwner, ccTarget);
+			super(referent, span, ccTarget);
 		}
 
 		@Override
@@ -2200,6 +2364,91 @@ public abstract class DualState<T> extends WeakReference<T>
 		 * or during an end-of-expression-context callback from the executor.
 		 */
 		private native void _spiCursorClose(long pointer);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is {@code heap_freetuple} of the address of a direct byte buffer.
+	 */
+	public static abstract class BBHeapFreeTuple<T>
+	extends SingleGuardedBB<T>
+	{
+		protected BBHeapFreeTuple(
+			T referent, Lifespan span, ByteBuffer hftTarget)
+		{
+			super(referent, span, hftTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return"%s heap_freetuple(%s)";
+		}
+
+		/**
+		 * When the Java state is released or unreachable, a
+		 * {@code heap_freetuple}
+		 * call is made so the native memory is released without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateUnreachable(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_heapFreeTuple(guardedBuffer());
+		}
+
+		private native void _heapFreeTuple(ByteBuffer tuple);
+	}
+
+	/**
+	 * A {@code DualState} subclass whose only native resource releasing action
+	 * needed is a JNI {@code DeleteGlobalRef} of a single pointer.
+	 */
+	public static abstract class SingleDeleteGlobalRefP<T>
+	extends SingleGuardedLong<T>
+	{
+		protected SingleDeleteGlobalRefP(
+			T referent, Lifespan span, long dgrTarget)
+		{
+			super(referent, span, dgrTarget);
+		}
+
+		@Override
+		public String formatString()
+		{
+			return "%s DeleteGlobalRef(%x)";
+		}
+
+		/**
+		 * When the Java state is released (it won't normally go unreachable,
+		 * because of the global ref), a JNI {@code DeleteGlobalRef} call
+		 * is made so the instance can be collected without having to wait
+		 * for release of its containing context.
+		 */
+		@Override
+		protected void javaStateReleased(boolean nativeStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( nativeStateLive )
+				_deleteGlobalRefP(guardedLong());
+		}
+
+		/**
+		 * When the native state is released, a JNI {@code DeleteGlobalRef} call
+		 * is made so the global ref stored in that to-be-released memory isn't
+		 * leaked (left permanently live).
+		 */
+		@Override
+		protected void nativeStateReleased(boolean javaStateLive)
+		{
+			assert Backend.threadMayEnterPG();
+			if ( javaStateLive )
+				_deleteGlobalRefP(guardedLong());
+		}
+
+		private native void _deleteGlobalRefP(long pointer);
 	}
 
 	/**
@@ -2248,9 +2497,9 @@ public abstract class DualState<T> extends WeakReference<T>
 			return nativeReleased.sum();
 		}
 
-		public long getResourceOwnerPasses()
+		public long getLifespanPasses()
 		{
-			return resourceOwnerPasses.sum();
+			return lifespanPasses.sum();
 		}
 
 		public long getReferenceQueuePasses()
@@ -2297,7 +2546,7 @@ public abstract class DualState<T> extends WeakReference<T>
 		private LongAdder      javaUnreachable = new LongAdder();
 		private LongAdder         javaReleased = new LongAdder();
 		private LongAdder       nativeReleased = new LongAdder();
-		private LongAdder  resourceOwnerPasses = new LongAdder();
+		private LongAdder       lifespanPasses = new LongAdder();
 		private LongAdder referenceQueuePasses = new LongAdder();
 		private LongAdder  referenceQueueItems = new LongAdder();
 		private LongAdder       contendedLocks = new LongAdder();
@@ -2313,9 +2562,9 @@ public abstract class DualState<T> extends WeakReference<T>
 			enlistedUnscoped.add(1L - scoped);
 		}
 
-		final void resourceOwnerPoll(long released, long total)
+		final void lifespanPoll(long released, long total)
 		{
-			resourceOwnerPasses.increment();
+			lifespanPasses.increment();
 			nativeReleased.add(released);
 			delistedScoped.add(total);
 		}

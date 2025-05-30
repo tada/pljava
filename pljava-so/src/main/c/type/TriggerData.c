@@ -37,8 +37,6 @@ jobject pljava_TriggerData_create(TriggerData* triggerData)
 	return JNI_newObjectLocked(
 			s_TriggerData_class,
 			s_TriggerData_init,
-			pljava_DualState_key(),
-			PointerGetJLong(currentInvocation),
 			PointerGetJLong(triggerData));
 }
 
@@ -127,8 +125,7 @@ void pljava_TriggerData_initialize(void)
 	jcls = PgObject_getJavaClass("org/postgresql/pljava/internal/TriggerData");
 	PgObject_registerNatives2(jcls, methods);
 
-	s_TriggerData_init = PgObject_getJavaMethod(jcls, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
+	s_TriggerData_init = PgObject_getJavaMethod(jcls, "<init>", "(J)V");
 	s_TriggerData_getTriggerReturnTuple = PgObject_getJavaMethod(
 		jcls, "getTriggerReturnTuple", "()J");
 	s_TriggerData_class = JNI_newGlobalRef(jcls);

@@ -52,7 +52,6 @@ jobject pljava_SingleRowReader_create(HeapTupleHeader ht)
 
 	result =
 		JNI_newObjectLocked(s_SingleRowReader_class, s_SingleRowReader_init,
-			pljava_DualState_key(), PointerGetJLong(currentInvocation),
 			PointerGetJLong(ht), jtd);
 
 	JNI_deleteLocalRef(jtd);
@@ -76,7 +75,7 @@ void pljava_SingleRowReader_initialize(void)
 		PgObject_getJavaClass("org/postgresql/pljava/jdbc/SingleRowReader");
 	PgObject_registerNatives2(cls, methods);
 	s_SingleRowReader_init = PgObject_getJavaMethod(cls, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJLorg/postgresql/pljava/internal/TupleDesc;)V");
+		"(JLorg/postgresql/pljava/internal/TupleDesc;)V");
 	s_SingleRowReader_class = JNI_newGlobalRef(cls);
 	JNI_deleteLocalRef(cls);
 }

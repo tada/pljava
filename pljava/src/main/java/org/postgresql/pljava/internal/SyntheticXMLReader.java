@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -103,6 +103,9 @@ public abstract class SyntheticXMLReader implements XMLReader
 	 */
 	public final FluentAttributes2 m_attributes = new FluentAttributes2();
 
+	/**
+	 * Enumeration of features standardized by SAX 2.
+	 */
 	public enum SAX2FEATURE
 	{
 		EXTERNAL_GENERAL_ENTITIES("external-general-entities", null),
@@ -184,6 +187,9 @@ public abstract class SyntheticXMLReader implements XMLReader
 		}
 	}
 
+	/**
+	 * Enumeration of features originating with Apache.
+	 */
 	public enum ApacheFeature
 	{
 		DISALLOW_DOCTYPE_DECL("disallow-doctype-decl", false),
@@ -237,6 +243,9 @@ public abstract class SyntheticXMLReader implements XMLReader
 		}
 	}
 
+	/**
+	 * Enumeration of properties standardized by SAX 2.
+	 */
 	public enum SAX2PROPERTY
 	{
 		DECLARATION_HANDLER("declaration-handler", DeclHandler.class),

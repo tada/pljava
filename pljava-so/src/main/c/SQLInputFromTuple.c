@@ -25,13 +25,12 @@ static jmethodID s_SQLInputFromTuple_init;
 jobject pljava_SQLInputFromTuple_create(HeapTupleHeader hth)
 {
 	jlong heapTup = PointerGetJLong(hth);
-	jlong lifespan = PointerGetJLong(currentInvocation);
 	jobject result;
 	jobject jtd = pljava_SingleRowReader_getTupleDesc(hth);
 
 	result =
 		JNI_newObjectLocked(s_SQLInputFromTuple_class, s_SQLInputFromTuple_init,
-			pljava_DualState_key(), lifespan, heapTup, jtd);
+			heapTup, jtd);
 
 	JNI_deleteLocalRef(jtd);
 	return result;
@@ -44,7 +43,7 @@ void pljava_SQLInputFromTuple_initialize(void)
 	jclass cls =
 		PgObject_getJavaClass("org/postgresql/pljava/jdbc/SQLInputFromTuple");
 	s_SQLInputFromTuple_init = PgObject_getJavaMethod(cls, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJLorg/postgresql/pljava/internal/TupleDesc;)V");
+		"(JLorg/postgresql/pljava/internal/TupleDesc;)V");
 	s_SQLInputFromTuple_class = JNI_newGlobalRef(cls);
 	JNI_deleteLocalRef(cls);
 }

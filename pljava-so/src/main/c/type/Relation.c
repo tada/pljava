@@ -18,7 +18,7 @@
 #include "org_postgresql_pljava_internal_Relation.h"
 #include "pljava/DualState.h"
 #include "pljava/Exception.h"
-#include "pljava/Invocation.h"
+#include "pljava/Function.h"
 #include "pljava/SPI.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
@@ -40,8 +40,6 @@ jobject pljava_Relation_create(Relation r)
 	return JNI_newObjectLocked(
 			s_Relation_class,
 			s_Relation_init,
-			pljava_DualState_key(),
-			PointerGetJLong(currentInvocation),
 			PointerGetJLong(r));
 }
 
@@ -75,7 +73,7 @@ void pljava_Relation_initialize(void)
 	s_Relation_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/Relation"));
 	PgObject_registerNatives2(s_Relation_class, methods);
 	s_Relation_init = PgObject_getJavaMethod(s_Relation_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
+		"(J)V");
 }
 
 /****************************************
@@ -190,7 +188,7 @@ Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass c
 		{
 			jint idx;
 			TupleDesc tupleDesc = self->rd_att;
-			jobject typeMap = Invocation_getTypeMap();
+			jobject typeMap = Function_currentTypeMap();
 
 			jint   count  = JNI_getArrayLength(_indexes);
 			Datum* values = (Datum*)palloc(count * sizeof(Datum));

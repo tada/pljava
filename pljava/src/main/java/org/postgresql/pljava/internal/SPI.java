@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -12,7 +12,23 @@
  */
 package org.postgresql.pljava.internal;
 
+import static java.lang.Math.multiplyExact;
+import static java.lang.Math.toIntExact;
+
+import java.nio.ByteBuffer;
+
+import java.util.List;
+
 import static org.postgresql.pljava.internal.Backend.doInPG;
+
+import org.postgresql.pljava.model.TupleTableSlot;
+
+import static org.postgresql.pljava.pg.ModelConstants.SIZEOF_DATUM;
+import org.postgresql.pljava.pg.TupleList;
+import org.postgresql.pljava.pg.TupleTableSlotImpl;
+
+import static org.postgresql.pljava.pg.DatumUtils.asReadOnlyNativeOrder;
+import static org.postgresql.pljava.pg.DatumUtils.fetchPointer;
 
 /**
  * The <code>SPI</code> class provides access to some global
@@ -57,6 +73,23 @@ public class SPI
 
 	public static final int OPT_NONATOMIC       = 1 << 0;
 
+	/*
+	 * Indices into window array.
+	 */
+	private static final int SPI_result    = 0;
+	private static final int SPI_processed = 1;
+	private static final int SPI_tuptable  = 2;
+
+	private static final ByteBuffer[] s_windows;
+
+	static
+	{
+		ByteBuffer[] bs = EarlyNatives._window(ByteBuffer.class);
+		for ( int i = 0; i < bs.length; ++ i )
+			bs[i] = asReadOnlyNativeOrder(bs[i]);
+		s_windows = bs;
+	}
+
 	/**
 	 * Execute a command using the internal <code>SPI_exec</code> function.
 	 * @param command The command to execute.
@@ -67,11 +100,28 @@ public class SPI
 	 * @deprecated This seems never to have been used in git history of project.
 	 */
 	@Deprecated
-	private static int exec(String command, int rowCount)
+	public static int exec(String command, int rowCount)
 	{
 		return doInPG(() -> _exec(command, rowCount));
 	}
 
+	public static void commit()
+	{
+		doInPG(() -> _endXact(false));
+	}
+
+	public static void rollback()
+	{
+		doInPG(() -> _endXact(true));
+	}
+
+	/**
+	 * Frees a tuple table returned by SPI.
+	 *<p>
+	 * This legacy method has no parameter, and frees whatever tuple table the
+	 * {@code SPI_tuptable} global points to at the moment; beware if SPI has
+	 * returned any newer result since the one you might think you are freeing!
+	 */
 	public static void freeTupTable()
 	{
 		doInPG(SPI::_freeTupTable);
@@ -82,7 +132,12 @@ public class SPI
 	 */
 	public static long getProcessed()
 	{
-		long count = doInPG(SPI::_getProcessed);
+		long count = doInPG(() ->
+		{
+			assert 8 == s_windows[SPI_processed].capacity() :
+				"SPI_processed width change";
+			return s_windows[SPI_processed].getLong(0);
+		});
 		if ( count < 0 )
 			throw new ArithmeticException(
 				"too many rows processed to count in a Java signed long");
@@ -94,11 +149,46 @@ public class SPI
 	 */
 	public static int getResult()
 	{
-		return doInPG(SPI::_getResult);
+		return doInPG(() ->
+		{
+			assert 4 == s_windows[SPI_result].capacity() :
+				"SPI_result width change";
+			return s_windows[SPI_result].getInt(0);
+		});
 	}
 
 	/**
-	 * Returns the value of the global variable <code>SPI_tuptable</code>.
+	 * Returns a List of the supplied TupleTableSlot covering the tuples pointed
+	 * to from the pointer array that the global {@code SPI_tuptable} points to.
+	 *<p>
+	 * This is an internal, not an API, method, and it does nothing to check
+	 * that the supplied ttsi fits the tuples SPI has returned. The caller is to
+	 * ensure that.
+	 * @return null if the global SPI_tuptable is null
+	 */
+	public static TupleList getTuples(TupleTableSlotImpl ttsi)
+	{
+		return doInPG(() ->
+		{
+			long p = fetchPointer(s_windows[SPI_tuptable], 0);
+			if ( 0 == p )
+				return null;
+
+			long count = getProcessed();
+			if ( 0 == count )
+				return TupleList.EMPTY;
+
+			// An assertion in the C code checks SIZEOF_DATUM == SIZEOF_VOID_P
+			// XXX catch ArithmeticException, report a "program limit exceeded"
+			int sizeToMap = toIntExact(multiplyExact(count, SIZEOF_DATUM));
+
+			return _mapTupTable(ttsi, p, sizeToMap);
+		});
+	}
+
+	/**
+	 * Returns the tuples located by the global variable {@code SPI_tuptable}
+	 * as an instance of the legacy {@code TupleTable} class.
 	 */
 	public static TupleTable getTupTable(TupleDesc known)
 	{
@@ -152,11 +242,25 @@ public class SPI
 		}
 	}
 
-	@Deprecated
-	private native static int _exec(String command, int rowCount);
+	private static class EarlyNatives
+	{
+		/**
+		 * Returns an array of ByteBuffer, one covering SPI_result, one for
+		 * SPI_processed, and one for the SPI_tuptable pointer.
+		 *<p>
+		 * Takes a {@code Class<ByteBuffer>} argument, to save the native
+		 * code a lookup.
+		 */
+		private static native ByteBuffer[] _window(
+			Class<ByteBuffer> component);
+	}
 
-	private native static long _getProcessed();
-	private native static int _getResult();
-	private native static void _freeTupTable();
-	private native static TupleTable _getTupTable(TupleDesc known);
+	@Deprecated
+	private static native int _exec(String command, int rowCount);
+
+	private static native void _endXact(boolean rollback);
+	private static native void _freeTupTable();
+	private static native TupleTable _getTupTable(TupleDesc known);
+	private static native TupleList _mapTupTable(
+		TupleTableSlotImpl ttsi, long p, int sizeToMap);
 }

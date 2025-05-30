@@ -67,11 +67,12 @@ import javax.xml.validation.SchemaFactory;
 
 import org.postgresql.pljava.Adjusting;
 import static org.postgresql.pljava.Adjusting.XML.setFirstSupported;
-import org.postgresql.pljava.SessionManager;
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
 import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
+
+import static org.postgresql.pljava.model.CharsetEncoding.SERVER_ENCODING;
 
 import static org.postgresql.pljava.example.LoggerTest.logMessage;
 
@@ -643,9 +644,7 @@ public class PassXML implements SQLData
 			 * for setting the Transformer to use the server encoding.
 			 */
 			if ( rlt instanceof StreamResult )
-				t.setOutputProperty(ENCODING,
-					SessionManager.current().frozenSystemProperties()
-					.getProperty("org.postgresql.server.encoding"));
+				t.setOutputProperty(ENCODING, SERVER_ENCODING.charset().name());
 			else if ( Boolean.TRUE.equals(indent) )
 				logMessage("WARNING",
 					"indent requested, but howout specifies a non-stream " +
@@ -713,9 +712,7 @@ public class PassXML implements SQLData
 			 * for setting the Transformer to use the server encoding.
 			 */
 			if ( howout < 5 )
-				t.setOutputProperty(ENCODING,
-					SessionManager.current().frozenSystemProperties()
-					.getProperty("org.postgresql.server.encoding"));
+				t.setOutputProperty(ENCODING, SERVER_ENCODING.charset().name());
 			t.transform(src, rlt);
 		}
 		catch ( TransformerException te )

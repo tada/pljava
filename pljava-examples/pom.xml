@@ -53,6 +53,7 @@
 					<includes>
 						<include>org/postgresql/pljava/example/*.java</include>
 						<include>org/postgresql/pljava/example/annotation/*.java</include>
+						<include>org/postgresql/pljava/example/polyglot/*.java</include>
 					</includes>
 					<compilerArgs>
 						<arg>--processor-module-path</arg>
@@ -192,7 +193,8 @@ function executeReport(report, locale)
 
 		var packages = [
 			"org.postgresql.pljava.example",
-			"org.postgresql.pljava.example.annotation"
+			"org.postgresql.pljava.example.annotation",
+			"org.postgresql.pljava.example.polyglot"
 		];
 
 		if ( isProfileActive('saxon-examples') )

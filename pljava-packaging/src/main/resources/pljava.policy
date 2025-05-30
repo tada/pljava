@@ -71,6 +71,8 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 		"control";
 	permission java.security.SecurityPermission
 		"createAccessControlContext";
+	permission org.postgresql.pljava.Adapter$Permission
+		"*", "fetch";
 
 	// This gives the PL/Java implementation code permission to read
 	// any file, which it only exercises on behalf of sqlj.install_jar()
@@ -84,6 +86,17 @@ grant codebase "${org.postgresql.pljava.codesource}" {
 	//
 	permission java.io.FilePermission
 		"<<ALL FILES>>", "read";
+};
+
+
+//
+// This grant is specific to the API classes of PL/Java itself; the data type
+// Adapter class is there (so user code can create adapters) and must be able
+// to pass its own permission check.
+//
+grant codebase "${org.postgresql.pljava.codesource.api}" {
+	permission org.postgresql.pljava.Adapter$Permission
+		"*", "fetch";
 };
 
 

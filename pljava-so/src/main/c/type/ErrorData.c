@@ -31,14 +31,8 @@ jobject pljava_ErrorData_getCurrentError(void)
 	ErrorData* errorData = CopyErrorData();
 	MemoryContextSwitchTo(curr);
 
-	/*
-	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by
-	 * a nativeRelease call; that's appropriate (for now) as the ErrorData copy
-	 * is being made into JavaMemoryContext, which never gets reset, so only
-	 * unreachability from the Java side will free it.
-	 */
 	jed = JNI_newObjectLocked(s_ErrorData_class, s_ErrorData_init,
-		pljava_DualState_key(), (jlong)0, PointerGetJLong(errorData));
+		 PointerGetJLong(errorData));
 	return jed;
 }
 
@@ -139,7 +133,7 @@ void pljava_ErrorData_initialize(void)
 	s_ErrorData_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/ErrorData"));
 	PgObject_registerNatives2(s_ErrorData_class, methods);
 	s_ErrorData_init = PgObject_getJavaMethod(s_ErrorData_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJ)V");
+		"(J)V");
 	s_ErrorData_getNativePointer = PgObject_getJavaMethod(s_ErrorData_class, "getNativePointer", "()J");
 }
 
