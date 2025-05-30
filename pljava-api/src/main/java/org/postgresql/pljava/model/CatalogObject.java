@@ -619,7 +619,6 @@ public interface CatalogObject
 		 */
 		protected static final int DEFAULT_COLLATION_OID = 100;
 		protected static final int       C_COLLATION_OID = 950;
-		protected static final int   POSIX_COLLATION_OID = 951;
 
 		/*
 		 * These magic numbers are assigned here to allow the various well-known

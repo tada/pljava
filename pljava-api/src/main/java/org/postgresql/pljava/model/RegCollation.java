@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -31,7 +31,6 @@ extends Addressed<RegCollation>, Namespaced<Simple>, Owned
 
 	RegCollation DEFAULT = formObjectId(CLASSID, DEFAULT_COLLATION_OID);
 	RegCollation       C = formObjectId(CLASSID,       C_COLLATION_OID);
-	RegCollation   POSIX = formObjectId(CLASSID,   POSIX_COLLATION_OID);
 
 	/*
 	 * Static lc_messages/lc_monetary/lc_numeric/lc_time getters? They are not
