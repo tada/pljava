@@ -76,6 +76,7 @@ import org.postgresql.pljava.model.RegProcedure.Call;
 import org.postgresql.pljava.model.RegProcedure.Call.Context;
 import org.postgresql.pljava.model.RegProcedure.Call.ResultInfo;
 import static org.postgresql.pljava.model.RegProcedure.Kind.PROCEDURE;
+import org.postgresql.pljava.model.RegProcedure.Lookup; // for javadoc
 import org.postgresql.pljava.model.RegType;
 import static org.postgresql.pljava.model.RegType.TRIGGER;
 import org.postgresql.pljava.model.Trigger.ForTrigger;
@@ -867,7 +868,7 @@ class LookupImpl implements RegProcedure.Lookup
 	 * Obtains the subject routine from {@code fcinfo.arguments().get(0)},
 	 * identifies that routine's declared language, obtains that language's
 	 * implementing class (instantiating it if necessary, with the aid of
-	 * {@link #validatorCtor validatorToCtor} on that language's declared
+	 * {@link #validatorToCtor validatorToCtor} on that language's declared
 	 * validator and memoizing that instance on the {@code ProceduralLanguage}),
 	 * provisionally records the proposed new routine as a dependent routine on
 	 * the implementing language, and invokes {@link #validate validate} to
@@ -1586,7 +1587,7 @@ class LookupImpl implements RegProcedure.Lookup
 	 * Wrapper that presents {@link SRFFirst SRFFirst} as an ordinary
 	 * {@link Routine Routine}.
 	 *<p>
-	 * This wrapper is what will be cached in the {@link LookupInfo LookupInfo}
+	 * This wrapper is what will be cached in the {@link Lookup Lookup}
 	 * as the routine specialization, except during the actual collection of
 	 * rows from a {@code ValuePerCall} set-returning function. During the
 	 * collection of rows, this wrapper is replaced in the cache by a lambda

@@ -21,6 +21,7 @@ import org.postgresql.pljava.internal.CacheMap;
 import org.postgresql.pljava.internal.Checked;
 import org.postgresql.pljava.internal.DualState; // for javadoc
 import org.postgresql.pljava.internal.Invocation;
+import org.postgresql.pljava.internal.SwitchPointCache; // for javadoc
 import org.postgresql.pljava.internal.SwitchPointCache.Builder;
 import org.postgresql.pljava.internal.SwitchPointCache.SwitchPoint;
 import static org.postgresql.pljava.internal.SwitchPointCache.setConstant;
@@ -30,6 +31,7 @@ import org.postgresql.pljava.adt.Array.AsFlatList;
 import org.postgresql.pljava.adt.spi.Datum;
 
 import org.postgresql.pljava.model.*;
+import org.postgresql.pljava.model.RegType.Unresolved; // for javadoc
 import static org.postgresql.pljava.model.MemoryContext.JavaMemoryContext;
 
 import static org.postgresql.pljava.pg.MemoryContextImpl.allocatingIn;

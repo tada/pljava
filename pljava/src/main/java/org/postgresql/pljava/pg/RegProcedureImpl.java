@@ -1190,7 +1190,7 @@ implements
 	 * Abstract superclass of a {@code Why} memo used on routines that play
 	 * specific support roles for other catalog objects (such as a
 	 * {@code Handler} or {@code Validator} for a {@code ProceduralLanguage}
-	 * or a {@code FromSQL} or {@code ToSQL> for a {@code Transform>), where
+	 * or a {@code FromSQL} or {@code ToSQL} for a {@code Transform>}, where
 	 * dependent objects should be invalidated if the support routine is.
 	 *<p>
 	 * Because a support routine can be depended on by more than one object
@@ -1258,7 +1258,7 @@ implements
 		 * if present, or getting a new one from <var>supplier</var> and
 		 * applying it.
 		 *<p>
-		 * The <var>supplier will typically be a lambda that passes
+		 * The <var>supplier</var> will typically be a lambda that passes
 		 * <var>proc</var> and <var>dep</var> to the constructor of
 		 * the concrete subclass of this class.
 		 *<p>

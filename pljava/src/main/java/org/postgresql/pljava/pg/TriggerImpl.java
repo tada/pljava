@@ -85,7 +85,8 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
  * Implements {@code Trigger}.
  *<p>
  * This implementation, at least at first, will have an unusual limitation:
- * its accessor methods (other than those of {@link Addressed}) may only work
+ * its accessor methods (other than those of
+ * {@link CatalogObject.Addressed Addressed}) may only work
  * when called by a trigger function or its language handler within the scope
  * of the function's preparation and execution. Some may be unimplemented even
  * then, as noted in the documentation of the methods themselves.

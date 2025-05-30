@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2019-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -93,7 +93,6 @@ public interface VarlenaWrapper extends Closeable, DatumImpl
 
 		/**
 		 * Construct a {@code VarlenaWrapper.Input}.
-		 * @param cookie Capability held by native code.
 		 * @param resourceOwner Resource owner whose release will indicate that the
 		 * underlying varlena is no longer valid.
 		 * @param context Memory context in which the varlena is allocated.
@@ -335,7 +334,6 @@ public interface VarlenaWrapper extends Closeable, DatumImpl
 
 		/**
 		 * Construct a {@code VarlenaWrapper.Output}.
-		 * @param cookie Capability held by native code.
 		 * @param resourceOwner Resource owner whose release will indicate that
 		 * the underlying varlena is no longer valid.
 		 * @param context Pointer to memory context containing the underlying
