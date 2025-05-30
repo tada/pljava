@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -181,6 +181,7 @@ extern jint         JNI_destroyVM(JavaVM *vm);
 extern jboolean     JNI_exceptionCheck(void);
 extern void         JNI_exceptionClear(void);
 extern void         JNI_exceptionDescribe(void);
+extern void         JNI_exceptionStacktraceAtLevel(jthrowable exh, int elevel);
 extern jthrowable   JNI_exceptionOccurred(void);
 extern jclass       JNI_findClass(const char* className);
 extern jsize        JNI_getArrayLength(jarray array);
@@ -254,6 +255,7 @@ extern void         JNI_setIntField(jobject object, jfieldID field, jint value);
 extern void         JNI_setLongField(jobject object, jfieldID field, jlong value);
 extern void         JNI_setObjectArrayElement(jobjectArray array, jsize index, jobject value);
 extern void			JNI_setThreadLock(jobject lockObject);
+extern void         JNI_setStaticObjectField(jclass clazz, jfieldID field, jobject value);
 extern jint         JNI_throw(jthrowable obj);
 
 #ifdef __cplusplus
