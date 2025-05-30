@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -24,20 +24,14 @@ static jmethodID s_SQLInputFromTuple_init;
 
 jobject pljava_SQLInputFromTuple_create(HeapTupleHeader hth)
 {
-	Ptr2Long p2lht;
-	Ptr2Long p2lro;
+	jlong heapTup = PointerGetJLong(hth);
+	jlong lifespan = PointerGetJLong(currentInvocation);
 	jobject result;
 	jobject jtd = pljava_SingleRowReader_getTupleDesc(hth);
 
-	p2lht.longVal = 0L;
-	p2lro.longVal = 0L;
-
-	p2lht.ptrVal = hth;
-	p2lro.ptrVal = currentInvocation;
-
 	result =
 		JNI_newObjectLocked(s_SQLInputFromTuple_class, s_SQLInputFromTuple_init,
-			pljava_DualState_key(), p2lro.longVal, p2lht.longVal, jtd);
+			pljava_DualState_key(), lifespan, heapTup, jtd);
 
 	JNI_deleteLocalRef(jtd);
 	return result;

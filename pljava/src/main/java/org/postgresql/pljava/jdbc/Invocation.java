@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,8 @@ import java.util.logging.Logger;
 import org.postgresql.pljava.internal.Backend;
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.PgSavepoint;
+import org.postgresql.pljava.internal.ServerException; // for javadoc
+import org.postgresql.pljava.internal.UnhandledPGException; // for javadoc
 
 /**
  * One invocation, from PostgreSQL, of functionality implemented using PL/Java.
@@ -44,6 +46,61 @@ public class Invocation
 	 * The current "stack" of invocations.
 	 */
 	private static Invocation[] s_levels = new Invocation[10];
+
+	/**
+	 * Recent exception representing a PostgreSQL {@code ereport(ERROR} that has
+	 * been thrown in Java but not yet resolved (as by rollback of the
+	 * transaction or subtransaction / savepoint).
+	 *<p>
+	 * Mutation happens on "the PG thread".
+	 *<p>
+	 * This field should be non-null when and only when {@code errorOccurred}
+	 * is true in the C {@code Invocation} struct. Both are set when such an
+	 * exception is thrown, and cleared by
+	 * {@link #clearErrorCondition clearErrorCondition}.
+	 *<p>
+	 * One static field suffices, not one per invocation nesting level, because
+	 * it will always be recognized and cleared on invocation exit (to any
+	 * possible outer nest level), and {@code errorOccurred} is meant to prevent
+	 * calling into any PostgreSQL functions that could reach an inner nest
+	 * level. (On reflection, that reasoning ought to apply also to
+	 * {@code errorOccurred} itself, but that has been the way it is for decades
+	 * and this can be added without changing that.)
+	 *<p>
+	 * On the first creation of a {@link ServerException ServerException}, that
+	 * exception is stored here. If any later call into PostgreSQL is thwarted
+	 * by finding {@code errorOccurred} true, the {@code ServerException} stored
+	 * here will be replaced by an
+	 * {@link UnhandledPGException UnhandledPGException} that has the original
+	 * {@code ServerException} as its {@link Throwable#cause cause} and the new
+	 * exception will be thrown. Once this field holds an
+	 * {@code UnhandledPGException}, it will be reused and rethrown unchanged if
+	 * further attempts to call into PostgreSQL are made.
+	 *<p>
+	 * At invocation exit, the C {@code popInvocation} code knows whether the
+	 * exit is normal or exceptional. If the exit is normal but
+	 * {@code errorOccurred} is true, that means the exiting Java function
+	 * caught a {@code ServerException} but without rethrowing it (or some
+	 * higher-level exception) and also without resolving it (as with a
+	 * rollback). That is a bug in the Java function, and the exception stored
+	 * here can have its stacktrace logged. If it is the original
+	 * {@code ServerException}, the logging will be skipped at levels quieter
+	 * than {@code DEBUG1}. If the exception here is already
+	 * {@code UnhandledPGException}, then at least one attempted PostgreSQL
+	 * operation is known to have been thwarted because of it, and a stacktrace
+	 * will be generated at {@code WARNING} level.
+	 *<p>
+	 * If the invocation is being popped exceptionally, the exception probably
+	 * is this one, or has this one in its cause chain, and longstanding code
+	 * in {@code JNICalls.c::endCall} will have generated that stack trace at
+	 * level {@code DEBUG1}. Should that not be the case, then a stacktrace of
+	 * this exception can be obtained from {@code popInvocation} by bumping the
+	 * level to {@code DEBUG2}.
+	 *<p>
+	 * Public access so factory methods of {@code ServerException} and
+	 * {@code UnhandledPGException}, in another package, can access it.
+	 */
+	public static SQLException s_unhandled;
 
 	/**
 	 * Nesting level for this invocation
@@ -141,7 +198,11 @@ public class Invocation
 
 	static void clearErrorCondition()
 	{
-		doInPG(Invocation::_clearErrorCondition);
+		doInPG(() ->
+		{
+			s_unhandled = null;
+			_clearErrorCondition();
+		});
 	}
 
 	/**

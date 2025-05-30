@@ -64,6 +64,13 @@ to run with a 'trial' policy initially, allowing code to run but logging
 permissions that may need to be added in `pljava.policy`. How to do that is
 described [here](trial.html).
 
+### Catching and handling PostgreSQL exceptions in Java
+
+If the Java code calls back into PostgreSQL (such as through the internal JDBC
+interface), errors reported by PostgreSQL are turned into Java exceptions and
+can be caught in Java `catch` clauses, but they need to be properly handled.
+More at [Catching PostgreSQL exceptions in Java](catch.html).
+
 ### Debugging PL/Java functions
 
 #### Java exception stack traces
