@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -31,33 +31,23 @@ static jmethodID s_TriggerData_getTriggerReturnTuple;
 
 jobject pljava_TriggerData_create(TriggerData* triggerData)
 {
-	Ptr2Long p2ltd;
-	Ptr2Long p2lro;
-
 	if ( NULL == triggerData )
 		return NULL;
-
-	p2ltd.longVal = 0L;
-	p2ltd.ptrVal = triggerData;
-
-	p2lro.longVal = 0L;
-	p2lro.ptrVal = currentInvocation;
 
 	return JNI_newObjectLocked(
 			s_TriggerData_class,
 			s_TriggerData_init,
 			pljava_DualState_key(),
-			p2lro.longVal,
-			p2ltd.longVal);
+			PointerGetJLong(currentInvocation),
+			PointerGetJLong(triggerData));
 }
 
 HeapTuple pljava_TriggerData_getTriggerReturnTuple(jobject jtd, bool* wasNull)
 {
-	Ptr2Long p2l;
 	HeapTuple ret = 0;
-	p2l.longVal = JNI_callLongMethod(jtd, s_TriggerData_getTriggerReturnTuple);
-	if(p2l.longVal != 0)
-		ret = heap_copytuple((HeapTuple)p2l.ptrVal); /* unconditional copy?? */
+	jlong jht = JNI_callLongMethod(jtd, s_TriggerData_getTriggerReturnTuple);
+	if(jht != 0)
+		ret = heap_copytuple(JLongGet(HeapTuple, jht));/* unconditional copy? */
 	else
 		*wasNull = true;
 	return ret;
@@ -165,10 +155,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1getRelation(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobject result = 0;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 	{
 		BEGIN_NATIVE
@@ -187,10 +174,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1getTriggerTuple(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobject result = 0;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 	{
 		BEGIN_NATIVE
@@ -209,10 +193,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1getNewTuple(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobject result = 0;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 	{
 		BEGIN_NATIVE
@@ -231,10 +212,7 @@ JNIEXPORT jobjectArray JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1getArguments(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobjectArray result = 0;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 	{
 		char** cpp;
@@ -265,10 +243,7 @@ JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1getName(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jstring result = 0;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 	{
 		BEGIN_NATIVE
@@ -287,10 +262,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredAfter(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_AFTER(self->tg_event);
 	return result;
@@ -305,10 +277,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredBefore(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_BEFORE(self->tg_event);
 	return result;
@@ -323,10 +292,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredForEachRow(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_FOR_ROW(self->tg_event);
 	return result;
@@ -341,10 +307,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredForStatement(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_FOR_STATEMENT(self->tg_event);
 	return result;
@@ -359,10 +322,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredByDelete(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_BY_DELETE(self->tg_event);
 	return result;
@@ -377,10 +337,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredByInsert(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_BY_INSERT(self->tg_event);
 	return result;
@@ -395,10 +352,7 @@ JNIEXPORT jboolean JNICALL
 Java_org_postgresql_pljava_internal_TriggerData__1isFiredByUpdate(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jboolean result = JNI_FALSE;
-	TriggerData* self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (TriggerData*)p2l.ptrVal;
+	TriggerData* self = JLongGet(TriggerData *, _this);
 	if(self != 0)
 		result = (jboolean)TRIGGER_FIRED_BY_UPDATE(self->tg_event);
 	return result;

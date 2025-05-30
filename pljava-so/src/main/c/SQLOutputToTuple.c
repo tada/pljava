@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -31,15 +31,15 @@ jobject SQLOutputToTuple_create(TupleDesc td)
 
 HeapTuple SQLOutputToTuple_getTuple(jobject sqlOutput)
 {
-	Ptr2Long p2l;
+	jlong jTup;
 	if(sqlOutput == 0)
 		return 0;
 
-	p2l.longVal = JNI_callLongMethod(sqlOutput, s_SQLOutputToTuple_getTuple);
-	if(p2l.longVal == 0)
+	jTup = JNI_callLongMethod(sqlOutput, s_SQLOutputToTuple_getTuple);
+	if(jTup == 0)
 		return 0;
 
-	return (HeapTuple)p2l.ptrVal;
+	return JLongGet(HeapTuple, jTup);
 }
 
 /* Make this datatype available to the postgres system.

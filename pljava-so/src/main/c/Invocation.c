@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2021 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -24,7 +24,9 @@
 
 #define LOCAL_FRAME_SIZE 128
 
+static jclass       s_Invocation_class;
 static jmethodID    s_Invocation_onExit;
+static jfieldID     s_Invocation_s_unhandled;
 static unsigned int s_callLevel = 0;
 
 Invocation* currentInvocation;
@@ -85,8 +87,11 @@ void Invocation_initialize(void)
 	};
 
 	cls = PgObject_getJavaClass("org/postgresql/pljava/jdbc/Invocation");
+	s_Invocation_class = JNI_newGlobalRef(cls);
 	PgObject_registerNatives2(cls, invocationMethods);
 	s_Invocation_onExit = PgObject_getJavaMethod(cls, "onExit", "(Z)V");
+	s_Invocation_s_unhandled = PgObject_getStaticJavaField(
+		cls, "s_unhandled", "Ljava/sql/SQLException;");
 	JNI_deleteLocalRef(cls);
 }
 
@@ -191,6 +196,7 @@ void Invocation_popInvocation(bool wasException)
 {
 	Invocation* ctx = currentInvocation->previous;
 	bool heavy = FRAME_LIMITS_PUSHED == currentInvocation->frameLimits;
+	bool unhandled = currentInvocation->errorOccurred;
 
 	/*
 	 * If the more heavyweight parameter-frame push wasn't done, do
@@ -215,9 +221,21 @@ void Invocation_popInvocation(bool wasException)
 	{
 		JNI_callVoidMethodLocked(
 			currentInvocation->invocation, s_Invocation_onExit,
-			(wasException || currentInvocation->errorOccurred)
+			(wasException || unhandled)
 			? JNI_TRUE : JNI_FALSE);
 		JNI_deleteGlobalRef(currentInvocation->invocation);
+	}
+
+	if ( unhandled )
+	{
+		jthrowable ex = (jthrowable)JNI_getStaticObjectField(
+			s_Invocation_class, s_Invocation_s_unhandled);
+		bool already_hit = Exception_isPGUnhandled(ex);
+		JNI_setStaticObjectField(
+			s_Invocation_class, s_Invocation_s_unhandled, NULL);
+
+		JNI_exceptionStacktraceAtLevel(ex,
+			wasException ? DEBUG2 : already_hit ? WARNING : DEBUG1);
 	}
 
 	/*

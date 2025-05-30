@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2018-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -88,20 +88,16 @@ void pljava_DualState_cleanEnqueuedInstances(void)
  */
 void pljava_DualState_nativeRelease(void *ro)
 {
-	Ptr2Long p2l;
-
 	/*
-	 * This static assertion does not need to be in every file
-	 * that uses Ptr2Long, but it should be somewhere once, so here it is.
+	 * This static assertion does not need to be in every file that uses
+	 * PointerGetJLong, but it should be somewhere once, so here it is.
 	 */
-	StaticAssertStmt(sizeof p2l.ptrVal <= sizeof p2l.longVal,
-					 "Pointer will not fit in long on this platform");
+	StaticAssertStmt(sizeof (uintptr_t) <= sizeof (jlong),
+					 "uintptr_t will not fit in jlong on this platform");
 
-	p2l.longVal = 0L;
-	p2l.ptrVal = ro;
 	JNI_callStaticVoidMethodLocked(s_DualState_class,
 								   s_DualState_resourceOwnerRelease,
-								   p2l.longVal);
+								   PointerGetJLong(ro));
 }
 
 void pljava_DualState_initialize(void)
@@ -284,9 +280,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SinglePfree__1pfree(
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	pfree(p2l.ptrVal);
+	pfree(JLongGet(void *, pointer));
 	END_NATIVE
 }
 
@@ -302,9 +296,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleMemContextDelete__1memC
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	MemoryContextDelete(p2l.ptrVal);
+	MemoryContextDelete(JLongGet(MemoryContext, pointer));
 	END_NATIVE
 }
 
@@ -320,9 +312,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeTupleDesc__1freeTup
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	FreeTupleDesc(p2l.ptrVal);
+	FreeTupleDesc(JLongGet(TupleDesc, pointer));
 	END_NATIVE
 }
 
@@ -338,9 +328,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleHeapFreeTuple__1heapFre
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	heap_freetuple(p2l.ptrVal);
+	heap_freetuple(JLongGet(HeapTuple, pointer));
 	END_NATIVE
 }
 
@@ -356,9 +344,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeErrorData__1freeErr
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	FreeErrorData(p2l.ptrVal);
+	FreeErrorData(JLongGet(ErrorData *, pointer));
 	END_NATIVE
 }
 
@@ -374,11 +360,9 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePl
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
 	PG_TRY();
 	{
-		SPI_freeplan(p2l.ptrVal);
+		SPI_freeplan(JLongGet(SPIPlanPtr, pointer));
 	}
 	PG_CATCH();
 	{
@@ -400,8 +384,6 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
 	PG_TRY();
 	{
 		/*
@@ -413,7 +395,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 		 */
 		if ( NULL != currentInvocation && ! currentInvocation->errorOccurred
 			&& ! currentInvocation->inExprContextCB )
-			SPI_cursor_close(p2l.ptrVal);
+			SPI_cursor_close(JLongGet(Portal, pointer));
 	}
 	PG_CATCH();
 	{
