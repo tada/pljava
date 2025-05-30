@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2023-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -54,6 +54,9 @@ public abstract class AbstractNoSplitList<E> extends AbstractList<E>
 		return new IteratorNonSpliterator<>(iterator(), size(), ORDERED|SIZED);
 	}
 
+	/**
+	 * As promised, an iterator whose spliterator won't split.
+	 */
 	public static class IteratorNonSpliterator<E> extends AbstractSpliterator<E>
 	{
 		private Iterator<E> it;

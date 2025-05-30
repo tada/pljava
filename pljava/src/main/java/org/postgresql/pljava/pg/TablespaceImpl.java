@@ -39,6 +39,9 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
+/**
+ * Implementation of the {@link Tablespace Tablespace} interface.
+ */
 class TablespaceImpl extends Addressed<Tablespace>
 implements
 	Shared<Tablespace>, Named<Simple>, Owned,

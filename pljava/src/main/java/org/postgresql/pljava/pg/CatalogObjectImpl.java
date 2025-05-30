@@ -1211,7 +1211,7 @@ public class CatalogObjectImpl implements CatalogObject
 		/**
 		 * Utility class to create a {@link Projection Projection} using
 		 * attribute names that may be conditional (on something like
-		 * {@code PG_VERSION_NUM}).
+		 * {@link #PG_VERSION_NUM PG_VERSION_NUM}).
 		 *<p>
 		 * {@code alsoIf} adds strings to the list, if the condition is true, or
 		 * the same number of nulls if the condition is false.
@@ -1337,6 +1337,10 @@ public class CatalogObjectImpl implements CatalogObject
 	 * when ! isValid(). That seems generally sensible, but code
 	 * in interface RegRole contains the first conscious reliance on it.
 	 */
+	/**
+	 * Mixin that supplies the implementation of
+	 * {@link CatalogObject.Named CatalogObject.Named}.
+	 */
 	interface Named<T extends Identifier.Unqualified<T>>
 		extends CatalogObject.Named<T>
 	{
@@ -1356,6 +1360,10 @@ public class CatalogObjectImpl implements CatalogObject
 		}
 	}
 
+	/**
+	 * Mixin that supplies the implementation of
+	 * {@link CatalogObject.Namespaced CatalogObject.Namespaced}.
+	 */
 	interface Namespaced<T extends Identifier.Unqualified<T>>
 		extends Named<T>, CatalogObject.Namespaced<T>
 	{
@@ -1375,6 +1383,10 @@ public class CatalogObjectImpl implements CatalogObject
 		}
 	}
 
+	/**
+	 * Mixin that supplies the implementation of
+	 * {@link CatalogObject.Owned CatalogObject.Owned}.
+	 */
 	interface Owned extends CatalogObject.Owned
 	{
 		@Override
@@ -1393,6 +1405,10 @@ public class CatalogObjectImpl implements CatalogObject
 		}
 	}
 
+	/**
+	 * Mixin that supplies the implementation of
+	 * {@link CatalogObject.AccessControlled CatalogObject.AccessControlled}.
+	 */
 	interface AccessControlled<T extends Grant>
 	extends CatalogObject.AccessControlled<T>
 	{
@@ -1424,7 +1440,8 @@ public class CatalogObjectImpl implements CatalogObject
 	}
 
 	/**
-	 * Instances of {@code ArrayAdapter} for types used in the catalogs.
+	 * Instances of {@link ArrayAdapter ArrayAdapter} for types used
+	 * in the catalogs.
 	 *<p>
 	 * A holder interface so these won't be instantiated unless wanted.
 	 */

@@ -80,6 +80,9 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  * At that rate, may as well rely on the syscache for all the pg_type info.
  */
 
+/**
+ * Implementation of the {@link RegType RegType} interface.
+ */
 abstract class RegTypeImpl extends Addressed<RegType>
 implements
 	Nonshared<RegType>,	Namespaced<Simple>, Owned,
@@ -1229,6 +1232,10 @@ implements
 		}
 	}
 
+	/**
+	 * Subclass that additionally implements
+	 * {@link RegType.Unresolved RegType.Unresolved}.
+	 */
 	static class Unresolved extends NoModifier implements RegType.Unresolved
 	{
 	}

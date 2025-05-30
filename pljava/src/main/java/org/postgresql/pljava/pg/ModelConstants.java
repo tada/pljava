@@ -791,6 +791,10 @@ public abstract class ModelConstants
 		}
 	}
 
+	/**
+	 * Distinguished subclass of {@link ExceptionInInitializerError} thrown
+	 * if the build-time constants cannot be loaded.
+	 */
 	static class ConstantsError extends ExceptionInInitializerError
 	{
 		ConstantsError()

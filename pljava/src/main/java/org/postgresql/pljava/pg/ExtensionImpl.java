@@ -48,6 +48,9 @@ import org.postgresql.pljava.pg.adt.TextAdapter;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link Extension Extension} interface.
+ */
 class ExtensionImpl extends Addressed<Extension>
 implements Nonshared<Extension>, Named<Simple>, Owned, Extension
 {

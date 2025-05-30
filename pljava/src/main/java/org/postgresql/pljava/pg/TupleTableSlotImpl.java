@@ -469,6 +469,10 @@ implements TupleTableSlot
 	 */
 	protected abstract int toOffset(int idx);
 
+	/**
+	 * Implementation of {@link TupleTableSlot TupleTableSlot} for deformed
+	 * layout.
+	 */
 	static class Deformed extends TupleTableSlotImpl<Accessor.Deformed>
 	{
 		Deformed(
@@ -534,6 +538,10 @@ implements TupleTableSlot
 		}
 	}
 
+	/**
+	 * Implementation of {@link TupleTableSlot TupleTableSlot} for heap
+	 * layout.
+	 */
 	static class Heap extends TupleTableSlotImpl<Accessor.Heap>
 	{
 		protected final ByteBuffer m_hValues;
@@ -798,6 +806,10 @@ implements TupleTableSlot
 		}
 	}
 
+	/**
+	 * Implementation of {@link TupleTableSlot TupleTableSlot} for
+	 * {@code NullableDatum} layout, as used for PL routine arguments.
+	 */
 	static class NullableDatum extends TupleTableSlotImpl<Accessor.Deformed>
 	{
 		NullableDatum(TupleDescriptor tupleDesc, ByteBuffer values)

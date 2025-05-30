@@ -37,6 +37,9 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
+/**
+ * Implementation of the {@link AccessMethod AccessMethod} interface.
+ */
 class AccessMethodImpl extends Addressed<AccessMethod>
 implements Nonshared<AccessMethod>, Named<Simple>, AccessMethod
 {

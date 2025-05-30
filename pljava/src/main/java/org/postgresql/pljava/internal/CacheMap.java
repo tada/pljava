@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -31,6 +31,11 @@ import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
 
+/**
+ * Utility class for constructing caches that map from keys that consist of
+ * one or more primitive values, whose entries can be retained strongly, softly,
+ * or weakly.
+ */
 public class CacheMap<T>
 {
 	private final Map<ByteBuffer,KeyedEntry<T>> m_map;
@@ -198,17 +203,27 @@ public class CacheMap<T>
 			.forEach(action);
 	}
 
+	/**
+	 * An entry in a {@link CacheMap CacheMap}.
+	 */
 	public interface Entry<T>
 	{
 		T get();
 		void remove();
 	}
 
+	/**
+	 * An {@link Entry Entry} that keeps a reference to its key.
+	 */
 	interface KeyedEntry<T> extends Entry<T>
 	{
 		ByteBuffer key();
 	}
 
+	/**
+	 * A {@link KeyedEntry KeyedEntry} that holds
+	 * a {@link SoftReference SoftReference} to its value.
+	 */
 	static class SoftEntry<T> extends SoftReference<T> implements KeyedEntry<T>
 	{
 		final ByteBuffer m_key;
@@ -233,6 +248,10 @@ public class CacheMap<T>
 		}
 	}
 
+	/**
+	 * A {@link KeyedEntry KeyedEntry} that holds
+	 * a {@link WeakReference WeakReference} to its value.
+	 */
 	static class WeakEntry<T> extends WeakReference<T> implements KeyedEntry<T>
 	{
 		final ByteBuffer m_key;
@@ -257,6 +276,10 @@ public class CacheMap<T>
 		}
 	}
 
+	/**
+	 * A {@link KeyedEntry KeyedEntry} that holds
+	 * a strong reference to its value.
+	 */
 	static class StrongEntry<T> implements KeyedEntry<T>
 	{
 		final ByteBuffer m_key;
@@ -294,6 +317,15 @@ public class CacheMap<T>
 	 * Hold a ByteBuffer for key use, and any new value briefly between
 	 * construction and return (to avoid any chance of its being found
 	 * weakly reachable before its return).
+	 */
+	/**
+	 * An effectively private class used during {@link CacheMap CacheMap}
+	 * operations.
+	 *<p>
+	 * Until PL/Java's support horizon for Java moves to Java >= 11 where
+	 * classes have nestmates, there can be overhead in making nested classes
+	 * private, so some in the internal module have been left at package access
+	 * for now.
 	 */
 	static class KVHolder<T>
 	{

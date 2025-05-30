@@ -51,6 +51,9 @@ import static org.postgresql.pljava.pg.adt.XMLAdapter.SYNTHETIC_INSTANCE;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link Constraint Constraint} interface.
+ */
 class ConstraintImpl extends Addressed<Constraint>
 implements Nonshared<Constraint>, Namespaced<Simple>, Constraint
 {

@@ -35,6 +35,9 @@ import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link RegConfig RegConfig} interface.
+ */
 class RegConfigImpl extends Addressed<RegConfig>
 implements Nonshared<RegConfig>, Namespaced<Simple>, Owned, RegConfig
 {

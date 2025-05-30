@@ -53,6 +53,9 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
+/**
+ * Implementation of the {@link Attribute Attribute} interface.
+ */
 abstract class AttributeImpl extends Addressed<RegClass>
 implements
 	Nonshared<RegClass>, Named<Simple>,

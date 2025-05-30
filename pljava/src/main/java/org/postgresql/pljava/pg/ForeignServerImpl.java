@@ -41,6 +41,9 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
+/**
+ * Implementation of the {@link ForeignServer ForeignServer} interface.
+ */
 class ForeignServerImpl extends Addressed<ForeignServer>
 implements
 	Nonshared<ForeignServer>, Named<Simple>, Owned,

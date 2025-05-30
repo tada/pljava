@@ -67,11 +67,18 @@ import static org.postgresql.pljava.internal.UncheckedException.unchecked;
  * However, the relcache copy of the class tuple is cut off at CLASS_TUPLE_SIZE.
  */
 
+/**
+ * Implementation of the {@link RegClass RegClass} interface.
+ */
 class RegClassImpl extends Addressed<RegClass>
 implements
 	Nonshared<RegClass>, Namespaced<Simple>, Owned,
 	AccessControlled<CatalogObject.Grant.OnClass>, RegClass
 {
+	/**
+	 * Subclass that additionally implements
+	 * {@link RegClass.Known RegClass.Known}.
+	 */
 	static class Known<T extends CatalogObject.Addressed<T>>
 	extends RegClassImpl implements RegClass.Known<T>
 	{

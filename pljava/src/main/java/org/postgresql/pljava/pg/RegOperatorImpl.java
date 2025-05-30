@@ -41,6 +41,9 @@ import static org.postgresql.pljava.pg.adt.Primitives.BOOLEAN_INSTANCE;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Operator;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link RegOperator RegOperator} interface.
+ */
 class RegOperatorImpl extends Addressed<RegOperator>
 implements Nonshared<RegOperator>, Namespaced<Operator>, Owned, RegOperator
 {

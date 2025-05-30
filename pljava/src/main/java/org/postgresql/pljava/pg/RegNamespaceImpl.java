@@ -36,6 +36,9 @@ import static org.postgresql.pljava.pg.adt.OidAdapter.REGROLE_INSTANCE;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link RegNamespace RegNamespace} interface.
+ */
 class RegNamespaceImpl extends Addressed<RegNamespace>
 implements
 	Nonshared<RegNamespace>, Named<Simple>, Owned,

@@ -205,6 +205,11 @@ abstract class TargetListImpl extends AbstractSequentialList<Attribute>
 
 	abstract Projection project(Flavor flavor, BitSet indices);
 
+	/**
+	 * Whether, when building a {@link TargetList TargetList}
+	 * or {@link Projection} from numeric indices, to treat the indices as
+	 * {@link #ZEROBASED ZEROBASED} or {@link #SQL SQL} (one-based).
+	 */
 	enum Flavor
 	{
 		ZEROBASED(
@@ -1122,6 +1127,9 @@ outer:	for (
 		}
 	}
 
+	/**
+	 * Implementation of {@link TargetList.Cursor TargetList.Cursor}.
+	 */
 	static class CursorImpl implements TargetList.Cursor, AutoCloseable
 	{
 		private final TargetList m_tlist;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -29,6 +29,9 @@ import static
 import static org.postgresql.pljava.pg.ModelConstants.N_ACL_RIGHTS;
 import static org.postgresql.pljava.pg.ModelConstants.PG_VERSION_NUM;
 
+/**
+ * Implementation of the {@link CatalogObject.Grant Grant} interface.
+ */
 public abstract class AclItem implements CatalogObject.Grant
 {
 	/*

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2022-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -32,6 +32,11 @@ import org.postgresql.pljava.internal.DualState;
  */
 public class LifespanImpl extends DualState.ListHead implements Lifespan
 {
+	/**
+	 * Interface to be additionally implemented by
+	 * a {@link LifespanImpl LifespanImpl} with an associated native address
+	 * that may be needed during release handling.
+	 */
 	public interface Addressed
 	{
 		long address();

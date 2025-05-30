@@ -45,6 +45,9 @@ import static org.postgresql.pljava.pg.adt.OidAdapter.REGPROCEDURE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.REGTYPE_INSTANCE;
 import static org.postgresql.pljava.pg.adt.OidAdapter.TRANSFORM_INSTANCE;
 
+/**
+ * Implementation of the {@link Transform Transform} interface.
+ */
 class TransformImpl extends Addressed<Transform>
 implements Nonshared<Transform>, Transform
 {
@@ -324,6 +327,11 @@ implements Nonshared<Transform>, Transform
 		}
 	}
 
+	/**
+	 * {@link SupportMemo SupportMemo} for attachment to
+	 * a {@link RegProcedure RegProcedure} that serves as
+	 * a {@link #fromSQL() fromSQL} function.
+	 */
 	static class FromSQLMemo
 	extends SupportMemo<FromSQL,TransformImpl> implements FromSQL
 	{
@@ -341,6 +349,11 @@ implements Nonshared<Transform>, Transform
 		}
 	}
 
+	/**
+	 * {@link SupportMemo SupportMemo} for attachment to
+	 * a {@link RegProcedure RegProcedure} that serves as
+	 * a {@link #toSQL() toSQL} function.
+	 */
 	static class ToSQLMemo
 	extends SupportMemo<ToSQL,TransformImpl>	implements ToSQL
 	{

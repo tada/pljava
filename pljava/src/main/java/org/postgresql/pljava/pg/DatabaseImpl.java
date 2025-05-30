@@ -46,6 +46,9 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
 import static org.postgresql.pljava.internal.UncheckedException.unchecked;
 
+/**
+ * Implementation of the {@link Database Database} interface.
+ */
 class DatabaseImpl extends Addressed<Database>
 implements
 	Shared<Database>, Named<Simple>, Owned,

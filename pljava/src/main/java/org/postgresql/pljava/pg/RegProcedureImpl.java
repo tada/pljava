@@ -70,6 +70,9 @@ import org.postgresql.pljava.sqlgen.Lexicals.Identifier;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link RegProcedure RegProcedure} interface.
+ */
 class RegProcedureImpl<M extends Memo.Why<M>> extends Addressed<RegProcedure<?>>
 implements
 	Nonshared<RegProcedure<?>>, Namespaced<Simple>, Owned,
@@ -1107,6 +1110,10 @@ implements
 		return m_why;
 	}
 
+	/**
+	 * Abstract superclass of both {@link Why Why} and {@link How How} memo
+	 * implementations.
+	 */
 	public static abstract class AbstractMemo
 	{
 		protected AbstractMemo()
@@ -1116,6 +1123,9 @@ implements
 
 		abstract void invalidate(List<SwitchPoint> sps, List<Runnable> postOps);
 
+		/**
+		 * Abstract base class for a {@link Why Why} memo implementation.
+		 */
 		public static abstract class Why<M extends Memo.Why<M>>
 		extends AbstractMemo implements Memo.Why<M>
 		{
@@ -1151,6 +1161,9 @@ implements
 			}
 		}
 
+		/**
+		 * Abstract base class for a {@link How How} memo implementation.
+		 */
 		public static abstract class How<M extends Memo.How<M>>
 		extends AbstractMemo implements Memo.How<M>
 		{

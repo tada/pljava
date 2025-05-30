@@ -41,6 +41,9 @@ import org.postgresql.pljava.pg.adt.TextAdapter;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link RegCollation RegCollation} interface.
+ */
 class RegCollationImpl extends Addressed<RegCollation>
 implements Nonshared<RegCollation>, Namespaced<Simple>, Owned, RegCollation
 {

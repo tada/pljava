@@ -367,25 +367,36 @@ public /*XXX*/ class DatumUtils
 	private static native Datum.Input _mapVarlena(
 		ByteBuffer bb, long offset, long resowner, long memcontext);
 
+	/**
+	 * Abstract superclass of datum accessors.
+	 *<p>
+	 * Accessors handle fixed-length types no wider than a {@code Datum}; for
+	 * such types, they support access as all suitable Java primitive types as
+	 * well as {@code Datum}. For wider or variable-length types, only
+	 * {@code Datum} access applies. For by-value, only power-of-2 sizes and
+	 * corresponding alignments allowed:
+	 * [<a href=
+	 * "https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=82a1f09"
+	 * >source</a>].
+	 *<p>
+	 * The primitive-typed methods all have {@code SignExtended} and
+	 * {@code ZeroExtended} flavors (except for {@code short} and {@code char}
+	 * where the flavor is explicit, and {@code byte} which has no narrower
+	 * type to extend). The {@code get} methods return the specified type,
+	 * which means the choice of flavor will have no detectable effect on the
+	 * return value when the value being read is exactly that width (as always
+	 * in Java, a {@code long}, {@code int}, or {@code byte} will be treated as
+	 * signed); the flavor will make a difference if the method is used to read
+	 * a value that is actually narrower (say, {@code getLongZeroExtended} or
+	 * {@code getLongSignExtended} on an {@code int}-sized field).
+	 * @param <B> prevents inadvertent mixing up of accessors built over
+	 * different native-memory access access schemes, such as
+	 * {@link ByteBuffer ByteBuffer} or, in future, {@code MemorySegment}.
+	 * @param <L> prevents inadvertent mixing up of accessors that differ in
+	 * their expected {@link Datum.Layout Datum.Layout}.
+	 */
 	abstract static class Accessor<B,L extends Datum.Layout>
 	implements Datum.Accessor<B,L>
-	/*
-	 * Accessors handle fixed-length types no wider than a Datum; for such
-	 * types, they support access as all suitable Java primitive types as well
-	 * as Datum. For wider or variable-length types, only Datum access applies.
-	 * For by-value, only power-of-2 sizes and corresponding alignments allowed:
-	 * https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=82a1f09
-	 *
-	 * The primitive-typed methods all have SignExtended and ZeroExtended
-	 * flavors (except for short and char where the flavor is explicit, and byte
-	 * which has no narrower type to extend). The get methods return the
-	 * specified type, which means the choice of flavor will have no detectable
-	 * effect on the return value when the value being read is exactly that
-	 * width (as always in Java, a long, int, or byte will be treated as
-	 * signed); the flavor will make a difference if the method is used to read
-	 * a value that is actually narrower (say, getLongZeroExtended or
-	 * getLongSignExtended on an int-sized field).
-	 */
 	{
 		static Datum.Accessor<ByteBuffer,Deformed> forDeformed(
 			boolean byValue, short length)
@@ -515,12 +526,18 @@ public /*XXX*/ class DatumUtils
 			throw new AccessorWidthException();
 		}
 
+		/**
+		 * Superclass of accessors for by-value types.
+		 */
 		static class ByValue<L extends Datum.Layout>
 		extends Accessor<ByteBuffer,L>
 		{
-			/*
+			/**
+			 * Superclass of accessors for by-value types in deformed layout.
+			 *<p>
 			 * Convention: when invoking a deformed accessor method, the offset
-			 * shall be a multiple of SIZEOF_DATUM.
+			 * shall be a multiple of
+			 * {@link ModelConstants#SIZEOF_DATUM SIZEOF_DATUM}.
 			 */
 			static class Deformed extends ByValue<Datum.Accessor.Deformed>
 			{
@@ -545,14 +562,16 @@ public /*XXX*/ class DatumUtils
 				}
 			}
 
-			/*
+			/**
+			 * Superclass of accessors for by-value types in heap layout.
+			 *<p>
 			 * Convention: when invoking a heap accessor method, the offset
 			 * shall already have been adjusted for alignment (according to
 			 * PostgreSQL's alignment rules, that is, so the right value will be
-			 * accessed). Java's ByteBuffer API will still check and possibly
-			 * split accesses according to the hardware's rules; there's no way
-			 * to talk it out of that, so there's little to gain by being more
-			 * clever here.
+			 * accessed). Java's {@code ByteBuffer} API will still check and
+			 * possibly split accesses according to the hardware's rules;
+			 * there's no way to talk it out of that, so there's little to gain
+			 * by being more clever here.
 			 */
 			static class Heap extends ByValue<Datum.Accessor.Heap>
 			{
@@ -578,6 +597,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 8-byte fields in deformed layout with 8-byte
+		 * datums.
+		 */
 		static class DV88 extends ByValue.Deformed
 		{
 			@Override
@@ -602,6 +625,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 4-byte fields in deformed layout with 8-byte
+		 * datums.
+		 */
 		static class DV84 extends ByValue.Deformed
 		{
 			@Override
@@ -630,6 +657,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 2-byte fields in deformed layout with 8-byte
+		 * datums.
+		 */
 		static class DV82 extends ByValue.Deformed
 		{
 			@Override
@@ -653,6 +684,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 1-byte fields in deformed layout with 8-byte
+		 * datums.
+		 */
 		static class DV81 extends ByValue.Deformed
 		{
 			@Override
@@ -670,6 +705,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 4-byte fields in deformed layout with 4-byte
+		 * datums.
+		 */
 		static class DV44 extends ByValue.Deformed
 		{
 			@Override
@@ -694,6 +733,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 2-byte fields in deformed layout with 4-byte
+		 * datums.
+		 */
 		static class DV42 extends ByValue.Deformed
 		{
 			@Override
@@ -717,6 +760,10 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 1-byte fields in deformed layout with 4-byte
+		 * datums.
+		 */
 		static class DV41 extends ByValue.Deformed
 		{
 			@Override
@@ -734,6 +781,9 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 8-byte fields in heap layout.
+		 */
 		static class HV8 extends ByValue.Heap
 		{
 			@Override
@@ -758,6 +808,9 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 4-byte fields in heap layout.
+		 */
 		static class HV4 extends ByValue.Heap
 		{
 			@Override
@@ -782,6 +835,9 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 2-byte fields in heap layout.
+		 */
 		static class HV2 extends ByValue.Heap
 		{
 			@Override
@@ -801,6 +857,9 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * By-value accessor for 1-byte fields in heap layout.
+		 */
 		static class HV1 extends ByValue.Heap
 		{
 			@Override
@@ -815,6 +874,13 @@ public /*XXX*/ class DatumUtils
 			}
 		}
 
+		/**
+		 * Abstract superclass of accessors for by-reference types.
+		 *<p>
+		 * There are always length-specific accessors for each length through 8,
+		 * even in 4-byte-datum builds, plus accessors for fixed lengths greater
+		 * than 8, cstrings, and varlenas.
+		 */
 		/*
 		 * In the ByReference case, the accessors for Deformed and Heap differ
 		 * only in what the map*Reference() methods do, so the accessors are
@@ -823,10 +889,6 @@ public /*XXX*/ class DatumUtils
 		 * to the right copy/map methods by enclosure rather than inheritance.
 		 * The constructor of each (Heap and Deformed) is invoked just once,
 		 * statically, to populate the ACCESSORS arrays.
-		 *
-		 * There are always length-specific accessors for each length through 8,
-		 * even in 4-byte-datum builds, plus accessors for fixed lengths greater
-		 * than 8, cstrings, and varlenas.
 		 */
 		abstract static class ByReference<L extends Datum.Layout>
 		extends Accessor<ByteBuffer,L>
@@ -836,6 +898,10 @@ public /*XXX*/ class DatumUtils
 			static final int VARLENA_ACCESSOR_INDEX = 11;
 			static final int ACCESSORS_ARRAY_LENGTH = 12;
 
+			/**
+			 * Superclass of accessors for by-reference types in deformed
+			 * layout.
+			 */
 			static final class Deformed extends Impl<Datum.Accessor.Deformed>
 			{
 				@SuppressWarnings("unchecked")
@@ -885,15 +951,18 @@ public /*XXX*/ class DatumUtils
 				}
 			}
 
-			/*
+			/**
+			 * Superclass of accessors for by-reference types in heap layout.
+			 *<p>
 			 * Convention: when invoking a heap accessor method, the offset
 			 * shall already have been adjusted for alignment (according to
 			 * PostgreSQL's alignment rules, that is, so the right value will be
-			 * accessed). Java's ByteBuffer API will still check and possibly
-			 * split accesses according to the hardware's rules; there's no way
-			 * to talk it out of that, so there's little to gain by being more
-			 * clever here.
-			 *
+			 * accessed). Java's {@code ByteBuffer} API will still check and
+			 * possibly split accesses according to the hardware's rules;
+			 * there's no way to talk it out of that, so there's little to gain
+			 * by being more clever here.
+			 */
+			 /*
 			 * The ByReference case includes accessors for non-power-of-two
 			 * sizes. To keep things simple here, they just put the widest
 			 * accesses first, which should be as good as it gets in the most
@@ -942,6 +1011,10 @@ public /*XXX*/ class DatumUtils
 				}
 			}
 
+			/**
+			 * Abstract class declaring the by-reference memory-mapping methods
+			 * whose behavior is determined by layout.
+			 */
 			abstract static class Impl<L extends Datum.Layout>
 			extends ByReference<L>
 			{

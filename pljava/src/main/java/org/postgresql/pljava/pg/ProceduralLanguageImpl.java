@@ -75,6 +75,10 @@ import static org.postgresql.pljava.pg.adt.Primitives.BOOLEAN_INSTANCE;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Simple;
 import org.postgresql.pljava.sqlgen.Lexicals.Identifier.Unqualified;
 
+/**
+ * Implementation of the {@link ProceduralLanguage ProceduralLanguage}
+ * interface.
+ */
 class ProceduralLanguageImpl extends Addressed<ProceduralLanguage>
 implements
 	Nonshared<ProceduralLanguage>, Named<Simple>, Owned,
@@ -794,6 +798,11 @@ implements
 		}
 	}
 
+	/**
+	 * {@link SupportMemo SupportMemo} for attachment to
+	 * a {@link RegProcedure RegProcedure} that serves as
+	 * a {@link ProceduralLanguage ProceduralLanguage} handler.
+	 */
 	static class HandlerMemo
 	extends SupportMemo<Handler,ProceduralLanguageImpl> implements Handler
 	{
@@ -812,6 +821,11 @@ implements
 		}
 	}
 
+	/**
+	 * {@link SupportMemo SupportMemo} for attachment to
+	 * a {@link RegProcedure RegProcedure} that serves as
+	 * a {@link ProceduralLanguage ProceduralLanguage} inline handler.
+	 */
 	static class InlineHandlerMemo
 	extends SupportMemo<InlineHandler,ProceduralLanguageImpl>
 	implements InlineHandler
@@ -832,6 +846,11 @@ implements
 		}
 	}
 
+	/**
+	 * {@link SupportMemo SupportMemo} for attachment to
+	 * a {@link RegProcedure RegProcedure} that serves as
+	 * a {@link ProceduralLanguage ProceduralLanguage} validator.
+	 */
 	static class ValidatorMemo
 	extends SupportMemo<Validator,ProceduralLanguageImpl> implements Validator
 	{
@@ -851,6 +870,11 @@ implements
 		}
 	}
 
+	/**
+	 * Implementation of {@link PLJavaBased PLJavaBased} memo for attachment to
+	 * a {@link RegProcedure RegProcedure} whose implementation is
+	 * PL/Java-based.
+	 */
 	static class PLJavaMemo extends How<PLJavaBased> implements PLJavaBased
 	{
 		Template m_routineTemplate;
