@@ -27,6 +27,7 @@
 
 static jclass    s_Invocation_class;
 static jmethodID s_Invocation_onExit;
+static jfieldID  s_Invocation_s_unhandled;
 
 /**
  * All of these initial values are as were formerly set in pushBootContext,
@@ -113,6 +114,8 @@ StaticAssertStmt(offsetof(Invocation,fld) == \
 	cls = PgObject_getJavaClass("org/postgresql/pljava/internal/Invocation");
 	s_Invocation_class = JNI_newGlobalRef(cls);
 	s_Invocation_onExit = PgObject_getStaticJavaMethod(cls, "onExit", "(IZ)V");
+	s_Invocation_s_unhandled = PgObject_getStaticJavaField(
+		cls, "s_unhandled", "Ljava/sql/SQLException;");
 	JNI_deleteLocalRef(cls);
 }
 
@@ -195,6 +198,7 @@ void Invocation_popInvocation(bool wasException)
 {
 	Invocation* ctx = currentInvocation->previous;
 	bool heavy = FRAME_LIMITS_PUSHED == currentInvocation->frameLimits;
+	bool unhandled = currentInvocation->errorOccurred;
 
 	/*
 	 * If the more heavyweight parameter-frame push wasn't done, do
@@ -220,12 +224,24 @@ void Invocation_popInvocation(bool wasException)
 		JNI_callStaticVoidMethodLocked(
 			s_Invocation_class, s_Invocation_onExit,
 			(jint)currentInvocation->nestLevel,
-			(wasException || currentInvocation->errorOccurred)
+			(wasException || unhandled)
 			? JNI_TRUE : JNI_FALSE);
 	}
 
 	if(currentInvocation->hasConnected)
 		SPI_finish();
+
+	if ( unhandled )
+	{
+		jthrowable ex = (jthrowable)JNI_getStaticObjectField(
+			s_Invocation_class, s_Invocation_s_unhandled);
+		bool already_hit = Exception_isPGUnhandled(ex);
+		JNI_setStaticObjectField(
+			s_Invocation_class, s_Invocation_s_unhandled, NULL);
+
+		JNI_exceptionStacktraceAtLevel(ex,
+			wasException ? DEBUG2 : already_hit ? WARNING : DEBUG1);
+	}
 
 	JNI_popLocalFrame(0);
 

@@ -451,13 +451,9 @@ static void exprContextCB(Datum arg)
 
 static void memoryContextCallback(void *arg)
 {
-	Ptr2Long p2l;
-
-	p2l.longVal = 0L;
-	p2l.ptrVal = arg;
 	JNI_callStaticVoidMethodLocked(s_MemoryContextImpl_class,
 								   s_MemoryContextImpl_callback,
-								   p2l.longVal);
+								   PointerGetJLong(arg));
 }
 
 static void relCacheCB(Datum arg, Oid relid)
@@ -469,14 +465,12 @@ static void relCacheCB(Datum arg, Oid relid)
 static void resourceReleaseCB(ResourceReleasePhase phase,
 							  bool isCommit, bool isTopLevel, void *arg)
 {
-	Ptr2Long p2l;
-
 	/*
-	 * This static assertion does not need to be in every file
-	 * that uses Ptr2Long, but it should be somewhere once, so here it is.
+	 * This static assertion does not need to be in every file that uses
+	 * PointerGetJLong, but it should be somewhere once, so here it is.
 	 */
-	StaticAssertStmt(sizeof p2l.ptrVal <= sizeof p2l.longVal,
-					 "Pointer will not fit in long on this platform");
+	StaticAssertStmt(sizeof (uintptr_t) <= sizeof (jlong),
+					 "uintptr_t will not fit in jlong on this platform");
 
 	/*
 	 * The way ResourceOwnerRelease is implemented, callbacks to loadable
@@ -495,11 +489,9 @@ static void resourceReleaseCB(ResourceReleasePhase phase,
 	 * manager arranges for CurrentResourceOwner to be the one that is being
 	 * released.
 	 */
-	p2l.longVal = 0L;
-	p2l.ptrVal = CurrentResourceOwner;
 	JNI_callStaticVoidMethodLocked(s_ResourceOwnerImpl_class,
 								   s_ResourceOwnerImpl_callback,
-								   p2l.longVal);
+								   PointerGetJLong(CurrentResourceOwner));
 
 	if ( isTopLevel )
 		Backend_warnJEP411(isCommit);
@@ -940,9 +932,6 @@ Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1sysTableGetByOi
 	Relation rel;
 	SysScanDesc scandesc;
 	ScanKeyData entry[1];
-	Ptr2Long p2l;
-
-	p2l.longVal = tupleDesc;
 
 	BEGIN_NATIVE_AND_TRY
 	rel = relation_open((Oid)relOid, AccessShareLock);
@@ -968,7 +957,7 @@ Java_org_postgresql_pljava_pg_CatalogObjectImpl_00024Addressed__1sysTableGetByOi
 		 * TOAST pointers. (Inline-compressed values, it could still have.)
 		 */
 		if ( HeapTupleHasExternal(ht) )
-			ht = toast_flatten_tuple(ht, p2l.ptrVal);
+			ht = toast_flatten_tuple(ht, JLongGet(TupleDesc, tupleDesc));
 		else
 			ht = heap_copytuple(ht);
 		result = JNI_newDirectByteBuffer(ht, HEAPTUPLESIZE + ht->t_len);
@@ -1126,10 +1115,7 @@ Java_org_postgresql_pljava_pg_CharsetEncodingImpl_00024EarlyNatives__1ordinalToI
 JNIEXPORT jlong JNICALL
 Java_org_postgresql_pljava_pg_DatumUtils__1addressOf(JNIEnv* env, jobject _cls, jobject bb)
 {
-	Ptr2Long p2l;
-	p2l.longVal = 0;
-	p2l.ptrVal = (*env)->GetDirectBufferAddress(env, bb);
-	return p2l.longVal;
+	return PointerGetJLong((*env)->GetDirectBufferAddress(env, bb));
 }
 
 /*
@@ -1140,9 +1126,8 @@ Java_org_postgresql_pljava_pg_DatumUtils__1addressOf(JNIEnv* env, jobject _cls, 
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_pg_DatumUtils__1map(JNIEnv* env, jobject _cls, jlong nativeAddress, jint length)
 {
-	Ptr2Long p2l;
-	p2l.longVal = nativeAddress;
-	return (*env)->NewDirectByteBuffer(env, p2l.ptrVal, length);
+	return (*env)->NewDirectByteBuffer(
+		env, JLongGet(void *, nativeAddress), length);
 }
 
 /*
@@ -1154,11 +1139,8 @@ Java_org_postgresql_pljava_pg_DatumUtils__1map(JNIEnv* env, jobject _cls, jlong 
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_pg_DatumUtils__1mapBitmapset(JNIEnv* env, jobject _cls, jlong nativeAddress)
 {
-	Bitmapset *bms;
+	Bitmapset *bms = JLongGet(Bitmapset *, nativeAddress);
 	jlong size;
-	Ptr2Long p2l;
-	p2l.longVal = nativeAddress;
-	bms = (Bitmapset *)p2l.ptrVal;
 	size = offsetof(Bitmapset, words) + bms->nwords * sizeof(bitmapword);
 	return (*env)->NewDirectByteBuffer(env, (void *)bms, size);
 }
@@ -1172,11 +1154,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_pg_DatumUtils__1mapCString(JNIEnv* env, jobject _cls, jlong nativeAddress)
 {
 	jlong length;
-	void *base;
-	Ptr2Long p2l;
-
-	p2l.longVal = nativeAddress;
-	base = p2l.ptrVal;
+	void *base = JLongGet(void *, nativeAddress);
 	length = (jlong)strlen(base);
 	return (*env)->NewDirectByteBuffer(env, base, length);
 }
@@ -1189,26 +1167,22 @@ Java_org_postgresql_pljava_pg_DatumUtils__1mapCString(JNIEnv* env, jobject _cls,
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_pg_DatumUtils__1mapVarlena(JNIEnv* env, jobject _cls, jobject bb, jlong offset, jlong resowner, jlong memcontext)
 {
-	Ptr2Long p2lvl;
-	Ptr2Long p2lro;
-	Ptr2Long p2lmc;
+	Pointer vl;
 	jobject result = NULL;
 
-	p2lvl.longVal = 0;
-	if ( NULL != bb )
+	if ( NULL == bb )
+		vl = JLongGet(Pointer, offset);
+	else
 	{
-		p2lvl.ptrVal = (*env)->GetDirectBufferAddress(env, bb);
-		if ( NULL == p2lvl.ptrVal )
+		void *buf = (*env)->GetDirectBufferAddress(env, bb);
+		if ( NULL == buf )
 			return NULL;
+		vl = (Pointer)((char *)buf + offset);
 	}
-	p2lvl.longVal += offset;
-
-	p2lro.longVal = resowner;
-	p2lmc.longVal = memcontext;
 
 	BEGIN_NATIVE_AND_TRY
-	result =  pljava_VarlenaWrapper_Input(PointerGetDatum(p2lvl.ptrVal),
-		(MemoryContext)p2lmc.ptrVal, (ResourceOwner)p2lro.ptrVal);
+	result = pljava_VarlenaWrapper_Input(PointerGetDatum(vl),
+		JLongGet(MemoryContext, memcontext), JLongGet(ResourceOwner, resowner));
 	END_NATIVE_AND_CATCH("_mapVarlena")
 	return result;
 }
@@ -1237,11 +1211,7 @@ Java_org_postgresql_pljava_pg_ExprContextImpl__1registerCallback(JNIEnv* env, jo
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_pg_LookupImpl__1cacheReference(JNIEnv* env, jobject _cls, jobject lref, jlong extra)
 {
-	Ptr2Long p2l;
-	RegProcedureLookup *extraStruct;
-
-	p2l.longVal = extra;
-	extraStruct = (RegProcedureLookup *)p2l.ptrVal;
+	RegProcedureLookup *extraStruct = JLongGet(RegProcedureLookup *, extra);
 	extraStruct->lookup = (*env)->NewGlobalRef(env, lref);
 }
 
@@ -1396,12 +1366,9 @@ Java_org_postgresql_pljava_pg_LookupImpl__1resolveArgTypes(JNIEnv* env, jobject 
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_pg_MemoryContextImpl_00024EarlyNatives__1registerCallback(JNIEnv* env, jobject _cls, jlong nativeAddress)
 {
-	Ptr2Long p2l;
-	MemoryContext cxt;
+	MemoryContext cxt = JLongGet(MemoryContext, nativeAddress);
 	MemoryContextCallback *cb;
 
-	p2l.longVal = nativeAddress;
-	cxt = p2l.ptrVal;
 	BEGIN_NATIVE_AND_TRY
 	/*
 	 * Optimization? Use MemoryContextAllocExtended with NO_OOM, and do without
@@ -1635,15 +1602,13 @@ Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1getsomeattrs(JNIEnv* env, job
 JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1mapHeapTuple(JNIEnv* env, jobject _cls, jlong nativeAddress)
 {
-	Ptr2Long p2l;
 	HeapTuple htp;
 	jlong size;
 
 	if ( 0 == nativeAddress )
 		return NULL;
 
-	p2l.longVal = nativeAddress;
-	htp = (HeapTuple)p2l.ptrVal;
+	htp = JLongGet(HeapTuple, nativeAddress);
 
 	if ( ! HeapTupleIsValid(htp)  ||  htp->t_data == NULL )
 		return NULL;
@@ -1661,15 +1626,12 @@ Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1mapHeapTuple(JNIEnv* env, job
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_pg_TupleTableSlotImpl__1store_1heaptuple(JNIEnv* env, jobject _cls, jobject tts_b, jlong ht, jboolean shouldFree)
 {
-	Ptr2Long p2l;
-	HeapTuple htp;
+	HeapTuple htp = JLongGet(HeapTuple, ht);
 	TupleTableSlot *tts = (*env)->GetDirectBufferAddress(env, tts_b);
 	if ( NULL == tts )
 		return;
 
 	BEGIN_NATIVE_AND_TRY
-	p2l.longVal = ht;
-	htp = p2l.ptrVal;
 	ExecStoreHeapTuple(htp, tts, JNI_TRUE == shouldFree);
 	END_NATIVE_AND_CATCH("_store_heaptuple")
 }

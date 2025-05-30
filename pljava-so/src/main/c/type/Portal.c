@@ -45,23 +45,12 @@ static jmethodID s_Portal_init;
 jobject pljava_Portal_create(Portal portal, jobject jplan)
 {
 	jobject jportal;
-	Ptr2Long p2l;
-	Ptr2Long p2lro;
-	Ptr2Long p2lcxt;
 	if(portal == 0)
 		return NULL;
 
-	p2l.longVal = 0L; /* ensure that the rest is zeroed out */
-	p2l.ptrVal = portal;
-
-	p2lro.longVal = 0L;
-	p2lro.ptrVal = portal->resowner;
-
-	p2lcxt.longVal = 0L;
-	p2lcxt.ptrVal = portal->portalContext;
-
 	jportal = JNI_newObjectLocked(s_Portal_class, s_Portal_init,
-		p2lro.longVal, p2lcxt.longVal, p2l.longVal, jplan);
+		PointerGetJLong(portal->resowner),
+		PointerGetJLong(portal->portalContext), PointerGetJLong(portal), jplan);
 
 	return jportal;
 }
@@ -166,10 +155,8 @@ Java_org_postgresql_pljava_internal_Portal__1getTupleDescriptor(JNIEnv* env, jcl
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
 		result = pljava_TupleDescriptor_create(
-			((Portal)p2l.ptrVal)->tupDesc, InvalidOid);
+			JLongGet(Portal, _this)->tupDesc, InvalidOid);
 		END_NATIVE
 	}
 	return result;
@@ -187,10 +174,8 @@ Java_org_postgresql_pljava_internal_Portal__1makeTupleTableSlot(JNIEnv* env, jcl
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = pljava_TupleTableSlot_create(
-			((Portal)p2l.ptrVal)->tupDesc, jtd, &TTSOpsHeapTuple, InvalidOid);
+		result = pljava_TupleTableSlot_create(JLongGet(Portal, _this)->tupDesc,
+			jtd, &TTSOpsHeapTuple, InvalidOid);
 		END_NATIVE
 	}
 	return result;
@@ -207,9 +192,7 @@ Java_org_postgresql_pljava_internal_Portal__1getPortalPos(JNIEnv* env, jclass cl
 	jlong result = 0;
 	if(_this != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jlong)((Portal)p2l.ptrVal)->portalPos;
+		result = (jlong)JLongGet(Portal, _this)->portalPos;
 	}
 	return result;
 }
@@ -226,7 +209,6 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
 		STACK_BASE_VARS
 		STACK_BASE_PUSH(env)
 
@@ -240,11 +222,10 @@ Java_org_postgresql_pljava_internal_Portal__1fetch(JNIEnv* env, jclass clazz, jl
 		 */
 		pljava_DualState_cleanEnqueuedInstances();
 
-		p2l.longVal = _this;
 		PG_TRY();
 		{
 			Invocation_assertConnect();
-			SPI_cursor_fetch((Portal)p2l.ptrVal, forward == JNI_TRUE,
+			SPI_cursor_fetch(JLongGet(Portal, _this), forward == JNI_TRUE,
 				(long)count);
 			result = (jlong)SPI_processed;
 		}
@@ -271,9 +252,7 @@ Java_org_postgresql_pljava_internal_Portal__1getName(JNIEnv* env, jclass clazz, 
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = String_createJavaStringFromNTS(((Portal)p2l.ptrVal)->name);
+		result = String_createJavaStringFromNTS(JLongGet(Portal, _this)->name);
 		END_NATIVE
 	}
 	return result;
@@ -291,9 +270,7 @@ Java_org_postgresql_pljava_internal_Portal__1getTupleDesc(JNIEnv* env, jclass cl
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = pljava_TupleDesc_create(((Portal)p2l.ptrVal)->tupDesc);
+		result = pljava_TupleDesc_create(JLongGet(Portal, _this)->tupDesc);
 		END_NATIVE
 	}
 	return result;
@@ -310,9 +287,7 @@ Java_org_postgresql_pljava_internal_Portal__1isAtStart(JNIEnv* env, jclass clazz
 	jboolean result = JNI_FALSE;
 	if(_this != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jboolean)((Portal)p2l.ptrVal)->atStart;
+		result = (jboolean)JLongGet(Portal, _this)->atStart;
 	}
 	return result;
 }
@@ -328,9 +303,7 @@ Java_org_postgresql_pljava_internal_Portal__1isAtEnd(JNIEnv* env, jclass clazz, 
 	jboolean result = JNI_FALSE;
 	if(_this != 0)
 	{
-		Ptr2Long p2l;
-		p2l.longVal = _this;
-		result = (jboolean)((Portal)p2l.ptrVal)->atEnd;
+		result = (jboolean)JLongGet(Portal, _this)->atEnd;
 	}
 	return result;
 }
@@ -347,15 +320,14 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 	if(_this != 0)
 	{
 		BEGIN_NATIVE
-		Ptr2Long p2l;
 		STACK_BASE_VARS
 		STACK_BASE_PUSH(env)
 
-		p2l.longVal = _this;
 		PG_TRY();
 		{
 			Invocation_assertConnect();
-			SPI_cursor_move((Portal)p2l.ptrVal, forward == JNI_TRUE, (long)count);
+			SPI_cursor_move(
+				JLongGet(Portal, _this), forward == JNI_TRUE, (long)count);
 			result = (jlong)SPI_processed;
 		}
 		PG_CATCH();

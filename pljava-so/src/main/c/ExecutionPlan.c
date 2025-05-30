@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -81,7 +81,8 @@ void pljava_ExecutionPlan_initialize(void)
 		"(Ljava/lang/Object;J)V");
 }
 
-static bool coerceObjects(void* ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
+static bool coerceObjects(
+	SPIPlanPtr ePlan, jobjectArray jvalues, Datum** valuesPtr, char** nullsPtr)
 {
 	char*  nulls = 0;
 	Datum* values = 0;
@@ -148,11 +149,10 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 		STACK_BASE_PUSH(env)
 		PG_TRY();
 		{
-			Ptr2Long p2l;
+			SPIPlanPtr plan = JLongGet(SPIPlanPtr, _this);
 			Datum*  values  = 0;
 			char*   nulls   = 0;
-			p2l.longVal = _this;
-			if(coerceObjects(p2l.ptrVal, jvalues, &values, &nulls))
+			if(coerceObjects(plan, jvalues, &values, &nulls))
 			{
 				Portal portal;
 				char* name = 0;
@@ -166,7 +166,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1cursorOpen(JNIEnv* env, jobj
 				else
 					read_only = (SPI_READONLY_FORCED == readonly_spec);
 				portal = SPI_cursor_open(
-					name, p2l.ptrVal, values, nulls, read_only);
+					name, plan, values, nulls, read_only);
 				if(name != 0)
 					pfree(name);
 				if(values != 0)
@@ -203,10 +203,8 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1isCursorPlan(JNIEnv* env, jc
 		BEGIN_NATIVE
 		PG_TRY();
 		{
-			Ptr2Long p2l;
-			p2l.longVal = _this;
 			Invocation_assertConnect();
-			result = (jboolean)SPI_is_cursor_plan(p2l.ptrVal);
+			result = (jboolean)SPI_is_cursor_plan(JLongGet(SPIPlanPtr, _this));
 		}
 		PG_CATCH();
 		{
@@ -234,11 +232,10 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass 
 		STACK_BASE_PUSH(env)
 		PG_TRY();
 		{
-			Ptr2Long p2l;
+			SPIPlanPtr plan = JLongGet(SPIPlanPtr, _this);
 			Datum* values = 0;
 			char*  nulls  = 0;
-			p2l.longVal = _this;
-			if(coerceObjects(p2l.ptrVal, jvalues, &values, &nulls))
+			if(coerceObjects(plan, jvalues, &values, &nulls))
 			{
 				bool read_only;
 				Invocation_assertConnect();
@@ -247,7 +244,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1execute(JNIEnv* env, jclass 
 				else
 					read_only = (SPI_READONLY_FORCED == readonly_spec);
 				result = (jint)SPI_execute_plan(
-					p2l.ptrVal, values, nulls, read_only, (int)count);
+					plan, values, nulls, read_only, (int)count);
 				if(result < 0)
 					Exception_throwSPI("execute_plan", result);
 
@@ -284,7 +281,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 	PG_TRY();
 	{
 		char* cmd;
-		void* ePlan;
+		SPIPlanPtr ePlan;
 		int paramCount = 0;
 		Oid* paramOids = 0;
 
@@ -313,20 +310,15 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 			Exception_throwSPI("prepare", SPI_result);
 		else
 		{
-			Ptr2Long p2l;
-			
 			/* Make the plan durable
 			 */
-			p2l.longVal = 0L; /* ensure that the rest is zeroed out */
 			spi_ret = SPI_keepplan(ePlan);
-			if ( 0 == spi_ret )
-				p2l.ptrVal = ePlan;
-			else
+			if ( 0 != spi_ret )
 				Exception_throwSPI("keepplan", spi_ret);
 
 			result = JNI_newObjectLocked(
 				s_ExecutionPlan_class, s_ExecutionPlan_init,
-				key, p2l.longVal);
+				key, PointerGetJLong(ePlan));
 		}
 	}
 	PG_CATCH();

@@ -174,8 +174,8 @@ class EntryPoints
 	 * as ordinary function calls are, and the {@code ParameterFrame} save and
 	 * restore mechanism relies on those, so it is better for this entry point
 	 * also to be handled specially.
-	 * @param t Invocable carrying the appropriate AccessControlContext (t's
-	 * action is unused and expected to be null)
+	 * @param target Invocable carrying the appropriate AccessControlContext
+	 * (<var>target</var>'s action is unused and expected to be null)
 	 * @param o the UDT instance
 	 * @param stream the SQLOutput stream on which the type's internal
 	 * representation will be written
@@ -273,8 +273,8 @@ class EntryPoints
 	 * NUL-terminated storage form, and without being separately wrapped in
 	 * {@code pushInvocation}/{@code popInvocation}, so it gets its own entry
 	 * point here to avoid use of the static parameter area.
-	 * @param mh a MethodHandle to the class's static parse method, which will
-	 * allocate and return an instance.
+	 * @param target a MethodHandle to the class's static parse method, which
+	 * will allocate and return an instance.
 	 * @param textRep the text representation
 	 * @param typeName the SQL type name to be associated with the instance
 	 * @return the allocated and initialized instance

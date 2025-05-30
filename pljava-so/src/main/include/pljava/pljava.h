@@ -152,14 +152,14 @@ extern MemoryContext JavaMemoryContext;
  */
 #define ERRCODE_CLASS_SQLJRT MAKE_SQLSTATE('4','6','0','0','0')
 
-/*
- * Union used when coercing void* to jlong and vice versa
- */
-typedef union
+static inline jlong
+PointerGetJLong(const void *X)
 {
-	void*  ptrVal;
-	jlong  longVal; /* 64 bit quantity */
-} Ptr2Long;
+	return (jlong)(uintptr_t)(X);
+}
+
+#define JLongGet(T, X) \
+	(AssertVariableIsOfTypeMacro(X, jlong), (T)(uintptr_t)(X))
 
 struct Invocation_;
 typedef struct Invocation_ Invocation;

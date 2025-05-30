@@ -251,9 +251,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SinglePfree__1pfree(
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	pfree(p2l.ptrVal);
+	pfree(JLongGet(void *, pointer));
 	END_NATIVE
 }
 
@@ -269,9 +267,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleMemContextDelete__1memC
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	MemoryContextDelete(p2l.ptrVal);
+	MemoryContextDelete(JLongGet(MemoryContext, pointer));
 	END_NATIVE
 }
 
@@ -287,9 +283,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeTupleDesc__1freeTup
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	FreeTupleDesc(p2l.ptrVal);
+	FreeTupleDesc(JLongGet(TupleDesc, pointer));
 	END_NATIVE
 }
 
@@ -305,9 +299,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleHeapFreeTuple__1heapFre
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	heap_freetuple(p2l.ptrVal);
+	heap_freetuple(JLongGet(HeapTuple, pointer));
 	END_NATIVE
 }
 
@@ -323,9 +315,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleFreeErrorData__1freeErr
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
-	FreeErrorData(p2l.ptrVal);
+	FreeErrorData(JLongGet(ErrorData *, pointer));
 	END_NATIVE
 }
 
@@ -341,11 +331,9 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreeplan__1spiFreePl
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
 	PG_TRY();
 	{
-		SPI_freeplan(p2l.ptrVal);
+		SPI_freeplan(JLongGet(SPIPlanPtr, pointer));
 	}
 	PG_CATCH();
 	{
@@ -367,11 +355,9 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIfreetuptable__1spiFr
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
 	PG_TRY();
 	{
-		SPI_freetuptable(p2l.ptrVal);
+		SPI_freetuptable(JLongGet(SPITupleTable *, pointer));
 	}
 	PG_CATCH();
 	{
@@ -393,8 +379,6 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 	JNIEnv* env, jobject _this, jlong pointer)
 {
 	BEGIN_NATIVE_NO_ERRCHECK
-	Ptr2Long p2l;
-	p2l.longVal = pointer;
 	PG_TRY();
 	{
 		/*
@@ -406,7 +390,7 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 		 */
 		if ( HAS_INVOCATION && ! currentInvocation->errorOccurred
 			&& ! currentInvocation->inExprContextCB )
-			SPI_cursor_close(p2l.ptrVal);
+			SPI_cursor_close(JLongGet(Portal, pointer));
 	}
 	PG_CATCH();
 	{
@@ -444,13 +428,11 @@ Java_org_postgresql_pljava_internal_DualState_00024BBHeapFreeTuple__1heapFreeTup
  */
 JNIEXPORT void JNICALL
 Java_org_postgresql_pljava_internal_DualState_00024SingleDeleteGlobalRefP__1deleteGlobalRefP(
-	JNIEnv* env, jobject _this, jlong refp)
+	JNIEnv* env, jobject _this, jlong jrefp)
 {
-	Ptr2Long p2l;
-	jobject ref;
-	p2l.longVal = refp;
-	ref = *(jobject *)p2l.ptrVal;
-	*(jobject *)p2l.ptrVal = NULL;
+	jobject *refp = JLongGet(jobject *, jrefp);
+	jobject ref = *refp;
+	*refp = NULL;
 	/* no call into PostgreSQL here, just one simple JNI operation */
 	(*env)->DeleteGlobalRef(env, ref);
 }

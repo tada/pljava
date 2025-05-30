@@ -203,10 +203,13 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 	ereport(logLevel, (errcode(sqlState), errmsg("%s", buf.data)));
 }
 
-static void printStacktrace(JNIEnv* env, jobject exh)
+static void printStacktrace(JNIEnv* env, jobject exh, int elevel)
 {
-#ifndef _MSC_VER
-	if(DEBUG1 >= log_min_messages || DEBUG1 >= client_min_messages)
+#if 100002<=PG_VERSION_NUM || \
+	 90607<=PG_VERSION_NUM && PG_VERSION_NUM<100000 || \
+	 90511<=PG_VERSION_NUM && PG_VERSION_NUM< 90600 || \
+	! defined(_MSC_VER)
+	if(elevel >= log_min_messages || elevel >= client_min_messages)
 #else
 	/* This is gross, but only happens as often as an exception escapes Java
 	 * code to be rethrown. There is some renewed interest on pgsql-hackers to
@@ -217,7 +220,7 @@ static void printStacktrace(JNIEnv* env, jobject exh)
 		|| 0 == strncmp("debug", PG_GETCONFIGOPTION("client_min_messages"), 5) )
 #endif
 	{
-		int currLevel = Backend_setJavaLogLevel(DEBUG1);
+		int currLevel = Backend_setJavaLogLevel(elevel);
 		(*env)->CallVoidMethod(env, exh, Throwable_printStackTrace);
 		(*env)->ExceptionOccurred(env); /* sop for JNI exception-check check */
 		Backend_setJavaLogLevel(currLevel);
@@ -236,7 +239,7 @@ static void endCall(JNIEnv* env)
 	jniEnv = env;
 	if(exh != 0)
 	{
-		printStacktrace(env, exh);
+		printStacktrace(env, exh, DEBUG1);
 		if((*env)->IsInstanceOf(env, exh, ServerException_class))
 		{
 			/* Rethrow the server error.
@@ -266,7 +269,7 @@ static void endCallMonitorHeld(JNIEnv* env)
 	jniEnv = env;
 	if(exh != 0)
 	{
-		printStacktrace(env, exh);
+		printStacktrace(env, exh, DEBUG1);
 		if((*env)->IsInstanceOf(env, exh, ServerException_class))
 		{
 			/* Rethrow the server error.
@@ -333,8 +336,7 @@ bool beginNative(JNIEnv* env)
 		 * backend at this point.
 		 */
 		env = JNI_setEnv(env);
-		Exception_throw(ERRCODE_INTERNAL_ERROR,
-			"An attempt was made to call a PostgreSQL backend function after an elog(ERROR) had been issued");
+		Exception_throw_unhandled();
 		JNI_setEnv(env);
 		return false;
 	}
@@ -954,9 +956,17 @@ void JNI_exceptionDescribe(void)
 	if(exh != 0)
 	{
 		(*env)->ExceptionClear(env);
-		printStacktrace(env, exh);
+		printStacktrace(env, exh, DEBUG1);
 		elogExceptionMessage(env, exh, WARNING);
 	}
+	END_JAVA
+}
+
+void JNI_exceptionStacktraceAtLevel(jthrowable exh, int elevel)
+{
+	BEGIN_JAVA
+	elogExceptionMessage(env, exh, elevel);
+	printStacktrace(env, exh, elevel);
 	END_JAVA
 }
 
@@ -1613,6 +1623,13 @@ void JNI_setShortArrayRegion(jshortArray array, jsize start, jsize len, jshort* 
 {
 	BEGIN_JAVA
 	(*env)->SetShortArrayRegion(env, array, start, len, buf);
+	END_JAVA
+}
+
+void JNI_setStaticObjectField(jclass clazz, jfieldID field, jobject value)
+{
+	BEGIN_JAVA
+	(*env)->SetStaticObjectField(env, clazz, field, value);
 	END_JAVA
 }
 

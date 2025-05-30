@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -57,18 +57,15 @@ jobjectArray pljava_Tuple_createArray(HeapTuple* vals, jint size, bool mustCopy)
 jobject pljava_Tuple_internalCreate(HeapTuple ht, bool mustCopy)
 {
 	jobject jht;
-	Ptr2Long htH;
 
 	if(mustCopy)
 		ht = heap_copytuple(ht);
 
-	htH.longVal = 0L; /* ensure that the rest is zeroed out */
-	htH.ptrVal = ht;
 	/*
 	 * XXX? this seems like a lot of tuple copying.
 	 */
 	jht = JNI_newObjectLocked(s_Tuple_class, s_Tuple_init,
-		htH.longVal);
+		PointerGetJLong(ht));
 	return jht;
 }
 
@@ -142,13 +139,11 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jclass cls, jlong _this, jlong _tupleDesc, jint index, jclass rqcls)
 {
 	jobject result = 0;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
 
 	BEGIN_NATIVE
-	HeapTuple self = (HeapTuple)p2l.ptrVal;
-	p2l.longVal = _tupleDesc;
-	result = pljava_Tuple_getObject((TupleDesc)p2l.ptrVal, self, (int)index, rqcls);
+	HeapTuple self = JLongGet(HeapTuple, _this);
+	result = pljava_Tuple_getObject(JLongGet(TupleDesc, _tupleDesc), self,
+		(int)index, rqcls);
 	END_NATIVE
 	return result;
 }

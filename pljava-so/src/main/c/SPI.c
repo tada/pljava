@@ -223,14 +223,11 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_SPI__1mapTupTable(JNIEnv* env, jclass cls, jobject ttsi, jlong p, jint sizeToMap)
 {
 	jobject tupleList = NULL;
-	Ptr2Long p2l;
-	SPITupleTable *tuptbl;
+	SPITupleTable *tuptbl = JLongGet(SPITupleTable *, p);
 	jobject bb;
 	if ( p != 0 )
 	{
 		BEGIN_NATIVE_AND_TRY
-		p2l.longVal = p;
-		tuptbl = (SPITupleTable *)p2l.ptrVal;
 		bb = JNI_newDirectByteBuffer(tuptbl->vals, sizeToMap);
 		tupleList = JNI_newObjectLocked(
 			s_TupleList_SPI_class, s_TupleList_SPI_init, ttsi, p, bb);

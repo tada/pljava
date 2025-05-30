@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -34,18 +34,13 @@ static jmethodID s_Relation_init;
  */
 jobject pljava_Relation_create(Relation r)
 {
-	Ptr2Long p2lr;
-
 	if ( NULL == r )
 		return NULL;
-
-	p2lr.longVal = 0L;
-	p2lr.ptrVal = r;
 
 	return JNI_newObjectLocked(
 			s_Relation_class,
 			s_Relation_init,
-			p2lr.longVal);
+			PointerGetJLong(r));
 }
 
 void pljava_Relation_initialize(void)
@@ -93,10 +88,7 @@ JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getName(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jstring result = 0;
-	Relation self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (Relation)p2l.ptrVal;
+	Relation self = JLongGet(Relation, _this);
 
 	if(self != 0)
 	{
@@ -126,10 +118,7 @@ JNIEXPORT jstring JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getSchema(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jstring result = 0;
-	Relation self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (Relation)p2l.ptrVal;
+	Relation self = JLongGet(Relation, _this);
 
 	if(self != 0)
 	{
@@ -159,10 +148,7 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1getTupleDesc(JNIEnv* env, jclass clazz, jlong _this)
 {
 	jobject result = 0;
-	Relation self;
-	Ptr2Long p2l;
-	p2l.longVal = _this;
-	self = (Relation)p2l.ptrVal;
+	Relation self = JLongGet(Relation, _this);
 
 	if(self != 0)
 	{
@@ -192,18 +178,12 @@ JNIEXPORT jobject JNICALL
 Java_org_postgresql_pljava_internal_Relation__1modifyTuple(JNIEnv* env, jclass clazz, jlong _this, jlong _tuple, jintArray _indexes, jobjectArray _values)
 {
 	jobject result = 0;
-	Relation self;
-	Ptr2Long p2lr;
-	p2lr.longVal = _this;
-	self = (Relation)p2lr.ptrVal;
+	Relation self = JLongGet(Relation, _this);
 
 	if(self != 0 && _tuple != 0)
 	{
-		Ptr2Long p2lt;
-		p2lt.longVal = _tuple;
-
 		BEGIN_NATIVE
-		HeapTuple tuple = (HeapTuple)p2lt.ptrVal;
+		HeapTuple tuple = JLongGet(HeapTuple, _tuple);
 		PG_TRY();
 		{
 			jint idx;

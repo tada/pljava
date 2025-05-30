@@ -365,9 +365,9 @@ public abstract class DualState<T> extends WeakReference<T>
 			 * Increment a thread-local count of pins for a DualState object.
 			 * @return null if there was already at least one pin counted for
 			 * the object (that is, no real pin will need to be taken; this is
-			 * a reentrant pin); otherwise, a Supplier<Queue<Thread>> that can
-			 * supply a preallocated queue prepopulated with the current thread,
-			 * in case inflation is needed.
+			 * a reentrant pin); otherwise, a {@code Supplier<Queue<Thread>>}
+			 * that can supply a preallocated queue prepopulated with
+			 * the current thread, in case inflation is needed.
 			 */
 			Supplier<Queue<Thread>> pin(DualState<?> s)
 			{

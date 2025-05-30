@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -692,6 +692,7 @@ classMismatch:
 	ereport(ERROR, (errmsg(
 		"PL/Java UDT with oid %u declares input/output/send/recv functions "
 		"in more than one class", typeId)));
+	pg_unreachable(); /* MSVC otherwise is not convinced */
 }
 
 static Function Function_create(
@@ -708,7 +709,6 @@ static Function Function_create(
 	jstring lname = String_createJavaStringFromNTS(NameStr(lngStruct->lanname));
 	bool trusted = lngStruct->lanpltrusted;
 	jstring schemaName;
-	Ptr2Long p2l;
 	Datum d;
 	jobject invocable;
 
@@ -718,14 +718,12 @@ static Function Function_create(
 
 	self = /* will rely on the fact that allocInstance zeroes memory */
 		(Function)PgObjectClass_allocInstance(s_FunctionClass,TopMemoryContext);
-	p2l.longVal = 0;
-	p2l.ptrVal = (void *)self;
 
 	PG_TRY();
 	{
 		invocable =
 			JNI_callStaticObjectMethod(s_Function_class, s_Function_create,
-			p2l.longVal, Type_coerceDatum(s_pgproc_Type, d), lname,
+			PointerGetJLong(self), Type_coerceDatum(s_pgproc_Type, d), lname,
 			schemaName,
 			trusted ? JNI_TRUE : JNI_FALSE,
 			forTrigger ? JNI_TRUE : JNI_FALSE,
@@ -1187,7 +1185,6 @@ JNIEXPORT jboolean JNICALL
 	jint numParams, jint returnType, jstring returnJType,
 	jintArray paramTypes, jobjectArray paramJTypes, jobjectArray outJTypes)
 {
-	Ptr2Long p2l;
 	Function self;
 	MemoryContext ctx;
 	jstring jtn;
@@ -1196,8 +1193,7 @@ JNIEXPORT jboolean JNICALL
 	uint16 primParams = 0;
 	bool returnTypeIsOutParameter = false;
 
-	p2l.longVal = wrappedPtr;
-	self = (Function)p2l.ptrVal;
+	self = JLongGet(Function, wrappedPtr);
 	ctx = GetMemoryChunkContext(self);
 
 	BEGIN_NATIVE_NO_ERRCHECK
@@ -1296,13 +1292,11 @@ JNIEXPORT void JNICALL
 	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr, jobject schemaLoader,
 	jclass clazz, jboolean readOnly, jint funcInitial, jint udtId)
 {
-	Ptr2Long p2l;
 	Function self;
 	HeapTuple typeTup;
 	Form_pg_type pgType;
 
-	p2l.longVal = wrappedPtr;
-	self = (Function)p2l.ptrVal;
+	self = JLongGet(Function, wrappedPtr);
 
 	BEGIN_NATIVE_NO_ERRCHECK
 	PG_TRY();
@@ -1367,7 +1361,6 @@ JNIEXPORT void JNICALL
 	JNIEnv *env, jclass jFunctionClass, jlong wrappedPtr,
 	jobjectArray resolvedTypes, jobjectArray explicitTypes, jint index)
 {
-	Ptr2Long p2l;
 	Function self;
 	Type origType;
 	Type replType;
@@ -1391,8 +1384,7 @@ JNIEXPORT void JNICALL
 	bool actOnReturnType = ( -1 == index ||  -2 == index );
 	bool coerceOutAndSingleton = ( -2 == index );
 
-	p2l.longVal = wrappedPtr;
-	self = (Function)p2l.ptrVal;
+	self = JLongGet(Function, wrappedPtr);
 
 	BEGIN_NATIVE_NO_ERRCHECK
 	PG_TRY();
