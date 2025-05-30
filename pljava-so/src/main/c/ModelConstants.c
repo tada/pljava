@@ -155,8 +155,18 @@ static int32 constants[] = {
 	TYPEOFFSET(Bitmapset, Bitmapset, words),
 
 
-
+	/*
+	 * Prior to PG 18, TupleDesc->attrs was where the Form_pg_attribute copies
+	 * actually started. As of PG 18, they must be found from the offset of
+	 * compact_attrs (a constant, supplied here), plus the size of nattrs
+	 * CompactAttribute structs (a bit of arithmetic for the Java code to do).
+	 */
+#if PG_VERSION_NUM < 180000
 	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS, offsetof(struct TupleDescData, attrs)),
+#else
+	CONSTANTEXPR(OFFSET_TUPLEDESC_ATTRS,
+		offsetof(struct TupleDescData, compact_attrs)),
+#endif
 	CONSTANTEXPR(OFFSET_TUPLEDESC_TDREFCOUNT,
 		offsetof(struct TupleDescData, tdrefcount)),
 	CONSTANTEXPR(SIZEOF_TUPLEDESC_TDREFCOUNT,
@@ -172,7 +182,7 @@ static int32 constants[] = {
 	CONSTANT(ATTRIBUTE_FIXED_PART_SIZE),
 	FORMOFFSET( pg_attribute, atttypid ),
 	FORMOFFSET( pg_attribute, attlen ),
-	FORMOFFSET( pg_attribute, attcacheoff ),
+	/* available(1) */
 	FORMOFFSET( pg_attribute, atttypmod ),
 	FORMOFFSET( pg_attribute, attbyval ),
 	FORMOFFSET( pg_attribute, attalign ),
@@ -522,12 +532,15 @@ StaticAssertStmt(Anum_##form##_##fld == \
 
 	CONFIRMSIZEOF( pg_attribute, atttypid );
 	CONFIRMSIZEOF( pg_attribute, attlen );
-	CONFIRMSIZEOF( pg_attribute, attcacheoff );
 	CONFIRMSIZEOF( pg_attribute, atttypmod );
 	CONFIRMSIZEOF( pg_attribute, attbyval );
 	CONFIRMSIZEOF( pg_attribute, attalign );
 	CONFIRMSIZEOF( pg_attribute, attnotnull );
 	CONFIRMSIZEOF( pg_attribute, attisdropped );
+
+#if PG_VERSION_NUM >= 180000
+	CONFIRMEXPR( SIZEOF_CompactAttribute, sizeof (CompactAttribute));
+#endif
 
 	CONFIRMATTNUM( pg_extension, oid );
 	CONFIRMCONST( ExtensionOidIndexId );

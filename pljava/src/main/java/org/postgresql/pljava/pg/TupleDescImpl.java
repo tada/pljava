@@ -171,6 +171,8 @@ implements TupleDescriptor
 		return TargetListImpl.applyOver(this, tuple, f);
 	}
 
+	private static final int s_perAttributeSize;
+
 	/**
 	 * A "getAndAdd" (with just plain memory effects, as it will only be used on
 	 * the PG thread) tailored to the width of the tdrefcount field (which is,
@@ -191,6 +193,9 @@ implements TupleDescriptor
 	{
 		assert Integer.BYTES == SIZEOF_Oid : "sizeof Oid";
 		assert Integer.BYTES == SIZEOF_pg_attribute_atttypmod : "sizeof typmod";
+
+		s_perAttributeSize = SIZEOF_FORM_PG_ATTRIBUTE +
+			( (PG_VERSION_NUM < 180000) ? 0 : SIZEOF_CompactAttribute );
 
 		if ( 4 == SIZEOF_TUPLEDESC_TDREFCOUNT )
 		{
@@ -276,14 +281,44 @@ implements TupleDescriptor
 		int len = SIZEOF_FORM_PG_ATTRIBUTE;
 		int off = OFFSET_TUPLEDESC_ATTRS + len * index;
 		len = ATTRIBUTE_FIXED_PART_SIZE; // TupleDesc hasn't got the whole thing
-		// Java 13: td.slice(off, len).order(td.order())
-		ByteBuffer bnew = td.duplicate();
+
+		/*
+		 * Prior to PG 18, OFFSET_TUPLEDESC_ATTRS from the true beginning of
+		 * the buffer is where the first Form_pg_attribute starts, so
+		 * OFFSET_TUPLEDESC_ATTRS + len * index is the whole story. As of PG 18,
+		 * the value we pick up for OFFSET_TUPLEDESC_ATTRS is actually the
+		 * offset of compact_attrs, and there are natts of those before
+		 * the first Form_pg_attribute, so we really want OFFSET_TUPLEDESC_ATTRS
+		 * + len * index + (natts * SIZEOF_CompactAttribute). That final term is
+		 * constant for this TupleDescriptor, so the constructor has simply set
+		 * the buffer's position() to that value. When we slice off bnew below,
+		 * it begins at that position, so our off as computed above is right.
+		 *
+		 * Java 13 has a slice(off, len) method that may be tidier; it would
+		 * have to be passed off+position().
+		 */
+		ByteBuffer bnew = td.slice();
 		bnew.position(off).limit(off + len);
 		return bnew.slice().order(td.order());
 	}
 
 	/**
 	 * Construct a descriptor given a {@code ByteBuffer} windowing a native one.
+	 *<p>
+	 * <strong>Important:</strong> As of PostgreSQL 18, the offset to the first
+	 * {@code Form_pg_attribute} slice is no longer fixed, but depends on the
+	 * number of attributes. The number of attributes is, of course, known here
+	 * in this constructor, <em>but is not easily available to the
+	 * {@link #slice slice} method as it is being called by the
+	 * {@code Attribute} instances being constructed before the {@code m_attrs}
+	 * field is assigned here</em>.
+	 *<p>
+	 * This will be handled by advancing the {@code ByteBuffer}'s
+	 * {@code position} here by the necessary offset (which means, in general,
+	 * the position will be some nonsensical place in the buffer, but will yield
+	 * the desired attribute slice when {@code slice} computes an offset
+	 * relative to it. <strong>All other accesses to {@code TupleDesc} fields
+	 * must be made using absolute offsets, not position-relative ones.</strong>
 	 * @param td ByteBuffer over a native TupleDesc
 	 * @param sp SwitchPoint that the instance will rely on to detect
 	 * invalidation, or null if invalidation will not be possible.
@@ -301,12 +336,23 @@ implements TupleDescriptor
 
 		m_state = useState ? new State(this, td) : null;
 
-		MethodHandle c = constant(ByteBuffer.class, asReadOnlyNativeOrder(td));
+		td = asReadOnlyNativeOrder(td);
+		MethodHandle c = constant(ByteBuffer.class, td);
 		m_tdH = (null == sp) ? c : sp.guardWithTest(c, s_throwInvalidated);
 
 		Attribute[] attrs =
 			new Attribute [ (td.capacity() - OFFSET_TUPLEDESC_ATTRS)
-							/ SIZEOF_FORM_PG_ATTRIBUTE ];
+							/ s_perAttributeSize ];
+
+		/*
+		 * ATTENTION: as described in the javadoc, this leaves the buffer's
+		 * position nonsensical for ordinary purposes, but will produce correct
+		 * results in the slice method above. All other accesses to fields of
+		 * the underlying TupleDesc must be absolute, not relative to this
+		 * position.
+		 */
+		if ( PG_VERSION_NUM >= 180000 )
+			td.position(attrs.length * SIZEOF_CompactAttribute);
 
 		for ( int i = 0 ; i < attrs.length ; ++ i )
 			attrs[i] = ctor.apply(this, 1 + i);
@@ -447,9 +493,9 @@ implements TupleDescriptor
 	 */
 	private static ByteBuffer asManagedNativeOrder(ByteBuffer bb)
 	{
-		ByteBuffer copy = ByteBuffer.allocateDirect(bb.capacity()).put(bb);
-		bb = copy;
-		return bb.order(nativeOrder());
+		ByteBuffer copy =
+			ByteBuffer.allocateDirect(bb.capacity()).put(bb).flip();
+		return copy.order(nativeOrder());
 	}
 
 	@Override

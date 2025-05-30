@@ -150,12 +150,13 @@ public abstract class ModelConstants
 
 	@Native public static final int SIZEOF_pg_attribute_atttypid     = 4;
 	@Native public static final int SIZEOF_pg_attribute_attlen       = 2;
-	@Native public static final int SIZEOF_pg_attribute_attcacheoff  = 4;
 	@Native public static final int SIZEOF_pg_attribute_atttypmod    = 4;
 	@Native public static final int SIZEOF_pg_attribute_attbyval     = 1;
 	@Native public static final int SIZEOF_pg_attribute_attalign     = 1;
 	@Native public static final int SIZEOF_pg_attribute_attnotnull   = 1;
 	@Native public static final int SIZEOF_pg_attribute_attisdropped = 1;
+
+	@Native public static final int SIZEOF_CompactAttribute          = 16;
 
 	@Native public static final int Anum_pg_extension_oid            = 1;
 	@Native public static final int ExtensionOidIndexId              = 3080;
@@ -253,7 +254,7 @@ public abstract class ModelConstants
 	@Native private static final int IDX_ATTRIBUTE_FIXED_PART_SIZE        = 51;
 	@Native private static final int IDX_OFFSET_pg_attribute_atttypid     = 52;
 	@Native private static final int IDX_OFFSET_pg_attribute_attlen       = 53;
-	@Native private static final int IDX_OFFSET_pg_attribute_attcacheoff  = 54;
+	// available(1)
 	@Native private static final int IDX_OFFSET_pg_attribute_atttypmod    = 55;
 	@Native private static final int IDX_OFFSET_pg_attribute_attbyval     = 56;
 	@Native private static final int IDX_OFFSET_pg_attribute_attalign     = 57;
@@ -440,6 +441,16 @@ public abstract class ModelConstants
 
 
 
+	/**
+	 * Offset to where per-attribute data in a {@code TupleDesc} begins.
+	 *<p>
+	 * Prior to PostgreSQL 18, this was the offset of a member actually named
+	 * {@code attrs}, and was exactly where the first {@code Form_pg_attribute}
+	 * would be found. As of PostgreSQL 18, this will actually be the offset of
+	 * a member named {@code compact_attrs}, and the first
+	 * {@code Form_pg_attribute} must be found at this offset plus the number of
+	 * attributes times {@code SIZEOF_CompactAttribute}.
+	 */
 	public static final int OFFSET_TUPLEDESC_ATTRS;
 	public static final int OFFSET_TUPLEDESC_TDREFCOUNT;
 	public static final int SIZEOF_TUPLEDESC_TDREFCOUNT;
@@ -452,7 +463,7 @@ public abstract class ModelConstants
 	public static final int ATTRIBUTE_FIXED_PART_SIZE;
 	public static final int OFFSET_pg_attribute_atttypid;
 	public static final int OFFSET_pg_attribute_attlen;
-	public static final int OFFSET_pg_attribute_attcacheoff;
+	// available(1)
 	public static final int OFFSET_pg_attribute_atttypmod;
 	public static final int OFFSET_pg_attribute_attbyval;
 	public static final int OFFSET_pg_attribute_attalign;
@@ -657,8 +668,7 @@ public abstract class ModelConstants
 				= n.get(IDX_OFFSET_pg_attribute_atttypid);
 			OFFSET_pg_attribute_attlen
 				= n.get(IDX_OFFSET_pg_attribute_attlen);
-			OFFSET_pg_attribute_attcacheoff
-				= n.get(IDX_OFFSET_pg_attribute_attcacheoff);
+			n.gap(IDX_OFFSET_pg_attribute_atttypmod); // available(1)
 			OFFSET_pg_attribute_atttypmod
 				= n.get(IDX_OFFSET_pg_attribute_atttypmod);
 			OFFSET_pg_attribute_attbyval
