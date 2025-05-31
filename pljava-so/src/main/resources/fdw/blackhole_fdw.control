@@ -1,0 +1,5 @@
+# blackhole FDW
+comment = 'Blackhole Foreign Data Wrapper'
+default_version = '1.9.6'
+module_pathname = '$libdir/libpljava.so'
+relocatable = true
