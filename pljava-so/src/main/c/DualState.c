@@ -44,6 +44,11 @@ extern void pljava_ExecutionPlan_initialize(void);
 #include "pljava/SQLInputFromTuple.h"
 #include "pljava/VarlenaWrapper.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass s_DualState_class;
 
 static jmethodID s_DualState_resourceOwnerRelease;
@@ -404,3 +409,4 @@ Java_org_postgresql_pljava_internal_DualState_00024SingleSPIcursorClose__1spiCur
 	PG_END_TRY();
 	END_NATIVE
 }
+/** @} */

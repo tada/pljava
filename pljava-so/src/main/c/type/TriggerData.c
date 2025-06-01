@@ -25,6 +25,11 @@
 #include "pljava/type/TupleDesc.h"
 #include "pljava/type/Relation.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_TriggerData_class;
 static jmethodID s_TriggerData_init;
 static jmethodID s_TriggerData_getTriggerReturnTuple;
@@ -357,3 +362,4 @@ Java_org_postgresql_pljava_internal_TriggerData__1isFiredByUpdate(JNIEnv* env, j
 		result = (jboolean)TRIGGER_FIRED_BY_UPDATE(self->tg_event);
 	return result;
 }
+/** @} */

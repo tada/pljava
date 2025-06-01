@@ -19,6 +19,11 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Timestamp.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 #define EPOCH_DIFF (POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE)
 
 static jclass    s_Date_class;
@@ -143,3 +148,4 @@ void Date_initialize(void)
 	s_LocalDateClass  = cls;
 	Type_registerType2(InvalidOid, "java.time.LocalDate", _LocalDate_obtain);
 }
+/** @} */

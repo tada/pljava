@@ -24,6 +24,11 @@
 #include "pljava/type/Tuple.h"
 #include "pljava/type/TupleDesc.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_Tuple_class;
 static jmethodID s_Tuple_init;
 
@@ -151,3 +156,4 @@ Java_org_postgresql_pljava_internal_Tuple__1getObject(JNIEnv* env, jclass cls, j
 	END_NATIVE
 	return result;
 }
+/** @} */

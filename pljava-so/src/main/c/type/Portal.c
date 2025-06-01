@@ -31,6 +31,11 @@
 #include <miscadmin.h>
 #endif
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_Portal_class;
 static jmethodID s_Portal_init;
 
@@ -263,3 +268,4 @@ Java_org_postgresql_pljava_internal_Portal__1move(JNIEnv* env, jclass clazz, jlo
 	}
 	return result;
 }
+/** @} */

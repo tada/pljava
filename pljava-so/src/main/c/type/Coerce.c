@@ -15,6 +15,11 @@
 #include "pljava/HashMap.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_coerceInClass;
 static TypeClass s_coerceOutClass;
 
@@ -111,3 +116,4 @@ void Coerce_initialize(void)
 	s_coerceOutClass->invoke = _Coerce_invoke;
 	s_coerceOutClass->coerceObject = _Coerce_coerceObject;
 }
+/** @} */

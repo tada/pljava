@@ -12,6 +12,11 @@
 
 #include "pljava/type/String_priv.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 /*
  * BigDecimal type. We use String conversions here. Perhaps there's
  * room for optimizations such as creating a 2's complement byte
@@ -61,3 +66,4 @@ void BigDecimal_initialize(void)
 
 	Type_registerType2(NUMERICOID, "java.math.BigDecimal", BigDecimal_obtain);
 }
+/** @} */

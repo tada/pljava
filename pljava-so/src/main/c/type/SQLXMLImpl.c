@@ -16,6 +16,11 @@
 #include "pljava/type/Type_priv.h"
 #include "pljava/VarlenaWrapper.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static TypeClass s_SQLXMLClass;
 static jclass    s_SQLXML_class;
 static jmethodID s_SQLXML_adopt;
@@ -236,3 +241,4 @@ Java_org_postgresql_pljava_jdbc_SQLXMLImpl__1newWritable
 	END_NATIVE
 	return sqlxml;
 }
+/** @} */

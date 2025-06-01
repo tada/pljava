@@ -16,6 +16,11 @@
 #include "pljava/Session.h"
 #include "pljava/type/AclId.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 extern void Session_initialize(void);
 void Session_initialize(void)
 {
@@ -63,4 +68,4 @@ Java_org_postgresql_pljava_internal_Session__1setUser(
 	END_NATIVE
 	return wasLocalChange ? JNI_TRUE : JNI_FALSE;
 }
-
+/** @} */

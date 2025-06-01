@@ -25,6 +25,11 @@
 #include "pljava/Function.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass    s_Oid_class;
 static jmethodID s_Oid_init;
 static jmethodID s_Oid_registerType;
@@ -322,3 +327,4 @@ Java_org_postgresql_pljava_internal_Oid__1getCurrentLoader(JNIEnv *env, jclass c
 	END_NATIVE
 	return result;
 }
+/** @} */
