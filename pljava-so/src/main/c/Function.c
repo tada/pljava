@@ -94,6 +94,11 @@ struct Function_
 	bool   isUDT;
 
 	/**
+	 * True if this is a FDW function (open/next/reset/close/...)
+	 */
+	bool   isFDW;
+
+	/**
 	 * Java class, i.e. the UDT class or the class where the static method
 	 * is defined.
 	 */
@@ -163,6 +168,19 @@ struct Function_
 		 */
 		UDTFunction udtFunction;
 		} udt;
+
+		struct
+		{
+			/**
+			 * The FDW that this function is associated with
+			 */
+			FDW fdw;
+
+			/**
+			 * The UDT function to call - there are many...
+			 */
+			// FDWFunction fdwFunction;
+		} fdw;
 	} func;
 };
 
@@ -181,7 +199,7 @@ static void _Function_finalize(PgObject func)
 	Function self = (Function)func;
 	JNI_deleteGlobalRef(self->clazz);
 	JNI_deleteGlobalRef(self->schemaLoader);
-	if(!self->isUDT)
+	if(!self->isUDT && !self->isFDW)
 	{
 		JNI_deleteGlobalRef(self->func.nonudt.invocable);
 		if(self->func.nonudt.typeMap != 0)
@@ -779,7 +797,7 @@ static Function Function_create(
 		self->func.nonudt.invocable = JNI_newGlobalRef(invocable);
 		JNI_deleteLocalRef(invocable);
 	}
-	else if ( ! self->isUDT )
+	else if ( ! self->isUDT && ! self->isFDW )
 	{
 		pfree(self);
 		if ( forValidator )
@@ -917,6 +935,11 @@ Function_invoke(
 
 	if(self->isUDT)
 		return self->func.udt.udtFunction(self->func.udt.udt, fcinfo);
+
+	if(self->isFDW)
+    {
+    //    return self->func.fdw.fdw(self->func.fdw.fdw, fcinfo);
+    }
 
 	if ( self->func.nonudt.isMultiCall )
 	{
@@ -1162,6 +1185,7 @@ JNIEXPORT jboolean JNICALL
 	PG_TRY();
 	{
 		self->isUDT = false;
+		self->isFDW = false;
 		self->readOnly = (JNI_TRUE == readOnly);
 		self->schemaLoader = JNI_newGlobalRef(schemaLoader);
 		self->clazz = JNI_newGlobalRef(clazz);
@@ -1275,6 +1299,7 @@ JNIEXPORT void JNICALL
 		 * In that case, don't store anything needing special deallocation
 		 * such as JNI references; Function_create will do a blind pfree only.
 		 */
+// FIXME: isFDW?
 		if ( pgType->typisdefined )
 		{
 			self->isUDT = true;
