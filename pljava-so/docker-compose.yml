@@ -1,0 +1,17 @@
+services:
+  postgresql:
+    image: blackhole:latest
+    container_name: blackhole
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_PASSWORD: password
+    networks:
+      - frontend
+
+networks:
+  frontend:
+    # Specify driver options
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: "127.0.1.1"
