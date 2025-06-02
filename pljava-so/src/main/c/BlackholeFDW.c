@@ -11,8 +11,10 @@
  * method.
  */
 #include "postgres.h"
+#include "postgres_ext.h"
 
 #include "access/reloptions.h"
+#include "commands/explain.h"
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 #include "optimizer/pathnode.h"
@@ -21,22 +23,61 @@
 
 #include "../include/pljava/FDW.h"
 
-PG_MODULE_MAGIC;
+// PG_MODULE_MAGIC;
 
 #if (PG_VERSION_NUM < 90500)
 // fail...
 #endif
 
+/**
+ * Sidenotes:
+ *
+ * PlanState also provides:
+ * - Instrumentation *instrument;    // Optional runtime stats for this node
+ * - WorkerInstrumentation *worker_instrument;   // per-worker instrumentation
+ */
+
+// this needs to be known BEFORE we execute 'CREATE FOREIGN DATA WRAPPER...'
+// static const char* FDW_validator_classname = "org/postgresql/pljava/fdw/BlackholeValidator";
+
 /*
- * SQL functions
+ * Notes: copied from fdwapi.h
+ *
+ * extern Oid  GetForeignServerIdByRelId(Oid relid);
+ * extern bool IsImportableForeignTable(const char *tablename,
+ *                                      ImportForeignSchemaStmt *stmt);
+ * extern Path *GetExistingLocalJoinPath(RelOptInfo *joinrel);
+ *
+ * extern FdwRoutine *GetFdwRoutine(Oid fdwhandler);
+ * extern FdwRoutine *GetFdwRoutineByServerId(Oid serverid);
+ * extern FdwRoutine *GetFdwRoutineByRelId(Oid relid);
+ * extern FdwRoutine *GetFdwRoutineForRelation(Relation relation, bool makecopy);
+ *
+ * And from foreign.h
+ *
+ * extern ForeignServer *GetForeignServer(Oid serverid);
+ * extern ForeignServer *GetForeignServerExtended(Oid serverid,
+ *                                                bits16 flags);
+ * extern ForeignServer *GetForeignServerByName(const char *srvname,
+ *                                              bool missing_ok);
+ * extern UserMapping *GetUserMapping(Oid userid, Oid serverid);
+ * extern ForeignDataWrapper *GetForeignDataWrapper(Oid fdwid);
+ * extern ForeignDataWrapper *GetForeignDataWrapperExtended(Oid fdwid,
+ *                                                          bits16 flags);
+ * extern ForeignDataWrapper *GetForeignDataWrapperByName(const char *fdwname,
+ *                                                        bool missing_ok);
+ * extern ForeignTable *GetForeignTable(Oid relid);
+ *
+ * extern List *GetForeignColumnOptions(Oid relid, AttrNumber attnum);
+ *
+ * extern Oid  get_foreign_data_wrapper_oid(const char *fdwname, bool missing_ok);
+ * extern Oid  get_foreign_server_oid(const char *servername, bool missing_ok);
  */
 extern Datum blackhole_fdw_handler(PG_FUNCTION_ARGS);
-
 extern Datum blackhole_fdw_validator(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(blackhole_fdw_handler);
 PG_FUNCTION_INFO_V1(blackhole_fdw_validator);
-
 
 /* callback functions */
 static void blackholeGetForeignRelSize(PlannerInfo *root,
@@ -47,7 +88,13 @@ static void blackholeGetForeignPaths(PlannerInfo *root,
                                      RelOptInfo *baserel,
                                      Oid foreigntableid);
 
-static FdwPlan *blackholePlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel);
+static ForeignScan *blackholeGetForeignPlan(PlannerInfo *root,
+                        RelOptInfo *rel,
+                        Oid foreigntableid,
+                        ForeignPath *best_path,
+                        List *tlist,
+                        List *restrictinfo_list,
+                        Plan *outer_plan);
 
 static void blackholeBeginForeignScan(ForeignScanState *node,
                                       int eflags);
@@ -59,60 +106,20 @@ static void blackholeReScanForeignScan(ForeignScanState *node);
 static void blackholeEndForeignScan(ForeignScanState *node);
 
 /* everything below here is optional */
-
 static int blackholeIsForeignRelUpdatable(Relation rel);
+static void blackholeExplainForeignScan(ForeignScanState *node, ExplainState *es);
+static List *blackholeImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid);
+static bool blackholeIsForeignScanParallelSafe(PlannerInfo *root, RelOptInfo *rel, RangeTblEntry *rte);
+static bool blackholeIsForeignPathAsyncCapable(ForeignPath *path);
 
-// TODO: locate 'ExplainState'
-// static void blackholeExplainForeignScan(ForeignScanState *node, struct ExplainState *es);
-
-#if (PG_VERSION_NUM >= 120000)
-static void blackholeRefetchForeignRow(EState *estate,
-                   ExecRowMark *erm,
-                   Datum rowid,
-                   TupleTableSlot *slot,
-                   bool *updated);
-#else
-
-static HeapTuple blackholeRefetchForeignRow(EState *estate,
-                                            ExecRowMark *erm,
-                                            Datum rowid,
-                                            bool *updated);
-
-#endif
-
-static List *blackholeImportForeignSchema(ImportForeignSchemaStmt *stmt,
-                                          Oid serverOid);
-
-#endif
-
-static bool blackholeAnalyzeForeignTable(Relation relation,
-                                         AcquireSampleRowsFunc *func,
-                                         BlockNumber *totalpages);
-
-#if (PG_VERSION_NUM >= 120000)
-static void blackholeRefetchForeignRow(EState *estate,
-                   ExecRowMark *erm,
-                   Datum rowid,
-                   TupleTableSlot *slot,
-                   bool *updated);
-#else
-
-static HeapTuple blackholeRefetchForeignRow(EState *estate,
-                                            ExecRowMark *erm,
-                                            Datum rowid,
-                                            bool *updated);
-
-#endif
 
 /* ------------------------------------------------------------
  * The POSTGRESQL Functions
  * -----------------------------------------------------------*/
-// this needs to be known BEFORE we execute 'CREATE FOREIGN DATA WRAPPER...'
-static const char FDW_validator_classname = "org/postgresql/pljava/fdw/BlackholeValidator";
-static const char FDW_handler_classname = "org/postgresql/pljava/fdw/BlackholeHandler";  // ???
 
 Datum
-blackhole_fdw_handler(PG_FUNCTION_ARGS) {
+blackhole_fdw_handler(PG_FUNCTION_ARGS)
+{
     FdwRoutine *fdwroutine = makeNode(FdwRoutine);
 
     elog(DEBUG1, "entering function %s", __func__);
@@ -140,6 +147,14 @@ blackhole_fdw_handler(PG_FUNCTION_ARGS) {
     /* remainder are optional - use NULL if not required */
     /* support for insert / update / delete */
     fdwroutine->IsForeignRelUpdatable = blackholeIsForeignRelUpdatable;
+
+    /* Support for scanning foreign joins */
+    fdwroutine->GetForeignJoinPaths = NULL;
+
+    /* Functions for remote upper-relation (post scan/join) planning */
+    fdwroutine->GetForeignUpperPaths = NULL;
+
+    /* Functions for modifying foreign tables */
     fdwroutine->AddForeignUpdateTargets = NULL;        /* U D */
     fdwroutine->PlanForeignModify = NULL; /* I U D */
     fdwroutine->BeginForeignModify = NULL;        /* I U D */
@@ -148,557 +163,546 @@ blackhole_fdw_handler(PG_FUNCTION_ARGS) {
     fdwroutine->ExecForeignDelete = NULL; /* D */
     fdwroutine->EndForeignModify = NULL;    /* I U D */
 
-    /* support for EXPLAIN */
-    // fdwroutine->ExplainForeignScan = blackholeExplainForeignScan;        /* EXPLAIN S U D */
-    fdwroutine->ExplainForeignScan = NULL;        /* EXPLAIN S U D */
-    fdwroutine->ExplainForeignModify = NULL;    /* EXPLAIN I U D */
+	/* Next-Generation functions for modifying foreign tables? */
+    fdwroutine->PlanDirectModify = NULL;
+    fdwroutine->BeginDirectModify = NULL;
+    fdwroutine->IterateDirectModify = NULL;
+    fdwroutine->EndDirectModify = NULL;
 
-    /* support for ANALYSE */
-    fdwroutine->AnalyzeForeignTable = blackholeAnalyzeForeignTable;        /* ANALYZE only */
+    /* Support for SELECT FOR UPODATE/SHARE row locking */
+    fdwroutine->GetForeignRowMarkType = NULL;
+    fdwroutine->RefetchForeignRow = NULL;
+    fdwroutine->RecheckForeignScan = NULL;
+
+    /* support for EXPLAIN */
+    fdwroutine->ExplainForeignScan = blackholeExplainForeignScan;        /* EXPLAIN S U D */
+    fdwroutine->ExplainForeignModify = NULL;    /* EXPLAIN I U D */
+    fdwroutine->ExplainDirectModify = NULL;
+
+    /* Support functions for ANALYZE */
+    fdwroutine->AnalyzeForeignTable = NULL; /* ANALYZE only */
 
     /* Support functions for IMPORT FOREIGN SCHEMA */
     fdwroutine->ImportForeignSchema = blackholeImportForeignSchema;
 
-    /* Support for scanning foreign joins */
-    fdwroutine->GetForeignJoinPaths = NULL;
+    /* Support functions for TRUNCATE */
+#if (PG_VERSION_NUM >= 14000)
+    fdwroutine->ExecForeignTruncate = NULL;
+#endif
 
-    /* Support for locking foreign rows */
-    fdwroutine->GetForeignRowMarkType = NULL:
-    fdwroutine->RefetchForeignRow = blackholeRefetchForeignRow;
+    /* Support functions for parallelism under Gather node */
+    fdwroutine->IsForeignScanParallelSafe = blackholeIsForeignScanParallelSafe;
+    fdwroutine->EstimateDSMForeignScan = NULL;
+    fdwroutine->InitializeDSMForeignScan = NULL;
+    fdwroutine->ReInitializeDSMForeignScan = NULL;
+    fdwroutine->InitializeWorkerForeignScan = NULL;
+    fdwroutine->ShutdownForeignScan = NULL;
 
-    // none of the newer functions are handled yet - they deal with 'direct' access, concurrency, and async.
+    /* Support functions for path reparameterization. */
+    fdwroutine->ReparameterizeForeignPathByChild = NULL;
+
+#if (PG_VERSION_NUM >= 14000)
+    /* Support functions for asynchronous execution */
+    fdwroutine->IsForeignPathAsyncCapable = blackholeIsForeignPathAsyncCapable;
+    fdwroutine->ForeignAsyncRequest = NULL;
+    fdwroutine->ForeignAsyncConfigureWait = NULL;
+    fdwroutine->ForeignAsyncNotify = NULL;
+#endif
 
     PG_RETURN_POINTER(fdwroutine);
 }
 
 Datum
-blackhole_fdw_validator(PG_FUNCTION_ARGS) {
+blackhole_fdw_validator(PG_FUNCTION_ARGS)
+{
     List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
 
     elog(DEBUG1, "entering function %s", __func__);
 
-    /* make sure the options are valid */
+    /* collect options */
 
-    /* no options are supported */
-    JNIEnv *env = NULL;
-    JNI_FDW_Validator newValidator(JNIEnv *env, const char *validator_classname);
+    /* validate them */
+#ifdef USE_JAVA
+    JNI_FDW_Validator newValidator = call constructor (static method)
+#endif
 
-                        errhint("Blackhole FDW does not support any options")));
-
-    PG_RETURN_POINTER(fdwroutine);
+    if (list_length(options_list) > 0)
+        ereport(ERROR,
+            (errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+                errmsg("invalid options"),
+                errhint("Simple FDW does not support any options")));
 
     PG_RETURN_VOID();
 }
 
-/*
-
- - I know from context that the Foreign Data Wrapper, Server, and Foreign Table have OIDs associated with them...
-
-Datum
-blackhole_fdw_server(PG_FUNCTION_ARGS) {
-    FdwServer *fdwserver = makeNode(FdwServer);
-    PG_RETURN_POINTER(fdwserver);
-}
-
-Datum
-blackhole_fdw_table(PG_FUNCTION_ARGS) {
-    FdwTable *fdwtable = makeNode(FdwTable);
-    PG_RETURN_POINTER(fdwtable);
-}
- */
-
-/* ------------------------------------------------------------
- * The JNI headers
- * ------------------------------------------------------------*/
-
-static typedef struct JNI_FDW_Wrapper JNI_FDW_Wrapper;
-static typedef struct JNI_FDW_Server JNI_FDW_Server;
-static typedef struct JNI_FDW_Table JNI_FDW_Table;
-static typedef struct JNI_FDW_PlanState JNI_FDW_PlanState;
-static typedef struct JNI_FDW_ScanState JNI_FDW_ScanState;
-
-static JNI_FDW_Wrapper *validator_get_wrapper(JNI_FDW_Validator *validator);
-static JNI_FDW_Server *wrapper_get_server(JNI_FDW_Wrapper *wrapper);
-static JNI_FDW_Table *server_get_table(JNI_FDW_Server *server);
-static JNI_FDW_PlanState *table_new_plan(JNI_FDW_Table *table);
-static JNI_FDW_ScanState *table_new_scan(JNI_FDW_Table *table
-
-// not all functions...
-
-static void validator_add_option(JNI_FDW_Validator *, int relid, String key, String value);
-static bool validator_validate(JNI_FDW_Validator *);
-
-static JNI_FDW_PlanState *table_new_planstate(JNI_FDW_Table *table);
-static void plan_open(JNI_FDW_Table *table, PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
-static void plan_close(JNI_FDW_PlanState *plan_state);
-
-static void scan_open(JNI_FDW_ScanState *scan_state, ForeignScanState *node, int eflag);
-static void scan_next(JNI_FDW_ScanState *scan_state, Slot *slot);
-static void scan_reset(JNI_FDW_ScanState *scan_state);
-static void scan_close(JNI_FDW_ScanState *scan_state);
-
-static JNI_FDW_ScanState *table_new_scanPlan(JNI_FDW_Table *table);
-
-// Note: this does not do memory management yet!
-
-static
-jmethodId getMethodId(JNIEnv *env, jclass class, ...)
+static void
+blackholeShowInfo(Oid foreigntableid, RelOptInfo *rel)
 {
-    return env->GetMethodIdw(class, vargargs);
+    // rel->serverid;
+    // rel->userid; // may be InvalidOid = current user)
+    // rel->useriscurrent
+    // rel->fdwroutine
+    // rel->fdw_private
+
+    // rel->rows
+    // rel->relid (only base rel, not joins)
+    // rel->min_attr  (often <0)
+    // rel->max_attr;
+
+    // ForeignTable *table = GetForeignTableExtended(foreigntableid, flags);  // expects relid?
+    // ForeignServer *server = GetForeignServerExtended(table->serverid, flags);
+
+    // ForeignTable *table = GetForeignTable(rel->relid);  // expects relid?
+    // ForeignServer *server = GetForeignServer(table->serverid);
+    // ForeignDataWrapper *fdw = GetForeignDataWrapper(server->fdwid);
+
+    // List *ftOptions = table->options;
+    // List *srvOptions = server->options;
+    // List *fdwOptions = fdw->options;
+    // List *userOptions = um->options;
+    // List *columnOptions = GetForeignColumnOptions(rel->relid, (AttrNumber) 0);
+
+    // macro
+    // char *username = MappingUserName(userid)
+
+    // Oid serverId = svr->serverid;
+    // Oid fdwid = svr->fdwid;
+    // Oid srvOwnerId = svr->ownerid;
+    // char *servername = svr->servername;
+    // char *serverType = svr->servertype; // optional
+    // char *serverVersion = svr->serverversion; // optional
+
+    // Oid fwdid = fdw->fdwid;
+    // Oid owner = fdw->owner;
+    // char *fdwname = fdw->fdwname;
+    // Oid fdwhandler = fdw->fdwhandler;
+    // Oid fdwvalidator = fdw->fdwvalidator;
+
+    // Oid usermappingoid = um->umid;
+    // Oid userId = um->userId;
+    // Oid umServerId = um->serverId;
+
+    // wrapper->options;
+    // wrapper->owner;
 }
 
-/**
- * Public: fdwvalidator method
- */
-static
-typedef struct {
-    void (*addOption)(JNI_FDW_Validator *, int, const char *, const char *) = validator_add_option;
-    bool (*validate)(JNI_FDW_Validator *) = validator_validate;
-    JNI_FDW_Wrapper *(*get_wrapper)(JNI_FDW_Validator *) = validator_get_wrapper;
-
-    const JNIEnv *env;
-    const jclass validatorClass;
-    const jobject instance;
-} JNI_FDW_Validator;
-
-JNI_FDW_Validator newValidator(JNIEnv *env, const char *validator_classname) {
-    JNI_FDW_Validator *validator = (JNI_FDW_Validator *) palloc0(sizeof JNI_FDW_Validator);
-
-    validator->env = env;
-    validator->validatorClass = env->FindClass(validator_classname);
-    validator->instance = env->AllocObject(fdw->validatorClass);
-
-    return validator;
-}
-
-/* FIXME - how to handle 'handler' since the 'create foreign wrapper' requires it but we start with the validator? */
-
-/* FIXME - how to we pass wrapper, server, and table options to each? We have them in the Validator function...*/
-
-/* FIXME - plus shouldn't the validation already know the associated wrapper, server, and table?... */
-
-
-/**
- * Public - Foreign Data Wrapper
- */
-static
-typedef struct {
-    jobject (*newServer)(JNI_FDW_Wrapper *) = wrapper_new_server;
-
-    JNIEnv *env;
-    jclass wrapperClass
-    jobject *instance;
-
-    JNI_FDW_Validator *validator;
-} JNI_FDW_Wrapper;
-
-static
-JNI_FDW_Wrapper *validator_new_wrapper(JNI_FDW_Validator *validator, const char *handler_classname)
-{
-    const JNIEnv *env = validator->env;
-    jmethodId validateMethodId = env->GetMethodID(validator->validatorClass, "validate", "(V)[org.postgresql.pljava.fdw.Wrapper;");
-
-    const JNI_FDW_Wrapper *wrapper = (JNI_FDW_Wrapper *) palloc0(sizeof JNI_FDW_Wrapper);
-
-    wrapper->env = validator->env;
-    wrapper->wrapperClass = env->FindClass(validator_classname);
-    wrapper->instance = env->CallObjectMethod(validator->instance, validator->validateMethodId);
-    wrapper->validator = validator;
-
-    return wrapper;
-}
-
-/*
- * Public - Server
- */
-static
-typedef struct {
-    void* (*newTable)(void) = server_new_table;
-
-    JNIEnv *env;
-    jclass serverClass;
-    jobject *instance;
-
-    JNI_FDW_Table *wrqpper;
-} JNI_FDW_Server;
-
-static
-JNI_FDW_Server *wrapper_new_server(JNI_FDW_Wrapper *wrapper)
-{
-    const JNIEnv *env = wrapper->env;
-    jmethodId newServerMethodId = env->GetMethodID(wrapper->wrapperClass, "newServer", "(V)[org.postgresql.pljava.fdw.Server;");
-
-    const JNI_FDW_Server *server = (JNI_FDW_Server *) palloc0(sizeof JNI_FDW_Server);
-    server->env = env;
-//    server->serverClass = env->FindClass(validator_classname);
-    server->instance = env->CallObjectMethod(wrapper->instance, newServerMethodId);
-    server->wrapper = wrapper;
-
-    return server;
-}
-
-/*
- * Public - Foreign Table
- */
-static
-typedef struct {
-    void* (*newPlanState)(JNI_FDW_Table *table);
-    void *(*newScanState)(JNI_FDW_Table *table);
-    void (*analyze)(JNI_FDW_Table *table);
-
-    JNIEnv *env;
-    jclass tableClass;
-    jobject instance;
-
-    JNI_FDW_Table *server;
-} JNI_FDW_Table;
-
-static
-JNI_FDW_Table *server_new_table(JNI_FDW_Server *server) {
-    const JNIEnv *env = server->env;
-    jmethodId newTableMethodId = env->GetMethodID(server->serverClass, "newTable",
-                                                  "(V)[org.postgresql.pljava.fdw.Table;");
-
-    const JNI_FDW_Table *table = (JNI_FDW_Table *) palloc0(sizeof JNI_FDW_Table);
-    table->env = env;
-    // table->tableClass = env->FindClass(table_classname);
-    table->instance = env->CallObjectMethod(wrapper->instance, newTableMethodId);
-    table->server = server;
-
-    return table;
-}
-
-/*
- * Private - plan state
- */
-static
-typedef struct {
-    void (*open)(JNI_FDW_PlanState *planState, PlannerInfo *root, RelOptInfo *baserel, Oid foregntableid) = plan_open;
-    void (*close)(JNI_FDW_PlanState *planState);
-
-    JNIEnv *env;
-    jobject *instance;
-
-    JNI_FDW_Table *table;
-
-} JNI_FDW_PlanState;
-
-static
-JNI_FDW_PlanState *table_new_planstate(JNI_FDW_Table *table) {
-    const JNIEnv *env = table->env;
-
-    jmethodId openPlanMethodId = env->GetMethodID(table->tableClass, "newPlanState",
-                                                  "(V)[org.postgresql.pljava.fdw.PlanState;");
-
-    const JNI_FDW_PlanState *planState = (JNI_FDW_PlanState *) palloc0(sizeof JNI_FDW_PlanState);
-    planState->env = env;
-    // table->planStateClass = env->FindClass(planstate_classname);
-    planState->instance = env->CallObjectMethod(table->instance, newPlanStateMethodId);
-    planState->table = table;
-}
-
-static
-void *plan_open(JNI_FDW_PlanState *planState, PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid) {
-    const JNIEnv *env = table->env;
-
-    // FIXME: for now we don't pass anything through. However we could after a bit of conversions...
-    const jmethodId openPlanMethodId = env->GetMethodID(planState->planStateClass, "open", "(V)V");
-    env->CallObjectMethod(planState->instance, openPlanStateMethodId);
-}
-
-/*
- * Private - scan state
- */
-static
-typedef struct {
-    void (*open)(JNI_FDW_ScanState *scanState, ForeignScanState *node, int eflags) = open_scan;
-    void (*next)(JNI_FDW_ScanState *scanState, TableTupleSlot *slot);
-    void (*reset)(JNI_FDW_ScanState *scanState);
-    void (*close)(JNI_FDW_ScanState *scanState);
-    void (*explain)(JNI_FDW_ScanState *scanState);
-
-    JNIEnv *env;
-    jobject *instance;
-
-    JNI_FDW_Table *table;
-} JNI_FDW_ScanState;
-
-static
-JNI_FDW_ScanState *table_new_scan_state(JNI_FDW_Table *table, ForeignScanState *node, int eflag) {
-    const JNIEnv *env = table->env;
-
-    // for now we ignore the extra parameters.
-    const jmethodId newScanStateMethodId = env->GetMethodID(table->tableClass, "newScanState",
-                                                      "(V)[org.postgresql.pljava.fdw.ScanState;");
-
-    const JNI_FDW_ScanState *scanState = (JNI_FDW_ScanState *) palloc0(sizeof JNI_FDW_ScanState);
-    scanState->env = env;
-
-    // for now we ignore the extra parameters.
-    scanState->instance = env->CallObjectMethod(table->instance, newScanStateMethodId);
-    scanState->table = table;
-
-    return planState;
-}
-
-static
-void scan_open(JNI_FDW_ScanState *scanState, ForeignScanState *node, int eflag) {
-
-}
-
-/* ------------------------------------------------------------
- * Rest of JNI Implementation - does not use memory management yet!
- * ------------------------------------------------------------*/
-static void validator_add_option(JNI_FDW_Validator *validator, int relid, String key, String value)
-{
-    const JNIEnv *env = validator->env;
-    const jmethodId addOptionMethodId = env->GetMethodID(validator->validatorClass, "addOption", "(int, String, String)V");
-
-    const jint jrelid = NULL;
-    const jstring jkey = NULL;
-    const jstring jvalue = NULL;
-
-    env->CallObjectMethod(validator->instance, addOptionMethodId, jrelid, jkey, jvalue);
-}
-
-/* ------------------------------------------------------------
- * The POSTGRESQL implementations
- * -----------------------------------------------------------*/
-
-/* ------------------------------------------------------------
- * FIXME: How do we get to specific JNI_FDW_Table ??
- * ------------------------------------------------------------*/
-
-
-/**
- * Called to get an estimated size of the foreign table.
- *
- * Note: this can be a no-op.
- */
 static void
 blackholeGetForeignRelSize(PlannerInfo *root,
                            RelOptInfo *baserel,
                            Oid foreigntableid) {
-
-    // FIXME - this should be available... somewhere...
-    const JNI_FDW_Table table = NULL;
-    JNI_FDW_Plan plan_state;
-
-    elog(DEBUG1, "entering function %s", __func__);
-
-    plan_state = table->newPlan(root, baserel, foreigntableid);
-    baserel->fdw_private = (void *) plan_state;
-
-    baserel->rows = plan_state->rows;
-
-    /* initialize required state in plan_state */
-
-}
-
-/**
- * SELECT: Called to find the location of the foreign table's resources.
- */
-static void
-blackholeGetForeignPaths(PlannerInfo *root,
-                         RelOptInfo *baserel,
-                         Oid foreigntableid) {
-
-    /*
-     * BlackholeFdwPlanState *plan_state = baserel->fdw_private;
+    /*1
+     * Obtain relation size estimates for a foreign table. This is called at
+     * the beginning of planning for a query that scans a foreign table. root
+     * is the planner's global information about the query; baserel is the
+     * planner's information about this table; and foreigntableid is the
+     * pg_class OID of the foreign table. (foreigntableid could be obtained
+     * from the planner data structures, but it's passed explicitly to save
+     * effort.)
+     *
+     * This function should update baserel->rows to be the expected number of
+     * rows returned by the table scan, after accounting for the filtering
+     * done by the restriction quals. The initial value of baserel->rows is
+     * just a constant default estimate, which should be replaced if at all
+     * possible. The function may also choose to update baserel->width if it
+     * can compute a better estimate of the average result row width.
      */
 
-    Cost startup_cost,
-            total_cost;
+    elog(NOTICE, "entering function %s", __func__);
 
-    elog(DEBUG1, "entering function %s", __func__);
+#ifdef USE_JAVA
+	// JAVA CONSTRUCTOR based on foreigntable id
+    baserel->fdw_private = JNI_getForeignRelSize(user, root, baserel);
 
-    startup_cost = 0;
-    total_cost = startup_cost + baserel->rows;
+    // JAVA METHOD
+    /* initialize required state in plan_state */
+    (JNI_FDW_PlanState *baserel->plan_state)->open(plan_state);
+#endif
+    // baserel->rows = plan_state->rows;
+}
+
+static void
+blackholeGetForeignPaths(PlannerInfo *root,
+                         RelOptInfo *rel,
+                         Oid foreigntableid) {
+    /*
+     * Create possible access paths for a scan on a foreign table. This is
+     * called during query planning. The parameters are the same as for
+     * GetForeignRelSize, which has already been called.
+     *
+     * This function must generate at least one access path (ForeignPath node)
+     * for a scan on the foreign table and must call add_path to add each such
+     * path to rel->pathlist. It's recommended to use
+     * create_foreignscan_path to build the ForeignPath nodes. The function
+     * can generate multiple access paths, e.g., a path which has valid
+     * pathkeys to represent a pre-sorted result. Each access path must
+     * contain cost estimates, and can contain any FDW-private information
+     * that is needed to identify the specific scan method intended.
+     */
+
+    PathTarget *target = NULL;
+    List *pathkeys = NIL;
+    Relids required_outer = NULL;
+    Path *fdw_outerpath = NULL; // extra plan
+    List *fdw_restrictinfo = NIL;
+    List *options = NIL;
+
+    Cost startup_cost = 0;
+    Cost total_cost = startup_cost + rel->rows;
+
+	// JNI_FDW_PlanState *plan_state = NULL;
+
+    // elog(NOTICE, "server: %s (%s) type: %s (%d)", server->servername, server->serverversion, server->servertype, server->fdwid);
+    // elog(NOTICE, "server: %s (%d)", server->servername, server->fdwid);
+
+    // elog(NOTICE, "table:, rel: %d, serverid: %d", table->relid, table->serverid);
+    // table->options;
+
+    // List *to_list = table->options;
+
+#ifdef USE_JAVA
+	// NOTE: the fact that we see the `foreigntableid` parameter means that
+	// this is probably a null value and we need to call a constructor.
+	// I remember the documentation referred to a state being available
+	// but the `fdw_private` ptr was still null.
+	plan_state = ...
+
+	// now update the plan_state.
+#endif
 
     /* Create a ForeignPath node and add it as only possible path */
-    add_path(baserel, (Path *)
-            create_foreignscan_path(root, baserel,
-                    NULL,      /* default pathtarget */
-                    baserel->rows,
+    add_path(rel, (Path *) create_foreignscan_path(
+                 root,
+                 rel,
+                 target,
+                 rel->rows,     // planState->rows
 #if (PG_VERSION_NUM >= 180000)
-                    0,         /* no disabled nodes */
+				 0,         /* no disabled nodes */
 #endif
-                    startup_cost,
-                    total_cost,
-                    NIL,        /* no pathkeys */
-                    NULL,        /* no outer rel either */
-                    NULL,      /* no extra plan */
+                 startup_cost,  // planState->startup_cost
+                 total_cost,    // planState->total_cost
+                 pathkeys,
+                 required_outer,
+                 fdw_outerpath,
 #if (PG_VERSION_NUM >= 170000)
-                    NIL, /* no fdw_restrictinfo list */
+                 fdw_restrictinfo,
 #endif
-                    NIL));        /* no fdw_private data */
+                 options));
 }
 
-/**
- * SELECT: Called to plan a foreign scan.
- */
-static FdwPlan *
-blackholePlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel) {
-    FdwPlan *fdwplan;
-    fdwplan = makeNode(FdwPlan);
-    fdwplan->fdw_private = NIL;
-    fdwplan->startup_cost = 0;
-    fdwplan->total_cost = 0;
-    return fdwplan;
+static ForeignScan *
+blackholeGetForeignPlan(PlannerInfo *root,
+                        RelOptInfo *rel,
+                        Oid foreigntableid,
+                        ForeignPath *best_path,
+                        List *tlist,
+                        List *restrictinfo_list,
+                        Plan *outer_plan)
+{
+    /*
+     * Create a ForeignScan plan node from the selected foreign access path.
+     * This is called at the end of query planning. The parameters are as for
+     * GetForeignRelSize, plus the selected ForeignPath (previously produced
+     * by GetForeignPaths), the target list to be emitted by the plan node,
+     * and the restriction clauses to be enforced by the plan node.
+     *
+     * This function must create and return a ForeignScan plan node; it's
+     * recommended to use make_foreignscan to build the ForeignScan node.
+     */
+
+    Index		scan_relid = rel->relid;
+
+    /*
+     * We have no native ability to evaluate restriction clauses, so we just
+     * put all the scan_clauses into the plan node's qual list for the
+     * executor to check. So all we have to do here is strip RestrictInfo
+     * nodes from the clauses and ignore pseudoconstants (which will be
+     * handled elsewhere).
+     */
+
+    bool pseudocontent = false;
+
+    /* Create the ForeignScan node */
+    List *fdw_exprs = NIL; // expressions to evaluate
+    List *fdw_private = NIL; // private state
+    List *fdw_scan_tlist = NIL; // custom tlist
+    List *fdw_recheck_quals = NIL; // remote quals
+    List *restrictions = extract_actual_clauses(restrictinfo_list, pseudocontent);
+    ForeignScan *scan = NULL;
+
+	// JNI_FDW_ScanState *scan_state;
+
+    elog(NOTICE, "entering function %s", __func__);
+
+#ifdef USE_JAVA
+	// the presence of the `foreigntableid` says that we should be calling a constructor.
+
+	// update the variables mentioned above.
+#endif
+
+    scan = make_foreignscan(tlist,
+                            restrictions,
+                            scan_relid,
+                            fdw_exprs,
+                            fdw_private,
+                            fdw_scan_tlist,
+                            fdw_recheck_quals,
+                            outer_plan);
+
+#ifdef USE_JAVA
+    // I'm not sure we do this here... see next method
+   // scan->fdw_private = scanState;
+#endif
+
+    return scan;
 }
 
-/**
- * SELECT: Called before the first tuple has been retrieved. It allows
- * last-second validation of the parameters.
- */
 static void
-blackholeBeginForeignScan(ForeignScanState *node, int eflags) {
-    // FIXME: how to get JNI_FDW_table?
-    const JNI_FDW_Table *table = NULL;
-    const JNI_FDW_ScanState table->newScan(table, node, eflags);
+blackholeBeginForeignScan(ForeignScanState *node,
+                          int eflags) {
+    /*
+     * Begin executing a foreign scan. This is called during executor startup.
+     * It should perform any initialization needed before the scan can start,
+     * but not start executing the actual scan (that should be done upon the
+     * first call to IterateForeignScan). The ForeignScanState node has
+     * already been created, but its fdw_state field is still NULL.
+     * Information about the table to scan is accessible through the
+     * ForeignScanState node (in particular, from the underlying ForeignScan
+     * plan node, which contains any FDW-private information provided by
+     * GetForeignPlan). eflags contains flag bits describing the executor's
+     * operating mode for this plan node.
+     *
+     * Note that when (eflags & EXEC_FLAG_EXPLAIN_ONLY) is true, this function
+     * should not perform any externally-visible actions; it should only do
+     * the minimum required to make the node state valid for
+     * ExplainForeignScan and EndForeignScan.
+     *
+     */
 
-    elog(DEBUG1, "entering function %s", __func__);
+    // ScanState scanState = (ForeignScan *) node->ss
+    // PlanState planState = (ForeignScan *) node->ss.ps;
 
-    // I'm not sure if this is called before or after test below...
-    scan_state = table->begin(table, node, eflags);
+//    Plan       *plan = (ForeignScan *) node->ss.ps.plan;
+//    EState     *state = (ForeignScan *) node->ss.ps.state;
+//    List	   *options;
+    bool        explainOnly = eflags & EXEC_FLAG_EXPLAIN_ONLY;
 
-    if (eflags & EXEC_FLAG_EXPLAIN_ONLY) {
-        return;
+	// this is initially set to NULL as a marker for 'explainOnly'
+    JNI_FDW_ScanState *scan_state = NULL;
+
+    elog(NOTICE, "entering function %s", __func__);
+
+    /* Fetch options of foreign table */
+//    fileGetOptions(RelationGetRelid(node->ss.ss_currentRelation),
+//                   &filename, &is_program, &options);
+
+    /* Add any options from the plan (currently only convert_selectively) */
+/*
+    if (plan_state != NULL)
+    {
+    	options = list_concat(options, plan_state);
+  	}
+*/
+
+    /*
+     * Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL.
+     */
+	if (explainOnly)
+    {
+ 		// this function should not perform any externally-visible actions;
+ 		// it should only do the minimum required to make the node state valid for
+     	// ExplainForeignScan and EndForeignScan.
+
+     	return;
+   	}
+
+    /*
+     * From FileFDW
+     * Create CopyState from FDW options.  We always acquire all columns, so
+     * as to match the expected ScanTupleSlot signature.
+     */
+    /*
+    cstate = BeginCopyFrom(NULL,
+                           node->ss.ss_currentRelation,
+                           NULL,
+                           filename,
+                           is_program,
+                           NULL,
+                           NIL,
+                           options);
+                           */
+
+    // plan_state = (JNI_FDW_PlanState *) plan->fdw_private;
+#ifdef USE_JAVA
+	//  'explain only' is always false here...
+    scan_state = jni_create_blackhole_fdw_scan_state(node, explainOnly);
+
+	if (scan_state != NULL) {
+    	scan_state->open(scan_state);
     }
+#endif
 
     node->fdw_state = scan_state;
 }
 
-/**
- * SELECT: Called to retrieve each tuple in the foreign table.
- * Note: the external resource must be opened in this function.
- */
+
 static TupleTableSlot *
 blackholeIterateForeignScan(ForeignScanState *node) {
-    const TableTupleType slot = node->ss.ss_ScanTupleSlot();
-    const JNI_FDW_ScanState *scan_state = (JNI_FDW_Scan *) node->fdw_state();
+    /*
+     * Fetch one row from the foreign source, returning it in a tuple table
+     * slot (the node's ScanTupleSlot should be used for this purpose). Return
+     * NULL if no more rows are available. The tuple table slot infrastructure
+     * allows either a physical or virtual tuple to be returned; in most cases
+     * the latter choice is preferable from a performance standpoint. Note
+     * that this is called in a short-lived memory context that will be reset
+     * between invocations. Create a memory context in BeginForeignScan if you
+     * need longer-lived storage, or use the es_query_cxt of the node's
+     * EState.
+     *
+     * The rows returned must match the column signature of the foreign table
+     * being scanned. If you choose to optimize away fetching columns that are
+     * not needed, you should insert nulls in those column positions.
+     *
+     * Note that PostgreSQL's executor doesn't care whether the rows returned
+     * violate any NOT NULL constraints that were defined on the foreign table
+     * columns — but the planner does care, and may optimize queries
+     * incorrectly if NULL values are present in a column declared not to
+     * contain them. If a NULL value is encountered when the user has declared
+     * that none should be present, it may be appropriate to raise an error
+     * (just as you would need to do in the case of a data type mismatch).
+     */
 
-    elog(DEBUG1, "entering function %s", __func__);
+    JNI_FDW_ScanState *scan_state = (JNI_FDW_ScanState *) node->fdw_state;
+    TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 
-    // is this EXPLAIN_ONLY ?
-    if (scan_state == NULL) {
-        return;
+    /* get the current slot and clear it */
+    ExecClearTuple(slot);
+
+    /*
+     * Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL.
+     */
+    if (node->fdw_state == NULL) {
+        return NULL;
     }
 
-    ExecClearTuple(slot);
-    scan_state->next(scan_state, slot);
+    elog(NOTICE, "entering function %s", __func__);
 
-    // additional processing?
+    if (scan_state != NULL)
+    {
+#ifdef USE_JAVA
+        /* get the next record, if any, and fill in the slot */
+    	scan_state->next(scan_state);
+   	    populate slot
+#endif
+  	}
 
+    /* then return the slot */
     return slot;
 }
 
-/**
- * SELECT: Called to reset internal state to initial conditions.
- */
+
 static void
 blackholeReScanForeignScan(ForeignScanState *node) {
-    const JNI_FDW_ScanState *scan_state = (JNI_FDW_Scan *) node->fdw_state();
+    /*
+     * Restart the scan from the beginning. Note that any parameters the scan
+     * depends on may have changed value, so the new scan does not necessarily
+     * return exactly the same rows.
+     */
 
-    elog(DEBUG1, "entering function %s", __func__);
+    JNI_FDW_ScanState *scan_state = (JNI_FDW_ScanState *) node->fdw_state;
 
-    // is this EXPLAIN_ONLY ?
-    if (scan_state == null) {
+    elog(NOTICE, "entering function %s", __func__);
+
+	if (scan_state != NULL)
+	{
+#ifdef USE_JAVA
+		// note: should this include 'user' parameter?
+    	scan_state->reset(scan_state);
+#endif
+	}
+}
+
+
+static void
+blackholeEndForeignScan(ForeignScanState *node) {
+    /*
+     * End the scan and release resources. It is normally not important to
+     * release palloc'd memory, but for example open files and connections to
+     * remote servers should be cleaned up.
+     */
+
+    JNI_FDW_ScanState *scan_state = (JNI_FDW_ScanState *) node->fdw_state;
+
+    /*
+     * Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL.
+     */
+    if (node->fdw_state == NULL) {
         return;
     }
 
-    scan_state->reset(scan_state);
+    elog(NOTICE, "entering function %s", __func__);
+
+	if (scan_state != NULL)
+	{
+#ifdef USE_JAVA
+    	scan_state->close(scan_state);
+#endif
+    	pfree(scan_state);
+	}
+}
+
+static int
+blackholeIsForeignRelUpdatable(Relation rel)
+{
+    // TODO: check FDW_user...
+    return 0;
 }
 
 /*
- * SELECT: Called after the last row has been returned.
+ * fileExplainForeignScan
+ *		Produce extra output for EXPLAIN
  */
 static void
-blackholeEndForeignScan(ForeignScanState *node) {
-    const JNI_FDW_ScanState *scan_state = (JNI_FDW_Scan *) node->fdw_state();
+blackholeExplainForeignScan(ForeignScanState *node, ExplainState *es)
+{
+    // List	   *options;
 
-    elog(DEBUG1, "entering function %s", __func__);
+#ifdef NEVER
+    // this comes from FileFdw.
 
-    scan_state->close(scan_state);
-    // scan->table.removeScan(scan);   ???
+    /* Fetch options --- we only need filename and is_program at this point  */
+    fileGetOptions(RelationGetRelid(node->ss.ss_currentRelation),
+                   &filename, &is_program, &options);
 
-    pfree(scan_state);
+    if (is_program)
+        ExplainPropertyText("Foreign Program", filename, es);
+    else
+        ExplainPropertyText("Foreign File", filename, es);
+
+    /* Suppress file size if we're not showing cost details */
+    if (es->costs)
+    {
+        struct stat stat_buf;
+
+        if (!is_program &&
+            stat(filename, &stat_buf) == 0)
+            ExplainPropertyInteger("Foreign File Size", "b",
+                                   (int64) stat_buf.st_size, es);
+    }
+#endif
 }
 
-/**
- * Called when EXPLAIN is executed. This allows us to provide
- * Wrapper, Server, and Table options like URLs, etc.
- */
-static void
-blackholeExplainForeignScan(ForeignScanState *node,
-                            struct ExplainState *es) {
-
-    elog(DEBUG1, "entering function %s", __func__);
-
+static List *blackholeImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
+{
+    return NIL;
 }
 
-/**
- * Called when ANALYZE is executed on a foreign table.
- */
-static bool
-blackholeAnalyzeForeignTable(Relation relation,
-                             AcquireSampleRowsFunc *func,
-                             BlockNumber *totalpages) {
-
-    elog(DEBUG1, "entering function %s", __func__);
-
+static bool blackholeIsForeignScanParallelSafe(PlannerInfo *root,
+                                      RelOptInfo *rel,
+                                      RangeTblEntry *rte)
+{
     return false;
 }
 
-/**
- * Called when two or more foreign tables are on the same foreign server.
- */
-static void
-blackholeGetForeignJoinPaths(PlannerInfo *root,
-                             RelOptInfo *joinrel,
-                             RelOptInfo *outerrel,
-                             RelOptInfo *innerrel,
-                             JoinType jointype,
-                             JoinPathExtraData *extra) {
-
-    elog(DEBUG1, "entering function %s", __func__);
-}
-
-/**
- * LOCK-AWARE - called to re-fetch a tuple from a foreign table
- */
-#if (PG_VERSION_NUM >= 120000)
-static void blackholeRefetchForeignRow(EState *estate,
-                   ExecRowMark *erm,
-                   Datum rowid,
-                   TupleTableSlot *slot,
-                   bool *updated)
-#else
-
-static HeapTuple
-blackholeRefetchForeignRow(EState *estate,
-                           ExecRowMark *erm,
-                           Datum rowid,
-                           bool *updated)
-#endif
-{
-
-    elog(DEBUG1, "entering function %s", __func__);
-
-#if (PG_VERSION_NUM < 120000)
-    return NULL;
-#endif
-}
-
-
-/*
- * Called when IMPORT FOREIGN SCHEMA is executed.
- */
-static List *
-blackholeImportForeignSchema(ImportForeignSchemaStmt *stmt,
-                             Oid serverOid) {
-
-    elog(DEBUG1, "entering function %s", __func__);
-
-    return NULL;
+static bool blackholeIsForeignPathAsyncCapable(ForeignPath *path) {
+    return false;
 }
