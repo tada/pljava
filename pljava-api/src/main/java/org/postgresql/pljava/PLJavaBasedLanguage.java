@@ -38,9 +38,9 @@ import org.postgresql.pljava.annotation.Trigger.Scope; // javadoc
  * An implementing class does not implement this interface directly, but rather
  * implements one or both of the subinterfaces {@link InlineBlocks InlineBlocks}
  * and {@link Routines Routines}. A language that implements {@code Routines}
- * may also implement one or more of: {@link Triggers Triggers},
- * {@link UsingTransforms UsingTransforms}. The implementing class must
- * have a public constructor with a
+ * may also implement one or more of: {@link ReturningSets ReturningSets},
+ * {@link Triggers Triggers}, {@link UsingTransforms UsingTransforms}.
+ * The implementing class must have a public constructor with a
  * {@link ProceduralLanguage ProceduralLanguage} parameter, which it may ignore,
  * or use to determine the name, oid, accessibility, or other details of the
  * declared PostgreSQL language the handler class has been instantiated for.
