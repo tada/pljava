@@ -1,0 +1,17 @@
+#
+# Build images.
+#
+---
+- hosts: localhost
+  tasks:
+    - name: Build and deploy docker images.
+      vars:
+        targets:
+          - name: 'pljava/postgres-pgxnclient'
+            target: pgxnclient
+          - name: 'pljava/pljava'
+            target: pljava
+          - name: 'pljava/pljavadev'
+            target: pljavadev
+      ansible.builtin.include_role:
+        name: pljava_docker

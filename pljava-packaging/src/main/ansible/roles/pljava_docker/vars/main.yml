@@ -1,0 +1,27 @@
+---
+
+# Debian is the default base.
+debian_releases:
+  - bookworm
+# - trixie
+
+# Alpine is not currently supported, but it may be added since
+# it creates a much smaller docker image.
+alpine_releases:
+  - alpine3.22
+  # alpine3.21
+
+release_to_jvm:
+  bookworm: 17
+
+# Docker names (to ensure consistency)
+base_image_name: library/postgres
+
+# latest as of 2025-06-10
+default_pg_versions:
+  # 18beta1
+  - 17.5
+  - 16.9
+  - 15.13
+  - 14.18
+  - 13.21

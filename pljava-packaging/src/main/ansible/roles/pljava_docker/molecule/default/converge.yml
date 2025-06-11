@@ -1,0 +1,8 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: "Include beargiles.pljava_docker"
+      ansible.builtin.include_role:
+        name: "beargiles.pljava_docker"

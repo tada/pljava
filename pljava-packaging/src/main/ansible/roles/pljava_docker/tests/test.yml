@@ -1,0 +1,8 @@
+---
+
+# to be implemented...
+
+- hosts: localhost
+  remote_user: root
+  roles:
+    - pljava_docker

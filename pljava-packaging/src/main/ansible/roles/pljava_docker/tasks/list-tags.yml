@@ -1,0 +1,39 @@
+# ------------------------------------------------------
+#
+# Get list of images I've already built...
+# This functionality does not appear to be present in community.docker
+#
+# TODO - submit community.docker enhancement?
+#
+# ------------------------------------------------------
+#
+# Requires:
+#   - repo - name of docker repository
+#
+# Provides:
+#   - full_tags - 'root' versions in that repo. (Postgres specific)
+#   - latest_major_tag - latest major versions in that repo. (Postgres specific)
+---
+- name: Request docker hub auth token for {{ repo }}
+  ansible.builtin.uri:
+    url: 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:{{ repo }}:pull'
+    return_content: true
+    status_code: 200
+  register: docker_hub_auth_token_resp
+
+- name: Request {{ repo }} tags
+  ansible.builtin.uri:
+    url: 'https://registry-1.docker.io/v2/{{ repo }}/tags/list'
+    headers:
+      Authorization: 'Bearer {{ docker_hub_auth_token_resp.json.access_token }}'
+    return_content: true
+    status_code: 200
+  register: tags_resp
+
+- name: Capture any matching {{ repo }} tags
+  vars:
+    list_of_null:
+      - null
+    full_tags: "{{ tags_resp.json.tags | map('regex_search', '^((1[4-9])|([2-9][0-9]))\\.[^-]+?$') | list | unique | difference(list_of_null) | difference(seed_tags) }}"
+  ansible.builtin.set_fact:
+    all_tags: '{{ full_tags | sort(reverse = true) }}'

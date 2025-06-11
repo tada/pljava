@@ -1,0 +1,59 @@
+#
+# Push all images to DockerHub
+#
+# Requires DockerHub credentials (stored externally)
+#
+# FIXME: the patterns need to be modified to capture the pljava version now that it's available.
+#
+---
+
+#
+# Log into docker hub
+#
+- name: Log into docker hub
+  community.docker.docker_login:
+    username: "{{ lookup('ansible.builtin.env', 'DOCKERHUB_USERNAME') }}"
+    password: "{{ lookup('ansible.builtin.env', 'DOCKERHUB_PASSWORD') }}"
+  register: login_resp
+
+- name: Verify we succeeded
+  ansible.builtin.assert:
+    that:
+      - not login_resp.failed
+    msg: Unable to log into Docker Hub
+
+- name: Push docker images to docker hub (with debian release)
+  vars:
+    pg_version: '{{ pg_version_push }}'
+  ansible.builtin.include_tasks: push-images-by-pg-version.yml
+  loop: '{{ pg_versions }}'
+  loop_control:
+    loop_var: pg_version_push
+
+- name: Push docker images to docker hub (without debian release)
+  vars:
+    pg_version: '{{ pg_version_push }}'
+  ansible.builtin.include_tasks: push-images-by-main-debian-release.yml
+  loop: '{{ pg_versions }}'
+  loop_control:
+    loop_var: pg_version_push
+
+# note - we *might* have seen an update in a prior db version without
+# a corresponding update in the latest version. That's why this check
+# the full list of pg versions, not just the update list.
+- name: Finally push 'latest' docker images to docker hub
+  vars:
+    pg_major: "{{ latest_full_pg_version | regex_replace('^([0-9]+).*$', '\\1') }}"
+  community.docker.docker_image:
+    name: '{{ latest.name }}:{{ pg_major }}-{{ debian_latest_release }}'
+    repository: '{{ latest.name }}:latest'
+    force_tag: true
+    push: true
+    source: local
+  loop: '{{ targets }}'
+  loop_control:
+    loop_var: latest
+
+- name: Log out of docker hub
+  community.docker.docker_login:
+    state: absent

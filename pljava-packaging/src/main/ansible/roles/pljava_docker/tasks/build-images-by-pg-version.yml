@@ -1,0 +1,47 @@
+# ------------------------------------------------------
+#
+# Build and tag local images by pg version
+#
+# ------------------------------------------------------
+#
+# Requires:
+#  - pg_version - full version of Postgres version
+#
+# Produces:
+#  - local docker image(s).
+#
+---
+- name: 'Set facts'
+  ansible.builtin.set_fact:
+    pg_major: "{{ postgres_version | regex_replace('^([0-9]+).*$', '\\1') }}"
+
+- name: 'Build Debian docker images for ({{ postgres_version }} - {{ pljava_version }})'
+  vars:
+    cache: '{{ base_image_name }}:{{ postgres_version }}-{{ debian_release }}'
+    dockerfile: 'debian/Dockerfile'
+    java_version: '{{ release_to_jvm[debian_release]  | default(11) }}'
+    release: '{{ debian_release }}'
+    tag: '{{ postgres_version }}-{{ pljava_version}}-{{ debian_release }}'
+  ansible.builtin.include_tasks: actual-build-images.yml
+  loop: '{{ debian_releases }}'
+  loop_control:
+    loop_var: debian_release
+  when:
+    - debian_releases is defined
+    - debian_releases[0] is defined
+
+- name: 'Build Alpine docker images for ({{ postgres_version }}-{{ pljava_version }})'
+  vars:
+    cache: '{{ base_image_name }}:{{ postgres_version }}-{{ alpine_release }}'
+    dockerfile: 'alpine/Dockerfile'
+    java_version: '{{ release_to_jvm[alpine_release]  | default(11) }}'
+    release: '{{ alpine_release }}'
+    tag: '{{ postgres_version }}-{{ pljava_version}}-{{ alpine_release }}'
+  ansible.builtin.include_tasks: actual-build-images.yml
+  loop: '{{ alpine_releases }}'
+  loop_control:
+    loop_var: alpine_release
+  when:
+    - alpine_releases is defined
+    - alpine_releases[0] is defined
+    - false

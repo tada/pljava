@@ -1,0 +1,82 @@
+# ------------------------------------------------------
+#
+# Build and tag local images.
+#
+# ------------------------------------------------------
+#
+# Provides:
+#  - local docker image(s).
+#
+---
+
+- name: 'Create working directory'
+  ansible.builtin.tempfile:
+    state: directory
+  register: tempfile
+
+- name: 'Copy Dockerfile to working directory ({{ tempfile.path }})'
+  ansible.builtin.copy:
+    src: '{{ role_path }}/files/{{ dockerfile }}'
+    dest: '{{ tempfile.path }}/'
+    remote_src: false
+
+- name: "Create 'content' under working directory ({{ tempfile.path }})"
+  ansible.builtin.file:
+    path: '{{ tempfile.path }}/content'
+    state: directory
+
+- name: 'Copy initialization files to working directory ({{ tempfile.path }})'
+  ansible.builtin.copy:
+    src: '{{ role_path }}/files/docker-entrypoint-initdb.d/'
+    dest: '{{ tempfile.path }}/content/docker-entrypoint-initdb.d/'
+    remote_src: false
+
+- name: 'Copy shared library to working directory'
+  ansible.builtin.copy:
+    src: '{{ soFile }}'
+    dest: '{{ tempfile.path }}/content/'
+    remote_src: false
+
+- name: Copy 'pljava.control' to target directory
+  ansible.builtin.copy:
+    src: '{{ controlFile }}'
+    dest: '{{ tempfile.path }}/content/pljava.control'
+    remote_src: false
+  when:
+    - controlFile is defined
+
+- name: Copy 'jars' to target directory
+  ansible.builtin.copy:
+    src: '{{ jar }}'
+    dest: '{{ tempfile.path }}/content/'
+    remote_src: false
+  loop:
+    - '{{ jarFile }}'
+    - '{{ apiFile }}'
+    - '{{ examplesFile }}'
+  loop_control:
+    loop_var: jar
+
+- name: Copy 'sql initialization' to target directory
+  debug: msg="not implemented yet"
+
+- name: 'Build docker image {{ tag }}'
+  community.docker.docker_image:
+    name: '{{ build.name }}'
+    build:
+      path: '{{ tempfile.path }}'
+      target: '{{ build.target }}'
+      args:
+        BASE_IMAGE_NAME: '{{ base_image_name }}'
+        DEBIAN_RELEASE: '{{ release }}'
+        PG_MAJOR: '{{ pg_major }}'
+        PG_VERSION: '{{ postgres_version }}'
+        PLJAVA_VERSION: '{{ pljava_version }}'
+        JAVA_VERSION: '{{ java_version }}'
+      cache_from:
+        - '{{ cache }}'
+    tag: '{{ tag }}'
+    source: build
+  loop: '{{ targets }}'
+  loop_control:
+    loop_var: build

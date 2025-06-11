@@ -1,0 +1,12 @@
+# see link for how to add signature verification
+# https://docs.ansible.com/ansible/latest/collections_guide/collections_installing.html#install-multiple-collections-with-a-requirements-file
+---
+collections:
+  - name: ansible.posix
+    type: galaxy
+  - name: community.crypto
+    type: galaxy
+  - name: community.docker
+    type: galaxy
+  - name: community.general
+    type: galaxy

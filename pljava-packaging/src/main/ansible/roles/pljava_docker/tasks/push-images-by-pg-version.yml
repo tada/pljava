@@ -1,0 +1,24 @@
+# ------------------------------------------------------
+#
+# Push local images to dockerhub
+#
+# ------------------------------------------------------
+#
+# Requires:
+#  - pg_version - version to push (multiple debian releases)
+#
+# ------------------------------------------------------
+#
+# Push local images to docker hub
+#
+---
+- name: 'Push docker images for ({{ pg_version }})'
+  vars:
+    debian_release: '{{ debian_release_push }}'
+  ansible.builtin.include_tasks: actual-push-images.yml
+  loop: '{{ debian_releases }}'
+  loop_control:
+    loop_var: debian_release_push
+  when:
+    - debian_releases is defined
+    - debian_releases[0] is defined

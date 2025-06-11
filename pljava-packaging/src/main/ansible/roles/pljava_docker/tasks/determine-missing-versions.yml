@@ -1,0 +1,39 @@
+---
+
+#
+# Determine what's already available and what we need to add.
+#
+# This sets:
+#  - pg_versions
+#  - latest_full_pg_version
+#
+
+# --- get list of postgresql tags ---
+- name: Get list of postgresql tags
+  vars:
+    repo: '{{ postgres_name }}'
+  ansible.builtin.include_tasks: list-tags.yml
+
+- name: Capture PostgreSQL tags
+  ansible.builtin.set_fact:
+    all_pg_tags: '{{ all_tags }}'
+
+- name: Get list of our tags
+  vars:
+    repo: '{{ targets[0].name }}'
+  ansible.builtin.include_tasks: list-tags.yml
+
+- name: Capture our own tags
+  ansible.builtin.set_fact:
+    existing_tags: '{{ all_tags }}'
+
+- name: Set facts (postgres_tags)
+  ansible.builtin.set_fact:
+    pg_versions: '{{ all_pg_tags | difference(existing_tags) }}'
+    latest_full_pg_version: '{{ all_pg_tags | sort(reverse = true) | first() }}'
+
+- name: show information...
+  ansible.builtin.debug: var=pg_versions
+
+- name: show information...
+  ansible.builtin.debug: var=latest_full_pg_version

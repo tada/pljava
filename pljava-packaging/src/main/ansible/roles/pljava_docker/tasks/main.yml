@@ -1,0 +1,37 @@
+---
+
+- debug: var=pljava_version
+
+- debug: var=apiDirectory
+
+- debug: var=soDirectory
+
+- debug: var=jarDirectory
+
+# use 'determine-missing-versions' if we want an incremental build
+
+- name: Set facts (postgres_tags)
+  ansible.builtin.set_fact:
+    postgres_versions: '{{ default_pg_versions }}'
+    pljava_version: 2-SNAPSHOT
+
+# --- build and push docker images ---
+
+- name: Build docker images by PostgreSQL Version
+  ansible.builtin.include_tasks: build-images-by-pg-version.yml
+  loop: '{{ postgres_versions }}'
+  loop_control:
+    loop_var: postgres_version
+  when:
+    - postgres_versions is defined
+    - postgres_versions[0] is defined
+
+# DISABLED...
+- name: Push docker images to docker hub (with debian release tags)
+  ansible.builtin.include_tasks: push-all-images-to-dockerhub.yml
+  loop_control:
+    loop_var: postgres_version
+  when:
+    - postgres_versions is defined
+    - postgres_versions[0] is defined
+    - false

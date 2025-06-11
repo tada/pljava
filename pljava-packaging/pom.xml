@@ -97,6 +97,58 @@
 				</dependency>
 			</dependencies>
 		</profile>
+
+		<!--
+		  - Activate this profile to create official docker images
+		  -
+		  - Uses https://github.com/tmullender/ansible-maven-plugin
+		  - for now but should be reviewed for security, etc.
+		  -->
+		<profile>
+			<id>docker-images</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>co.escapeideas.maven</groupId>
+						<artifactId>ansible-maven-plugin</artifactId>
+						<version>1.3.0</version>
+						<executions>
+							<execution>
+								<id>ansible-playbook</id>
+								<phase>package</phase>
+								<goals>
+									<goal>playbook</goal>
+								</goals>
+								<configuration>
+									<connection>local</connection>
+									<extraVars>
+										pljava_version=${project.version}
+
+										jarFile=${project.basedir}/../pljava/target/pljava-${project.version}.jar
+										apiFile=${project.basedir}/../pljava-api/target/pljava-api-${project.version}.jar
+										examplesFile=${project.basedir}/../pljava-examples/target/pljava-examples-${project.version}.jar
+
+										soFile=${project.basedir}/../pljava-so/target/pljava-pgxs/libpljava-so-${project.version}.so
+
+										controlFile=${project.build.directory}/classes/pljava.control
+
+										<!--
+										<outputDirectory>${project.build.outputDirectory}</outputDirectory>
+										-->
+
+									</extraVars>
+									<failOnAnsibleError>true</failOnAnsibleError>
+									<playbook>src/main/ansible/playbook.yml</playbook>
+
+									<promoteDebugAsInfo>true</promoteDebugAsInfo>
+									<logDirectory>/tmp/docker</logDirectory>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 
 	<build>

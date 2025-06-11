@@ -1,0 +1,49 @@
+# ------------------------------------------------------
+#
+# Push local images to dockerhub
+#
+# This assumes that we have an authenticated connection to
+# the repo.
+#
+# FIXME: modify pattern to include pljava_version
+#
+# ------------------------------------------------------
+#
+# Requires:
+#  - debian_release
+#  - pg_version - version to push
+#  - pljava_version - pl/java version (optional)
+#
+# ------------------------------------------------------
+#
+# Push local images to docker hub
+#
+---
+
+- name: Set version fact
+  ansible.builtin.set_fact:
+    pg_major: "{{ pg_version | regex_replace('^([0-9]+).*$', '\\1') }}"
+    tag: '{{ pg_version }}-{{ debian_release }}'
+    major_tag: '{{ pg_major }}-{{ debian_release }}'
+
+- name: 'Push docker images for ({{ tag }})'
+  community.docker.docker_image:
+    name: '{{ push1.name }}:{{ tag }}'
+    repository: '{{ push1.name }}:{{ tag }}'
+    force_tag: true
+    push: true
+    source: local
+  loop: '{{ targets }}'
+  loop_control:
+    loop_var: push1
+
+- name: 'Push docker images for ({{ major_tag }})'
+  community.docker.docker_image:
+    name: '{{ push2.name }}:{{ major_tag }}'
+    repository: '{{ push2.name }}:{{ major_tag }}'
+    force_tag: true
+    push: true
+    source: local
+  loop: '{{ targets }}'
+  loop_control:
+    loop_var: push2
