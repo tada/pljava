@@ -1,0 +1,11 @@
+---
+spring:
+  application:
+    name: pljava-examples-testcontainers
+  main:
+    web-application-type: none
+  datasource:
+  # url: 'jdbc:postgresql://localhost:5432/'
+  # username:
+  # password:
+  # driverClassName: org.postgresql.Driver
