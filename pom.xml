@@ -56,6 +56,7 @@
 		<module>pljava-so</module>
 		<module>pljava-ant</module>
 		<module>pljava-examples</module>
+		<module>pljava-examples-spring-boot</module>
 		<module>pljava-packaging</module>
 		<module>pljava-pgxs</module>
 	</modules>
@@ -97,6 +98,18 @@
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.13.1</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.zaxxer</groupId>
+			<artifactId>HikariCP</artifactId>
+			<version>6.2.0</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-beans</artifactId>
+			<version>6.2.7</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
