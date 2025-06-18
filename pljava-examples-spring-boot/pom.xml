@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.postgresql</groupId>
+        <artifactId>pljava.app</artifactId>
+        <version>2-SNAPSHOT</version>
+    </parent>
+    <artifactId>pljava-examples-spring-boot</artifactId>
+    <packaging>pom</packaging>
+
+    <name>PL/Java examples using spring boot - (top level)</name>
+    <description>Examples of Spring Boot + Test Containers for Java stored procedures using PL/Java</description>
+
+    <modules>
+        <module>backend</module>
+        <module>test-framework</module>
+        <module>application</module>
+    </modules>
+
+    <properties>
+        <commons-lang3.version>3.17.0</commons-lang3.version>
+
+        <postgresql-jdbc.version>42.7.7</postgresql-jdbc.version>
+
+        <!-- the default version is waaaay too old -->
+        <flyway.version>11.9.1</flyway.version>
+        <flyway-test-extensions.version>10.0.0</flyway-test-extensions.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql-jdbc.version}</version>
+            </dependency>
+
+            <!-- test dependencies -->
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-database-postgresql</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.flywaydb.flyway-test-extensions</groupId>
+                <artifactId>flyway-spring6-test</artifactId>
+                <version>${flyway-test-extensions.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

@@ -56,8 +56,11 @@
 		<module>pljava-so</module>
 		<module>pljava-ant</module>
 		<module>pljava-examples</module>
+		<module>pljava-examples-spring-boot</module>
 		<module>pljava-packaging</module>
 		<module>pljava-pgxs</module>
+        <module>pljava-examples-spring-boot/test-framework</module>
+		<module>pljava-examples-spring-boot/backend</module>
 	</modules>
 
 	<distributionManagement>
@@ -99,7 +102,25 @@
 			<version>4.13.1</version>
 			<scope>test</scope>
 		</dependency>
-	</dependencies>
+		<dependency>
+			<groupId>com.zaxxer</groupId>
+			<artifactId>HikariCP</artifactId>
+			<version>6.2.0</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-beans</artifactId>
+			<version>6.2.7</version>
+			<scope>test</scope>
+		</dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.21.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
 	<build>
 		<pluginManagement>

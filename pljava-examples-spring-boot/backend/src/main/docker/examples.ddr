@@ -1,0 +1,200 @@
+SQLActions[ ] = {
+	"BEGIN INSTALL
+		CREATE SCHEMA javatest;
+		BEGIN PostgreSQL SET search_path TO javatest,public ENd postgreSQL;
+
+		CREATE FUNCTION javatest.java_getSystemProperty(varchar)
+			RETURNS varchar
+			AS 'java.lang.System.getProperty'
+			LANGUAGE java;
+
+		/* This function should fail since file system access is
+		 * prohibited when the language is trusted.
+		 */
+		CREATE FUNCTION javatest.create_temp_file_trusted()
+			RETURNS varchar
+			AS 'org.postgresql.pljava.example.Security.createTempFile'
+			LANGUAGE java;
+
+		CREATE TABLE javatest.username_test
+			(
+			name		text,
+			username	text not null
+			);
+
+		CREATE FUNCTION javatest.insert_username()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.insertUsername'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.after_username_insert()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.afterUsernameInsert'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.after_username_update()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.afterUsernameUpdate'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.leak_statements()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.leakStatements'
+			LANGUAGE java;
+
+		CREATE TRIGGER insert_usernames
+			BEFORE INSERT OR UPDATE ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE insert_username (username);
+
+		CREATE TRIGGER after_insert_usernames
+			AFTER INSERT ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE after_username_insert (username);
+
+		CREATE TRIGGER after_username_updates
+			AFTER UPDATE ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE after_username_update (username);
+
+		CREATE TRIGGER username_leak
+			BEFORE UPDATE ON username_test
+			FOR EACH ROW
+			EXECUTE PROCEDURE leak_statements();
+
+		CREATE TABLE javatest.mdt
+			(
+			id		int4,
+			idesc	text,
+			moddate	timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+			);
+
+		CREATE FUNCTION javatest.moddatetime()
+			RETURNS trigger
+			AS 'org.postgresql.pljava.example.Triggers.moddatetime'
+			LANGUAGE java;
+
+		CREATE TRIGGER mdt_moddatetime
+			BEFORE UPDATE ON mdt
+			FOR EACH ROW
+			EXECUTE PROCEDURE moddatetime (moddate);
+
+		CREATE TYPE javatest._testSetReturn
+			AS (base integer, incbase integer, ctime timestamptz);
+
+		CREATE FUNCTION javatest.tupleReturnExample(int, int)
+			RETURNS _testSetReturn
+			AS 'org.postgresql.pljava.example.TupleReturn.tupleReturn'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.tupleReturnExample2(int, int)
+			RETURNS _testSetReturn
+			AS 'org.postgresql.pljava.example.TupleReturn.tupleReturn(java.lang.Integer, java.lang.Integer, java.sql.ResultSet)'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.tupleReturnToString(_testSetReturn)
+			RETURNS VARCHAR
+			AS 'org.postgresql.pljava.example.TupleReturn.makeString'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.setReturnExample(int, int)
+			RETURNS SETOF javatest._testSetReturn
+			AS 'org.postgresql.pljava.example.TupleReturn.setReturn'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.hugeResult(int)
+			RETURNS SETOF javatest._testSetReturn
+			AS 'org.postgresql.pljava.example.HugeResultSet.executeSelect'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.hugeNonImmutableResult(int)
+			RETURNS SETOF javatest._testSetReturn
+			AS 'org.postgresql.pljava.example.HugeResultSet.executeSelect'
+			LANGUAGE java;
+
+		CREATE TYPE javatest._properties
+			AS (name varchar(200), value varchar(200));
+
+		CREATE FUNCTION javatest.propertyExample()
+			RETURNS SETOF javatest._properties
+			AS 'org.postgresql.pljava.example.UsingProperties.getProperties'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.resultSetPropertyExample()
+			RETURNS SETOF javatest._properties
+			AS 'org.postgresql.pljava.example.UsingPropertiesAsResultSet.getProperties'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.scalarPropertyExample()
+			RETURNS SETOF varchar
+			AS 'org.postgresql.pljava.example.UsingPropertiesAsScalarSet.getProperties'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.randomInts(int)
+			RETURNS SETOF int
+			AS 'org.postgresql.pljava.example.RandomInts.createIterator'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE FUNCTION javatest.listSupers()
+			RETURNS SETOF pg_user
+			AS 'org.postgresql.pljava.example.Users.listSupers'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.listNonSupers()
+			RETURNS SETOF pg_user
+			AS 'org.postgresql.pljava.example.Users.listNonSupers'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.logMessage(varchar, varchar)
+			RETURNS void
+			AS 'org.postgresql.pljava.example.LoggerTest.logMessage'
+			LANGUAGE java;
+
+		CREATE TYPE javatest.BinaryColumnPair
+			AS (col1 bytea, col2 bytea);
+
+		CREATE FUNCTION javatest.binaryColumnTest()
+			RETURNS SETOF javatest.BinaryColumnPair
+			AS 'org.postgresql.pljava.example.BinaryColumnTest.getBinaryPairs'
+			IMMUTABLE LANGUAGE java;
+
+		CREATE TYPE javatest.MetaDataBooleans
+			AS (method_name varchar(200), result boolean);
+
+		CREATE FUNCTION javatest.getMetaDataBooleans()
+			RETURNS SETOF javatest.MetaDataBooleans
+			AS 'org.postgresql.pljava.example.MetaDataBooleans.getDatabaseMetaDataBooleans'
+			LANGUAGE java;
+
+		CREATE TYPE javatest.MetaDataStrings
+			AS (method_name varchar(200), result varchar);
+
+		CREATE FUNCTION javatest.getMetaDataStrings()
+			RETURNS SETOF javatest.MetaDataStrings
+			AS 'org.postgresql.pljava.example.MetaDataStrings.getDatabaseMetaDataStrings'
+			LANGUAGE java;
+
+		CREATE TYPE javatest.MetaDataInts
+			AS (method_name varchar(200), result int);
+
+		CREATE FUNCTION javatest.getMetaDataInts()
+			RETURNS SETOF javatest.MetaDataInts
+			AS 'org.postgresql.pljava.example.MetaDataInts.getDatabaseMetaDataInts'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.callMetaDataMethod(varchar)
+			RETURNS SETOF varchar
+			AS 'org.postgresql.pljava.example.MetaDataTest.callMetaDataMethod'
+			LANGUAGE java;
+
+		CREATE FUNCTION javatest.executeSelect(varchar)
+			RETURNS SETOF VARCHAR
+			AS 'org.postgresql.pljava.example.ResultSetTest.executeSelect'
+			LANGUAGE java;
+
+	END INSTALL",
+
+	"BEGIN REMOVE
+		DROP SCHEMA javatest CASCADE;
+	END REMOVE"
+	}

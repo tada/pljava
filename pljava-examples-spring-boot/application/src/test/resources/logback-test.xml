@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration>
+    <logger name="org.apache" level="ERROR"/>
+    <logger name="httpclient" level="ERROR"/>
+
+    <!-- temporary?... -->
+    <logger name="org.springframework.data" level="ERROR"/>
+    <logger name="org.hibernate" level="ERROR"/>
+
+    <!-- from http://mbcoder.com/slf4j-different-log-files-for-different-log-levels/ -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="LOG_FILE_INFO"
+              value="${LOG_FILE_INFO:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}/info.log}"/>
+    <property name="LOG_FILE_ERROR"
+              value="${LOG_FILE_ERROR:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}/}/error.log}"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!-- cut down on the noise?... doesn't work. -->
+    <logger name="ch.qos.logback" level="ERROR"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %green([%X{imageName} - %X{containerId}]) %highlight(%-5level) %cyan([%c{24}:%L]) - %m%n"
+            </pattern>
+            <!-- <pattern>%d{dd-MM-yyyy HH:mm:ss.SSSS}|%-5level|%msg%n</pattern> -->
+        </encoder>
+    </appender>
+
+    <appender name="LOG_INFO" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE_INFO}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE_INFO}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <!--
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>INFO</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        -->
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%c:%L] - %m%n"</pattern>
+            <!-- <pattern>%d{dd-MM-yyyy HH:mm:ss.SSSS}|%-5level|%msg%n</pattern> -->
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <!-- <appender-ref ref="CONSOLE"/> -->
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LOG_INFO"/>
+    </root>
+
+    <logger name="org.postgresql.pljava" additivity="false" level="INFO">
+        <!-- <appender-ref ref="CONSOLE"/> -->
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LOG_INFO"/>
+        <!-- <appender-ref ref="LOG_ERROR"/> -->
+    </logger>
+</configuration>
