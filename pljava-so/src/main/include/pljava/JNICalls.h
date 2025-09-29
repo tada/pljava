@@ -25,8 +25,12 @@ extern "C" {
 extern jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
 #define BEGIN_NATIVE_NO_ERRCHECK if(beginNativeNoErrCheck(env)) {
-#define BEGIN_NATIVE if(beginNative(env)) {
+#define BEGIN_NATIVE if(!beginNative(env)) ; else {
 #define END_NATIVE JNI_setEnv(0); }
+
+#define BEGIN_NATIVE_AND_TRY BEGIN_NATIVE PG_TRY(); {
+#define END_NATIVE_AND_CATCH(shortfunc) } PG_CATCH(); { \
+	Exception_throw_ERROR(shortfunc); } PG_END_TRY(); END_NATIVE
 
 /***********************************************************************
  * All calls to and from the JVM uses this header. The calls are implemented

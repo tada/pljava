@@ -18,7 +18,7 @@
 #include "pljava/Backend.h"
 #include "pljava/DualState.h"
 #include "pljava/Exception.h"
-#include "pljava/Invocation.h"
+#include "pljava/Function.h"
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/String.h"
 #include "pljava/type/Tuple.h"
@@ -51,15 +51,8 @@ jobject pljava_TupleDesc_internalCreate(TupleDesc td)
 	jobject jtd;
 
 	td = CreateTupleDescCopyConstr(td);
-	/*
-	 * Passing (jlong)0 as the ResourceOwner means this will never be matched by a
-	 * nativeRelease call; that's appropriate (for now) as the TupleDesc copy is
-	 * being made into JavaMemoryContext, which never gets reset, so only
-	 * unreachability from the Java side will free it.
-	 * XXX what about invalidating if DDL alters the column layout?
-	 */
 	jtd = JNI_newObjectLocked(s_TupleDesc_class, s_TupleDesc_init,
-		pljava_DualState_key(), (jlong)0, PointerGetJLong(td), (jint)td->natts);
+		PointerGetJLong(td), (jint)td->natts);
 	return jtd;
 }
 
@@ -79,7 +72,7 @@ Type pljava_TupleDesc_getColumnType(TupleDesc tupleDesc, int index)
 		type = 0;
 	}
 	else /* Type_objectTypeFromOid returns boxed types, when that matters */
-		type = Type_objectTypeFromOid(typeId, Invocation_getTypeMap());
+		type = Type_objectTypeFromOid(typeId, Function_currentTypeMap());
 	return type;
 }
 
@@ -122,7 +115,7 @@ void pljava_TupleDesc_initialize(void)
 	s_TupleDesc_class = JNI_newGlobalRef(PgObject_getJavaClass("org/postgresql/pljava/internal/TupleDesc"));
 	PgObject_registerNatives2(s_TupleDesc_class, methods);
 	s_TupleDesc_init = PgObject_getJavaMethod(s_TupleDesc_class, "<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;JJI)V");
+		"(JI)V");
 
 	cls = TypeClass_alloc("type.TupleDesc");
 	cls->JNISignature = "Lorg/postgresql/pljava/internal/TupleDesc;";
@@ -224,7 +217,7 @@ Java_org_postgresql_pljava_internal_TupleDesc__1formTuple(JNIEnv* env, jclass cl
 		int    count   = self->natts;
 		Datum* values  = (Datum*)palloc(count * sizeof(Datum));
 		bool*  nulls   = palloc(count * sizeof(bool));
-		jobject typeMap = Invocation_getTypeMap(); /* a global ref */
+		jobject typeMap = Function_currentTypeMap(); /* a global ref */
 
 		memset(values, 0,  count * sizeof(Datum));
 		memset(nulls, true, count * sizeof(bool));/*all values null initially*/

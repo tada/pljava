@@ -78,8 +78,7 @@ void pljava_ExecutionPlan_initialize(void)
 		"org/postgresql/pljava/internal/ExecutionPlan"));
 	s_ExecutionPlan_init = PgObject_getJavaMethod(s_ExecutionPlan_class,
 		"<init>",
-		"(Lorg/postgresql/pljava/internal/DualState$Key;J"
-		"Ljava/lang/Object;J)V");
+		"(Ljava/lang/Object;J)V");
 }
 
 static bool coerceObjects(
@@ -100,7 +99,7 @@ static bool coerceObjects(
 	if(count > 0)
 	{
 		int idx;
-		jobject typeMap = Invocation_getTypeMap();
+		jobject typeMap = Function_currentTypeMap();
 		values = (Datum*)palloc(count * sizeof(Datum));
 		for(idx = 0; idx < count; ++idx)
 		{
@@ -319,8 +318,7 @@ Java_org_postgresql_pljava_internal_ExecutionPlan__1prepare(JNIEnv* env, jclass 
 
 			result = JNI_newObjectLocked(
 				s_ExecutionPlan_class, s_ExecutionPlan_init,
-				/* (jlong)0 as resource owner: the saved plan isn't transient */
-				pljava_DualState_key(), (jlong)0, key, PointerGetJLong(ePlan));
+				key, PointerGetJLong(ePlan));
 		}
 	}
 	PG_CATCH();

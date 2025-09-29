@@ -140,6 +140,8 @@ function executeReport(report, locale)
 			"-quiet",
 			"--show-module-contents", "all",
 			"--show-packages",        "all",
+			"--show-types",           "package",
+			"--show-members",         "package",
 			/*
 			 * Options that are passed to the doclet.
 			 */

@@ -74,35 +74,10 @@ public class Session implements org.postgresql.pljava.Session
 	 */
 	static Properties s_properties;
 
-	/**
-	 * The Java charset corresponding to the server encoding, or null if none
-	 * such was found. Put here by InstallHelper via package access at startup.
-	 */
-	static Charset s_serverCharset;
-
 	@Override
 	public Properties frozenSystemProperties()
 	{
 		return m_properties;
-	}
-
-	/**
-	 * A static method (not part of the API-exposed Session interface) by which
-	 * pljava implementation classes can get hold of the server charset without
-	 * the indirection of getting a Session instance. If there turns out to be
-	 * demand for client code to obtain it through the API, an interface method
-	 * {@code serverCharset} can easily be added later.
-	 * @return The Java Charset corresponding to the server's encoding, or null
-	 * if no matching Java charset was found. That can happen if a corresponding
-	 * Java charset really does exist but is not successfully found using the
-	 * name reported by PostgreSQL. That can be worked around by giving the
-	 * right name explicitly as the system property
-	 * {@code org.postgresql.server.encoding} in {@code pljava.vmoptions} for
-	 * the affected database (or cluster-wide, if the same encoding is used).
-	 */
-	public static Charset implServerCharset()
-	{
-		return s_serverCharset;
 	}
 
 	@SuppressWarnings("removal")

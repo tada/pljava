@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -13,6 +13,10 @@
 package org.postgresql.pljava.internal;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
+import org.postgresql.pljava.internal.LifespanImpl;
+
+import org.postgresql.pljava.pg.MemoryContextImpl;
+import org.postgresql.pljava.pg.ResourceOwnerImpl;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -72,6 +76,28 @@ public class PgSavepoint implements Savepoint
 	private final String m_name;
 
 	/*
+	 * Not especially well documented upstream, but following the example of
+	 * plpgsql/perl/python, the current memory context must be saved before
+	 * calling BeginInternalSubTransaction, and then reimposed afterward, and
+	 * reimposed again later after release or rollback-and-release. During the
+	 * subtransaction, its associated context will of course be available as
+	 * CurTransactionMemoryContext, but we will avoid surprising the caller
+	 * with changes to CurrentMemoryContext.
+	 */
+	private final long m_priorMemoryContext;
+
+	/*
+	 * Not especially well documented upstream, but following the example of
+	 * plpgsql/perl/python, the current resource owner must be saved before
+	 * calling BeginInternalSubTransaction, and then reimposed later, after
+	 * release or rollback-and-release. Unlike the memory context, the owner is
+	 * not reimposed immediately after entering the subtransaction, so the newly
+	 * established owner is the CurrentResourceOwner during the subtransaction,
+	 * and the former one is reimposed only at its (normal or abnormal) end.
+	 */
+	private final long m_priorResourceOwner;
+
+	/*
 	 * The transaction ID assigned during BeginInternalSubTransaction is really
 	 * the identifier that matters. An instance will briefly have the default
 	 * value zero when constructed; the real value will be filled in during the
@@ -119,9 +145,12 @@ public class PgSavepoint implements Savepoint
 	 */
 	private static PgSavepoint s_nursery;
 
-	private PgSavepoint(String name)
+	private PgSavepoint(
+		String name, long priorMemoryContext, long priorResourceOwner)
 	{
 		m_name = name;
+		m_priorMemoryContext = priorMemoryContext;
+		m_priorResourceOwner = priorResourceOwner;
 	}
 
 	/**
@@ -135,7 +164,9 @@ public class PgSavepoint implements Savepoint
 	{
 		return doInPG(() ->
 		{
-			PgSavepoint sp = new PgSavepoint(name);
+			long mc = MemoryContextImpl.getCurrentRaw();
+			long ro = ResourceOwnerImpl.getCurrentRaw();
+			PgSavepoint sp = new PgSavepoint(name, mc, ro);
 			s_nursery = sp;
 			try
 			{
@@ -148,6 +179,7 @@ public class PgSavepoint implements Savepoint
 			finally
 			{
 				s_nursery = null;
+				MemoryContextImpl.setCurrentRaw(mc);
 			}
 			s_knownSavepoints.put(sp, Boolean.TRUE);
 			return sp;
@@ -165,6 +197,7 @@ public class PgSavepoint implements Savepoint
 				PgSavepoint sp = s_nursery;
 				sp.m_xactId = savepointId;
 				s_nursery = null;
+				MemoryContextImpl.setCurrentRaw(sp.m_priorMemoryContext);
 				return sp;
 			}
 			for ( PgSavepoint sp : s_knownSavepoints.keySet() )
@@ -204,6 +237,8 @@ public class PgSavepoint implements Savepoint
 					" that is no longer valid", "3B001");
 
 			_release(m_xactId, m_nestLevel);
+			MemoryContextImpl.setCurrentRaw(m_priorMemoryContext);
+			ResourceOwnerImpl.setCurrentRaw(m_priorResourceOwner);
 			forgetNestLevelsGE(m_nestLevel);
 		});
 	}
@@ -230,6 +265,8 @@ public class PgSavepoint implements Savepoint
 					" that is no longer valid", "3B001");
 
 			_rollback(m_xactId, m_nestLevel);
+			MemoryContextImpl.setCurrentRaw(m_priorMemoryContext);
+			ResourceOwnerImpl.setCurrentRaw(m_priorResourceOwner);
 
 			/* Forget only more-deeply-nested savepoints, NOT this one */
 			forgetNestLevelsGE(1 + m_nestLevel);
@@ -248,6 +285,7 @@ public class PgSavepoint implements Savepoint
 			finally
 			{
 				s_nursery = null;
+				MemoryContextImpl.setCurrentRaw(m_priorMemoryContext);
 			}
 		});
 	}
@@ -286,6 +324,8 @@ public class PgSavepoint implements Savepoint
 			 */
 			_release(m_xactId, m_nestLevel);
 			forgetNestLevelsGE(m_nestLevel);
+			MemoryContextImpl.setCurrentRaw(m_priorMemoryContext);
+			ResourceOwnerImpl.setCurrentRaw(m_priorResourceOwner);
 		}
 		else
 		{
@@ -299,6 +339,8 @@ public class PgSavepoint implements Savepoint
 			 */
 			_rollback(m_xactId, m_nestLevel);
 			forgetNestLevelsGE(m_nestLevel);
+			MemoryContextImpl.setCurrentRaw(m_priorMemoryContext);
+			ResourceOwnerImpl.setCurrentRaw(m_priorResourceOwner);
 		}
 	}
 

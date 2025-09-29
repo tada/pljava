@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2022 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -18,6 +18,7 @@ import java.sql.SQLException;
 
 import static org.postgresql.pljava.internal.Backend.doInPG;
 import org.postgresql.pljava.internal.DualState;
+import org.postgresql.pljava.internal.Invocation;
 import org.postgresql.pljava.internal.TupleDesc;
 
 /**
@@ -35,10 +36,9 @@ public class SingleRowReader extends SingleRowResultSet
 	private static class State
 	extends DualState.SingleGuardedLong<SingleRowReader>
 	{
-		private State(
-			DualState.Key cookie, SingleRowReader srr, long ro, long hth)
+		private State(SingleRowReader srr, long hth)
 		{
-			super(cookie, srr, ro, hth);
+			super(srr, Invocation.current(), hth);
 		}
 
 		/**
@@ -73,18 +73,13 @@ public class SingleRowReader extends SingleRowResultSet
 	/**
 	 * Construct a {@code SingleRowReader} from a {@code HeapTupleHeader}
 	 * and a {@link TupleDesc TupleDesc}.
-	 * @param cookie Capability obtained from native code to construct a
-	 * {@code SingleRowReader} instance.
-	 * @param resourceOwner Value identifying a scope in PostgreSQL during which
-	 * the native state encapsulated here will be valid.
 	 * @param hth Native pointer to a PG {@code HeapTupleHeader}
 	 * @param tupleDesc A {@code TupleDesc}; the Java class this time.
 	 */
-	public SingleRowReader(DualState.Key cookie, long resourceOwner, long hth,
-		TupleDesc tupleDesc)
+	public SingleRowReader(long hth, TupleDesc tupleDesc)
 	throws SQLException
 	{
-		m_state = new State(cookie, this, resourceOwner, hth);
+		m_state = new State(this, hth);
 		m_tupleDesc = tupleDesc;
 	}
 

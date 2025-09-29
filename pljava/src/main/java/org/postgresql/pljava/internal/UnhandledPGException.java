@@ -16,9 +16,8 @@ import java.sql.SQLException;
 
 import static java.util.Arrays.copyOfRange;
 
+import static org.postgresql.pljava.internal.Invocation.s_unhandled;
 import static org.postgresql.pljava.internal.Backend.threadMayEnterPG;
-
-import static org.postgresql.pljava.jdbc.Invocation.s_unhandled;
 
 /**
  * A Java exception constructed over a {@link ServerException} that has been
