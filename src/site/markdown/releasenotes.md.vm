@@ -10,6 +10,78 @@
 #set($ghbug = 'https://github.com/tada/pljava/issues/')
 #set($ghpull = 'https://github.com/tada/pljava/pull/')
 
+$h2 PL/Java 1.6.10
+
+This is the tenth minor update in the PL/Java 1.6 series. It adds support
+for building and running with Java 25 and with PostgreSQL 18, and improvements
+to exception handling and logging that should be helpful in debugging the common
+developer mistake of catching a PostgreSQL exception and proceeding without
+rolling back to a prior savepoint. Further information on the changes
+may be found below.
+
+When run on Java 24 or later, there is no security policy enforcement; please
+review the release notes below for PL/Java 1.6.9 for more detail on that.
+
+$h3 Version compatibility
+
+PL/Java 1.6.10 can be built against recent PostgreSQL versions including 18, and
+older ones back to 9.5, using Java SE 9 or later. The Java version used at
+runtime does not have to be the same version used for building. PL/Java itself
+can run on any Java version 9 or later, but for security policy enforcement the
+runtime Java version must be 23 or earlier. PL/Java functions can be
+written for, and use features of, whatever Java version will be loaded at run
+time. See [version compatibility][versions] for more detail.
+
+$h3 Changes
+
+$h4 Runtime
+
+$h5 Exception-handling and logging improvements for mishandled exceptions
+
+When a PL/Java function calls back into PostgreSQL, an exception may be thrown.
+At that point, there are two things a PL/Java function may legitimately do:
+it may re-throw the exception (or throw some other exception), so that the
+PL/Java function returns exceptionally and PostgreSQL cleans up the transaction,
+or it may roll back to a savepoint that was established before the exception was
+thrown, and then proceed and return non-exceptionally. To catch such an
+exception and simply proceed, without rolling back to a prior savepoint, is
+a common new-developer mistake.
+
+In past PL/Java versions, the troubleshooting for such a common mistake was
+uncommonly difficult, because the mishandling might not be detected until
+PL/Java made some later, even quite unrelated, call back into PostgreSQL, and
+the exception thrown at that point might have no connection to the original
+exception that was mishandled.
+
+PL/Java 1.6.10 adds new exception-handling and logging behavior that should
+greatly simplify debugging such common mistakes. Details are in the new
+documentation section [Catching PostgreSQL exceptions in Java][catch].
+
+[catch]: use/catch.html
+
+$h3 Bugs fixed
+
+* [ClassNotFoundException using PL/Java 1.6.8 on Postgres 17.2](${ghbug}523)
+* [support for PostgreSQL 18](${ghbug}524)
+* [SQL generator may use non-reproducible order in rare cases](${ghbug}527)
+
+$h3 Credits
+
+Thanks to Achilleas Mantzios for starting on the PostgreSQL 18 changes, `daddeo`
+for making the case to improve the treatment and logging of mishandled
+exceptions.
+
+$h2 Earlier releases
+
+## A nice thing about using Velocity is that each release can be entered at
+## birth using h2 as its main heading, h3 and below within ... and then, when
+## it is moved under 'earlier releases', just define those variables to be
+## one heading level finer. Here goes:
+#set($h2 = '###')
+#set($h3 = '####')
+#set($h4 = '#####')
+#set($h5 = '######')
+
 $h2 PL/Java 1.6.9
 
 This is the ninth minor update in the PL/Java 1.6 series. It adds support
@@ -134,17 +206,6 @@ document debugging arrangements and Java stack traces.
 [policy]: use/policy.html
 [nopolicy]: use/unenforced.html
 [variables]: use/variables.html
-
-$h2 Earlier releases
-
-## A nice thing about using Velocity is that each release can be entered at
-## birth using h2 as its main heading, h3 and below within ... and then, when
-## it is moved under 'earlier releases', just define those variables to be
-## one heading level finer. Here goes:
-#set($h2 = '###')
-#set($h3 = '####')
-#set($h4 = '#####')
-#set($h5 = '######')
 
 $h2 PL/Java 1.6.8 (19 October 2024)
 

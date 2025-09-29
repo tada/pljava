@@ -986,6 +986,7 @@ public class InstallHelper
 		UNREL20040120  ("5e4131738cd095b7ff6367d64f809f6cec6a7ba7"),
 		EMPTY          (null);
 
+		static final SchemaVariant REL_1_6_10      = REL_1_6_0;
 		static final SchemaVariant REL_1_6_9       = REL_1_6_0;
 		static final SchemaVariant REL_1_6_8       = REL_1_6_0;
 		static final SchemaVariant REL_1_6_7       = REL_1_6_0;
