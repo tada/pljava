@@ -22,6 +22,11 @@
 #include "pljava/type/String.h"
 #include "pljava/SPI.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 /*
  * Workaround for issue #260, PostgreSQL API breakage by EnterpriseDB. They
  * added a ReleaseCurrentSubTransactionEx function with an added argument, and
@@ -198,3 +203,5 @@ Java_org_postgresql_pljava_internal_PgSavepoint__1rollback(JNIEnv* env, jclass c
 	PG_END_TRY();
 	END_NATIVE
 }
+
+/** @} */

@@ -14,6 +14,11 @@
 #include "pljava/type/String_priv.h"
 #include "pljava/HashMap.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_StringClass;
 jclass s_String_class;
 jclass s_Object_class;
@@ -483,3 +488,4 @@ static void String_initialize_codec()
 	s_two_step_conversion = two_step_when_ready;
 	uninitialized = false;
 }
+/** @} */

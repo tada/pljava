@@ -23,6 +23,11 @@
 #include <miscadmin.h>
 #endif
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 #define CONFIRMCONST(c) \
 StaticAssertStmt((c) == (org_postgresql_pljava_internal_##c), \
 	"Java/C value mismatch for " #c)
@@ -204,3 +209,4 @@ Java_org_postgresql_pljava_internal_SPI__1freeTupTable(JNIEnv* env, jclass cls)
 		END_NATIVE
 	}
 }
+/** @} */

@@ -15,6 +15,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_floatClass;
 static jclass    s_Float_class;
 static jmethodID s_Float_init;
@@ -151,3 +156,4 @@ void Float_initialize(void)
 	Type_registerType("float", t_float);
 	Type_registerType("java.lang.Float", t_Float);
 }
+/** @} */

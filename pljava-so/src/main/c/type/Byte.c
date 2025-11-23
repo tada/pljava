@@ -14,6 +14,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 /* The byte maps to the postgres type "char", i.e. the
  * 8 bit, one byte quantity. The java byte was chosen instead of
  * char since a Java char is UTF-16 and "char" is not in any way
@@ -145,3 +150,4 @@ void Byte_initialize(void)
 	Type_registerType("byte", t_byte);
 	Type_registerType("java.lang.Byte", t_Byte);
 }
+/** @} */

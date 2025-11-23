@@ -21,6 +21,11 @@
 #include "pljava/Invocation.h"
 #include "org_postgresql_pljava_jdbc_SingleRowReader.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 struct Composite_
 {
 	/*
@@ -238,3 +243,4 @@ void Composite_initialize(void)
 
 	Type_registerType2(InvalidOid, "java.sql.ResultSet", Composite_obtain);
 }
+/** @} */

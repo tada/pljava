@@ -22,6 +22,11 @@
 #include "org_postgresql_pljava_internal_AclId.h"
 #include "pljava/Exception.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 #if PG_VERSION_NUM >= 160000
 #include <catalog/pg_namespace.h>
 #define pg_namespace_aclcheck(oid,rid,mode) \
@@ -232,3 +237,4 @@ Java_org_postgresql_pljava_internal_AclId__1isSuperuser(JNIEnv* env, jobject acl
 	END_NATIVE
 	return result;
 }
+// @} */

@@ -16,6 +16,9 @@
 #include "pljava/PgObject_priv.h"
 #include "pljava/type/String.h"
 
+/**
+ */
+
 static bool      s_loopLock = false;
 static jclass    s_Class_class = 0;
 static jmethodID s_Class_getName = 0;

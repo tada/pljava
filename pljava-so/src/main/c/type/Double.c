@@ -11,9 +11,15 @@
  *   PostgreSQL Global Development Group
  *   Chapman Flack
  */
+
 #include "pljava/type/Type_priv.h"
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
+
+/**
+ * \addtogroup Datum
+ * @{
+ */
 
 static TypeClass s_doubleClass;
 static jclass    s_Double_class;

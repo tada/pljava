@@ -16,6 +16,11 @@
 
 #include "access/xact.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass s_XactListener_class;
 static jmethodID s_XactListener_invokeListeners;
 
@@ -116,3 +121,4 @@ Java_org_postgresql_pljava_internal_XactListener__1unregister(JNIEnv* env, jclas
 	PG_END_TRY();
 	END_NATIVE
 }
+/** @} */

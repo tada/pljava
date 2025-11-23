@@ -32,6 +32,11 @@
 #include "pljava/PgObject.h"
 #include "pljava/JNICalls.h"
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 #if PG_VERSION_NUM < 90600
 #define get_toast_snapshot() NULL
 #elif PG_VERSION_NUM < 180000
@@ -501,3 +506,4 @@ Java_org_postgresql_pljava_internal_VarlenaWrapper_00024Output_00024State__1next
 
 	return dbb;
 }
+/** @} */

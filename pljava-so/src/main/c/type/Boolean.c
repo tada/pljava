@@ -15,6 +15,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_booleanClass;
 static jclass    s_Boolean_class;
 static jmethodID s_Boolean_init;
@@ -145,3 +150,4 @@ void Boolean_initialize(void)
 	Type_registerType("boolean", t_boolean);
 	Type_registerType("java.lang.Boolean", t_Boolean);
 }
+/** @} */

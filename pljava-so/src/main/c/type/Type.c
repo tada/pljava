@@ -30,6 +30,11 @@
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 #if PG_VERSION_NUM < 110000
 static Oid BOOLARRAYOID;
 static Oid CHARARRAYOID;
@@ -1170,3 +1175,4 @@ void Type_registerType2(
 {
 	_registerType(typeId, javaTypeName, 0, obtainer);
 }
+/** @} */

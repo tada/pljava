@@ -15,6 +15,11 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 static TypeClass s_longClass;
 static jclass    s_Long_class;
 static jmethodID s_Long_init;
@@ -151,3 +156,4 @@ void Long_initialize(void)
 	Type_registerType("long", t_long);
 	Type_registerType("java.lang.Long", t_Long);
 }
+/** @} */

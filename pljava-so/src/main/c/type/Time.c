@@ -23,6 +23,11 @@
 #include "pljava/type/Time.h"
 #include "pljava/type/Timestamp.h"
 
+/**
+ * \addtogroup Datum
+ * @{
+ */
+
 /*
  * Types time and timetz. This compilation unit supplies code for both
  * PostgreSQL types. The legacy JDBC mapping for both is to java.sql.Time, which
@@ -387,3 +392,4 @@ void Time_initialize(void)
 	s_OffsetTimeClass  = cls;
 	Type_registerType2(InvalidOid, "java.time.OffsetTime", _OffsetTime_obtain);
 }
+/** @} */

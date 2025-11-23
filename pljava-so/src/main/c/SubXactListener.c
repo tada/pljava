@@ -17,6 +17,11 @@
 
 #include <access/xact.h>
 
+/**
+ * \addtogroup JNI
+ * @{
+ */
+
 static jclass s_SubXactListener_class;
 static jmethodID s_SubXactListener_invokeListeners;
 
@@ -135,3 +140,4 @@ Java_org_postgresql_pljava_internal_SubXactListener__1unregister(JNIEnv* env, jc
 	PG_END_TRY();
 	END_NATIVE
 }
+/** @} */
