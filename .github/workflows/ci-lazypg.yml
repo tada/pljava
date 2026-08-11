@@ -36,12 +36,12 @@ jobs:
             cc: msvc
           - os: windows-latest
             cc: mingw
-        java: [11, 17, 21, 23]
+        java: [11, 17, 21, 25]
         exclude:
           - oscc: {os: windows-latest}
             java: 17
           - oscc: {os: windows-latest}
-            java: 23
+            java: 25
 
     steps:
 
