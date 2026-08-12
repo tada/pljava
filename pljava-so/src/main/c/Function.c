@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -789,6 +789,7 @@ static Function Function_create(
 			funcOid);
 	}
 
+	Invocation_assertDisconnect(); /* func may make its own connection */
 	return self;
 }
 

@@ -279,4 +279,32 @@ boolean loadExamplesAndTest(Connection c) throws Exception
   );
 }
 
+/*
+ * Unloads the PL/Java example and Saxon jars, returning true if that produced
+ * the expected sequence of results (not necessarily meaning success, unless
+ * results.get("ng") is also zero afterward.
+ */
+boolean unloadExamples(Connection c) throws Exception
+{
+  return stateMachine(
+    "remove example and saxon jars",
+    null,
+
+    Stream.concat(
+      Node.removeJar(c, "examples", true),
+      Node.removeJar(c, "saxon", false)
+    )
+    .flatMap(Node::semiFlattenDiagnostics)
+    .peek(Node::peek),
+
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 3 : -4,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 5 : false,
+
+    (o,p,q) -> null == o
+  );
+}
+
 int pgMajorVersion;
