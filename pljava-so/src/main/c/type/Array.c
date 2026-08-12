@@ -14,17 +14,17 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
-void arraySetNull(bits8* bitmap, int offset, bool flag)
+void arraySetNull(uint8* bitmap, int offset, bool flag)
 {
 	if(bitmap != 0)
 	{
 		int bitmask = 1 << (offset % 8);	
 		bitmap += offset / 8;
-		*bitmap = (bits8)(flag? *bitmap & ~bitmask : *bitmap | bitmask);
+		*bitmap = (uint8)(flag? *bitmap & ~bitmask : *bitmap | bitmask);
 	}
 }
 
-bool arrayIsNull(const bits8* bitmap, int offset)
+bool arrayIsNull(const uint8* bitmap, int offset)
 {
 	return bitmap == 0 ? false : !(bitmap[offset / 8] & (1 << (offset % 8)));
 }
@@ -71,7 +71,7 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 	jsize nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jobjectArray objArray = JNI_newObjectArray(nElems, Type_getJavaClass(elemType), 0);
 	const char* values = ARR_DATA_PTR(v);
-	bits8* nullBitMap = ARR_NULLBITMAP(v);
+	uint8* nullBitMap = ARR_NULLBITMAP(v);
 
 	for(idx = 0; idx < nElems; ++idx)
 	{
