@@ -301,7 +301,8 @@ public class LegacyClob
 			PreparedStatement ps =
 				c.prepareStatement(
 					"SELECT a = b FROM (SELECT" +
-					" CAST ( ? AS text ) AS a, CAST ( ? AS text ) AS b)");
+					" CAST ( ? AS text ) AS a, CAST ( ? AS text ) AS b)" +
+					" AS params");
 		)
 		{
 			ps.setString(1, CHARS);
@@ -335,7 +336,8 @@ public class LegacyClob
 			PreparedStatement ps =
 				c.prepareStatement(
 					"SELECT a = b FROM (SELECT" +
-					" CAST ( ? AS text ) AS a, CAST ( ? AS text ) AS b)");
+					" CAST ( ? AS text ) AS a, CAST ( ? AS text ) AS b)" +
+					" AS params");
 		)
 		{
 			ps.setString(1, CHARS);
@@ -369,7 +371,8 @@ public class LegacyClob
 			PreparedStatement ps2 =
 				c.prepareStatement(
 					"SELECT a = b FROM (SELECT" +
-					" CAST ( ? AS text ) AS a, CAST ( ? AS text ) AS b)");
+					" CAST ( ? AS text ) AS a, CAST ( ? AS text ) AS b)" +
+					" AS params");
 		)
 		{
 			ps1.setString(1, CHARS);

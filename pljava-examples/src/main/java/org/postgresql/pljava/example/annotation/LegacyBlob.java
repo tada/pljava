@@ -214,7 +214,8 @@ public class LegacyBlob
 			PreparedStatement ps =
 				c.prepareStatement(
 					"SELECT a = b FROM (SELECT" +
-					" CAST ( ? AS bytea ) AS a, CAST ( ? AS bytea ) AS b)");
+					" CAST ( ? AS bytea ) AS a, CAST ( ? AS bytea ) AS b)" +
+					" AS params");
 		)
 		{
 			ps.setBytes(1, BYTES);
@@ -247,7 +248,8 @@ public class LegacyBlob
 			PreparedStatement ps2 =
 				c.prepareStatement(
 					"SELECT a = b FROM (SELECT" +
-					" CAST ( ? AS bytea ) AS a, CAST ( ? AS bytea ) AS b)");
+					" CAST ( ? AS bytea ) AS a, CAST ( ? AS bytea ) AS b)" +
+					" AS params");
 		)
 		{
 			ps1.setBytes(1, BYTES);
