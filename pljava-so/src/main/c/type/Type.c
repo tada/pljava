@@ -30,6 +30,10 @@
 #include "pljava/HashMap.h"
 #include "pljava/SPI.h"
 
+#if PG_VERSION_NUM < 190000
+#define DomainHasConstraints(typid, volflag) DomainHasConstraints(typid)
+#endif
+
 #if PG_VERSION_NUM < 110000
 static Oid BOOLARRAYOID;
 static Oid CHARARRAYOID;
@@ -244,7 +248,8 @@ static Type _getCoerce(Type self, Type other, Oid fromOid, Oid toOid,
 		 * Binary compatible type. No need for a special coercer.
 		 * Unless ... it's a domain ....
 		 */
-		if ( ! IsBinaryCoercible(fromOid, toOid) && DomainHasConstraints(toOid))
+		if ( ! IsBinaryCoercible(fromOid, toOid)
+			&& DomainHasConstraints(toOid, NULL) )
 			elog(WARNING, "disregarding domain constraints of (regtype) %d",
 				 toOid);
 		return self;
