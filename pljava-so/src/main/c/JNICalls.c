@@ -1715,7 +1715,7 @@ static void _heavyUpdater(jobject loader)
 	END_JAVA
 }
 
-void _heavyRestorer()
+void _heavyRestorer(void)
 {
 	jobject thread;
 	jobject value;
@@ -1752,7 +1752,7 @@ static void _lightUpdater(jobject loader)
 	END_JAVA
 }
 
-void _lightRestorer()
+void _lightRestorer(void)
 {
 	jobject value;
 
@@ -1770,6 +1770,6 @@ static void _noopUpdater(jobject loader)
 {
 }
 
-void _noopRestorer()
+void _noopRestorer(void)
 {
 }

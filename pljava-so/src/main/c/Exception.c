@@ -170,7 +170,7 @@ void Exception_throwSPI(const char* function, int errCode)
 			SPI_result_code_string(errCode));
 }
 
-void Exception_throw_unhandled()
+void Exception_throw_unhandled(void)
 {
 	jobject ex;
 	PG_TRY();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -77,7 +77,7 @@ static bool extensionExNihilo = false;
 
 static void checkLoadPath(void);
 static void getExtensionLoadPath(void);
-static char *origUserName();
+static char *origUserName(void);
 
 char const *pljavaLoadPath = NULL;
 
@@ -87,12 +87,12 @@ Oid pljavaTrustedOid = InvalidOid;
 
 Oid pljavaUntrustedOid = InvalidOid;
 
-bool pljavaViableXact()
+bool pljavaViableXact(void)
 {
 	return IsTransactionState() && 'E' != TransactionBlockStatusCode();
 }
 
-char *pljavaDbName()
+char *pljavaDbName(void)
 {
 	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
 	{
@@ -112,7 +112,7 @@ char *pljavaDbName()
 	return MyProcPort->database_name;
 }
 
-static char *origUserName()
+static char *origUserName(void)
 {
 	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
 	{
@@ -129,7 +129,7 @@ static char *origUserName()
 	return MyProcPort->user_name;
 }
 
-char const *pljavaClusterName()
+char const *pljavaClusterName(void)
 {
 	/*
 	 * In PostgreSQL of at least 9.5, there's always one (even if it is an empty
@@ -165,7 +165,7 @@ void pljavaCheckExtension( bool *livecheck)
  * on Windows. So if livecheck isn't null, this function only needs to proceed
  * as far as the CREATING_EXTENSION_HACK and then return.
  */
-static void checkLoadPath()
+static void checkLoadPath(void)
 {
 	List *l;
 	Node *ut;
@@ -216,7 +216,7 @@ static void checkLoadPath()
 		(char const *)MemoryContextStrdup(TopMemoryContext, ls->filename);
 }
 
-static void getExtensionLoadPath()
+static void getExtensionLoadPath(void)
 {
 	MemoryContext curr;
 	Datum dtm;
@@ -356,7 +356,7 @@ char *pljavaFnOidToLibPath(Oid fnOid, char **langName, bool *trusted)
 	return probinstring;
 }
 
-bool InstallHelper_shouldDeferInit()
+bool InstallHelper_shouldDeferInit(void)
 {
 	if ( AmAutoVacuumWorkerProcess() || AmBackgroundWorkerProcess() )
 			return true;
@@ -434,13 +434,13 @@ char const *InstallHelper_defaultModulePath(char *pathbuf, char pathsep)
 	return pathbuf;
 }
 
-void InstallHelper_earlyHello()
+void InstallHelper_earlyHello(void)
 {
 	elog(DEBUG2,
 		"pljava-so-" SO_VERSION_STRING " built for (" PG_VERSION_STR ")");
 }
 
-char *InstallHelper_hello()
+char *InstallHelper_hello(void)
 {
 	char pathbuf[MAXPGPATH];
 	Invocation ctx;
@@ -521,7 +521,7 @@ char *InstallHelper_hello()
 	return greetingC;
 }
 
-void InstallHelper_groundwork()
+void InstallHelper_groundwork(void)
 {
 	Invocation ctx;
 	bool snapshot_set = false;
@@ -567,7 +567,7 @@ void InstallHelper_groundwork()
 	PG_END_TRY();
 }
 
-void InstallHelper_initialize()
+void InstallHelper_initialize(void)
 {
 	s_InstallHelper_class = (jclass)JNI_newGlobalRef(PgObject_getJavaClass(
 		"org/postgresql/pljava/internal/InstallHelper"));
