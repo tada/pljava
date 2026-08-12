@@ -43,6 +43,9 @@ import java.util.Calendar;
 import org.postgresql.pljava.internal.ExecutionPlan;
 import org.postgresql.pljava.internal.Oid;
 
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readNBytes;
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readNCharsAsString;
+
 /**
  * Implementation of {@link PreparedStatement} for the SPI connection.
  * @author Thomas Hallgren
@@ -180,11 +183,11 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	}
 
 	@Override
-	public void setAsciiStream(int columnIndex, InputStream value, int length) throws SQLException
+	public void setAsciiStream(int columnIndex, InputStream value, int length)
+	throws SQLException
 	{
-		setObject(columnIndex,
-			new ClobValue(new InputStreamReader(value, US_ASCII), length),
-			Types.CLOB);
+		setObject(columnIndex, null == value ? null :
+			new String(readNBytes(value, length), US_ASCII), Types.CLOB);
 	}
 
 	@SuppressWarnings("deprecation") @Override
@@ -387,7 +390,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setCharacterStream(int columnIndex, Reader value, int length)
 	throws SQLException
 	{
-		setObject(columnIndex, new ClobValue(value, length), Types.CLOB);
+		setObject(columnIndex, readNCharsAsString(value, length), Types.CLOB);
 	}
 
 	@Override

@@ -15,8 +15,14 @@ package org.postgresql.pljava.jdbc;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.StringReader;
+
 import java.math.BigDecimal;
+
 import java.net.URL;
+
+import static java.nio.charset.StandardCharsets.US_ASCII;
+
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -33,6 +39,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 
 import javax.sql.rowset.serial.SerialBlob;
+import javax.sql.rowset.serial.SerialClob;
 
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.DualState;
@@ -81,13 +88,15 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	}
 
 	/**
-	 * Implemented over {@link #readClob}.
+	 * Implemented over {@link #readString}.
 	 */
 	@Override
 	public InputStream readAsciiStream() throws SQLException
 	{
-		Clob c = readClob();
-		return (c == null) ? null : c.getAsciiStream();
+		String s = readString();
+		if ( null == s )
+			return null;
+		return new ByteArrayInputStream(s.getBytes(US_ASCII));
 	}
 
 	/**
@@ -153,8 +162,8 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	 */
 	public Reader readCharacterStream() throws SQLException
 	{
-		Clob c = readClob();
-		return (c == null) ? null : c.getCharacterStream();
+		String s = readString();
+		return (s == null) ? null : new StringReader(s);
 	}
 
 	/**
@@ -163,7 +172,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	public Clob readClob() throws SQLException
 	{
 		String str = readString();
-		return (str == null) ? null :  new ClobValue(str);
+		return (str == null) ? null :  new SerialClob(str.toCharArray());
 	}
 
 	/**

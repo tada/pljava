@@ -41,6 +41,8 @@ import java.sql.Timestamp;
 import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
 
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readAllAsString;
+
 /**
  * Implementation of {@link SQLOutput} for the case of a composite data type.
  * @author Thomas Hallgren
@@ -87,8 +89,7 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeAsciiStream(InputStream value) throws SQLException
 	{
-		Reader rdr = new BufferedReader(new InputStreamReader(value, US_ASCII));
-		writeClob(new ClobValue(rdr, ClobValue.getReaderLength(rdr)));
+		writeCharacterStream(new InputStreamReader(value, US_ASCII));
 	}
 
 	public void writeBigDecimal(BigDecimal value) throws SQLException
@@ -130,9 +131,7 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeCharacterStream(Reader value) throws SQLException
 	{
-		if(!value.markSupported())
-			value = new BufferedReader(value);
-		writeClob(new ClobValue(value, ClobValue.getReaderLength(value)));
+		writeString(readAllAsString(value));
 	}
 
 	public void writeClob(Clob value) throws SQLException

@@ -34,10 +34,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
 import javax.sql.rowset.serial.SerialBlob;
+import javax.sql.rowset.serial.SerialClob;
 
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readNCharsAsString;
 
 /**
  * Implements most getters in terms of {@link #getValue}, {@link #getNumber},
@@ -107,14 +110,16 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link #getClob(int) getClob}.
+	 * Implemented over {@link #getString(int) getString}.
 	 */
 	@Override
 	public InputStream getAsciiStream(int columnIndex)
 	throws SQLException
 	{
-		Clob c = getClob(columnIndex);
-		return (c == null) ? null : c.getAsciiStream();
+		String s = getString(columnIndex);
+		if ( null == s )
+			return null;
+		return new ByteArrayInputStream(s.getBytes(US_ASCII));
 	}
 
 	/**
@@ -192,14 +197,14 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link #getClob(int) getClob}.
+	 * Implemented over {@link #getString(int) getString}.
 	 */
 	@Override
 	public Reader getCharacterStream(int columnIndex)
 	throws SQLException
 	{
-		Clob c = getClob(columnIndex);
-		return (c == null) ? null : c.getCharacterStream();
+		String s = getString(columnIndex);
+		return (s == null) ? null : new StringReader(s);
 	}
 
 	/**
@@ -210,7 +215,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	throws SQLException
 	{
 		String str = getString(columnIndex);
-		return (str == null) ? null :  new ClobValue(str);
+		return (str == null) ? null :  new SerialClob(str.toCharArray());
 	}
 	
 	/**
@@ -418,15 +423,14 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link ClobValue} and
-	 * {@link #updateObject updateObject}.
+	 * Implemented over {@link #updateObject updateObject}.
 	 */
 	@Override
 	public void updateAsciiStream(int columnIndex, InputStream x, int length)
 	throws SQLException
 	{
-		updateObject(columnIndex,
-			new ClobValue(new InputStreamReader(x, US_ASCII), length));
+		updateObject(columnIndex, null == x ? null :
+			readNCharsAsString(new InputStreamReader(x, US_ASCII), length));
 	}
 
 	/**
@@ -505,14 +509,13 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link ClobValue} and
-	 * {@link #updateClob updateClob}.
+	 * Implemented over {@link #updateString updateString}.
 	 */
 	@Override
 	public void updateCharacterStream(int columnIndex, Reader x, int length)
 	throws SQLException
 	{
-		updateClob(columnIndex, (Clob) new ClobValue(x, length));
+		updateString(columnIndex, readNCharsAsString(x, length));
 	}
 
 	/**

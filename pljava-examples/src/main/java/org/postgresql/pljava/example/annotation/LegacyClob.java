@@ -180,6 +180,7 @@ public class LegacyClob
 	}
 	 */
 
+	// Now works! Formerly:
 	// SQLException: Cannot derive a value of class java.lang.String from
 	// an object of class org.postgresql.pljava.jdbc.ClobValue
 	/**
@@ -216,6 +217,7 @@ public class LegacyClob
 		return true;
 	}
 
+	// Now works! Formerly:
 	// XXX returns false; Clob probably rendered by Object.toString
 	/**
 	 * Exercises setCharacterStream on PreparedStatement,
@@ -249,6 +251,7 @@ public class LegacyClob
 		}
 	}
 
+	// Now works! Formerly:
 	// XXX returns false; Clob probably rendered by Object.toString
 	/**
 	 * Exercises setAsciiStream on PreparedStatement,
@@ -353,6 +356,7 @@ public class LegacyClob
 		}
 	}
 
+	// Now works! Formerly:
 	// XXX writeCharacterStream produces Object.toString of the Clob instance
 	@MappedUDT(schema = "javatest", structure = { "b text" })
 	public static class StreamedClob implements SQLData
@@ -388,6 +392,7 @@ public class LegacyClob
 		}
 	}
 
+	// Now works! Formerly:
 	// OutOfMemoryError: Requested array size exceeds VM limit
 	@MappedUDT(schema = "javatest", structure = { "b text" })
 	public static class AsciiedClob implements SQLData
