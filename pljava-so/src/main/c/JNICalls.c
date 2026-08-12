@@ -22,6 +22,10 @@
 #include "pljava/type/ErrorData.h"
 #include "pljava/type/String.h"
 
+#if 190000 <= PG_VERSION_NUM
+#include <miscadmin.h> /* for MyBackendType */
+#endif
+
 static JNIEnv* jniEnv;
 jint (JNICALL *pljava_createvm)(JavaVM **, void **, void *);
 
@@ -205,11 +209,13 @@ static void elogExceptionMessage(JNIEnv* env, jthrowable exh, int logLevel)
 
 static void printStacktrace(JNIEnv* env, jobject exh, int elevel)
 {
-#if 100002<=PG_VERSION_NUM || \
+#if 190000<=PG_VERSION_NUM
+	if (elevel>=log_min_messages[MyBackendType] || elevel>=client_min_messages)
+#elif 100002<=PG_VERSION_NUM || \
 	 90607<=PG_VERSION_NUM && PG_VERSION_NUM<100000 || \
 	 90511<=PG_VERSION_NUM && PG_VERSION_NUM< 90600 || \
 	! defined(_MSC_VER)
-	if(elevel >= log_min_messages || elevel >= client_min_messages)
+	if (elevel >= log_min_messages || elevel >= client_min_messages)
 #else
 	/* This is gross, but only happens as often as an exception escapes Java
 	 * code to be rethrown. There is some renewed interest on pgsql-hackers to
