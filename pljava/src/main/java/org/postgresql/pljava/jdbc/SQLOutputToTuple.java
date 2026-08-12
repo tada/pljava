@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -17,6 +17,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
@@ -97,9 +98,14 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeBinaryStream(InputStream value) throws SQLException
 	{
-		if(!value.markSupported())
-			value = new BufferedInputStream(value);
-		writeBlob(new BlobValue(value, BlobValue.getStreamLength(value)));
+		try
+		{
+			writeBytes(value.readAllBytes());
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
 	}
 
 	public void writeBlob(Blob value) throws SQLException

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2020-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -17,6 +17,7 @@ module org.postgresql.pljava.internal
 {
 	requires java.base;
 	requires java.management;
+	requires java.sql.rowset;
 	requires org.postgresql.pljava;
 
 	exports org.postgresql.pljava.mbeans; // bothers me, but only interfaces

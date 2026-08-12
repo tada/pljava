@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2019 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -12,6 +12,7 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -30,6 +31,8 @@ import java.sql.SQLInput;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
+
+import javax.sql.rowset.serial.SerialBlob;
 
 import org.postgresql.pljava.internal.Backend;
 import org.postgresql.pljava.internal.DualState;
@@ -97,13 +100,13 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	}
 
 	/**
-	 * Implemented over {@link #readBlob}.
+	 * Implemented over {@link #readBytes}.
 	 */
 	@Override
 	public InputStream readBinaryStream() throws SQLException
 	{
-		Blob b = readBlob();
-		return (b == null) ? null : b.getBinaryStream();
+		byte[] bytes = readBytes();
+		return (bytes == null) ? null : new ByteArrayInputStream(bytes);
 	}
 
 	/**
@@ -113,7 +116,7 @@ public class SQLInputFromTuple extends SingleRowReader implements SQLInput
 	public Blob readBlob() throws SQLException
 	{
 		byte[] bytes = readBytes();
-		return (bytes == null) ? null :  new BlobValue(bytes);
+		return (bytes == null) ? null :  new SerialBlob(bytes);
 	}
 
 	/**
