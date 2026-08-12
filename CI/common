@@ -1,0 +1,282 @@
+/*
+ * Copyright (c) 2020-2026 Tada AB and other contributors, as listed below.
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the The BSD 3-Clause License
+ * which accompanies this distribution, and is available at
+ * http://opensource.org/licenses/BSD-3-Clause
+ *
+ * Contributors:
+ *   Chapman Flack
+ *   Kartik Ohri
+ *
+ * This jshell script is a common preamble loaded by the 'integration' script
+ * (used for automated integration runs) and the 'jpsql' script (used for
+ * interactive work in jshell with a freshly-spun-up cluster, though of course
+ * jshell presents a much more rudimentary UI than psql proper).
+ *
+ * It must be executed with the built PL/Java packaged jar (produced by the
+ * pljava-packaging subproject) on the classpath, as well as a PGJDBC or
+ * pgjdbc-ng full jar. The PL/Java packaged jar includes a Node.class
+ * exporting functions not unlike the Perl module once called PostgresNode
+ * (and now called PostgreSQL::Test::Cluster) in the PostgreSQL distribution.
+ * The javadocs for Node.class explain the available functions.
+ *
+ * When jshell runs this script with -execution local, it needs both a
+ * --class-path and a -J--class-path argument. The former need only contain
+ * the PL/Java jar itself, so the contents are visible to jshell. The -J version
+ * passed to the underlying JVM needs both that jar and the PGJDBC or pgjdbc-ng
+ * driver jar. The driver classes need not be visible to jshell, but the JVM
+ * must be able to find them.
+ *
+ * Tests included in this script require
+ *   -J--add-modules=java.sql.rowset,jdk.httpserver
+ * on the jshell command line.
+ *
+ * These Java properties must be set (as with -J-Dpgconfig=...) on the jshell
+ * command line:
+ *
+ * pgconfig
+ *   the path to the pg_config executable that will be used to locate
+ *   the PostgreSQL installation to be used in the tests
+ * mavenRepo
+ *   the topmost directory of the local Maven repository. The Saxon jar
+ *   downloaded as a dependency (when -Psaxon-examples was used on the mvn
+ *   command line for building) will be found in this repository
+ * saxonVer
+ *   the version of the Saxon library to use (appears in the library jar
+ *   file name and as the name of its containing directory in the repository)
+ *
+ * These properties are optional (their absence is equivalent to a setting
+ * of false):
+ *
+ * redirectError
+ *   if true, the standard error stream from the tests will be merged into
+ *   the standard output stream. This can be desirable if this script is
+ *   invoked from Windows PowerShell, which believes a standard error stream
+ *   should only carry Error Records and makes an awful mess of anything else.
+ * extractFiles
+ *   if true, begin by extracting and installing the PL/Java files from the jar
+ *   into the proper locations indicated by the pg_config executable. If false,
+ *   extraction will be skipped, assumed to have been done in a separate step
+ *   simply running java -jar on the PL/Java packaged jar. Doing the extraction
+ *   here can be useful, if this script is run with the needed permissions to
+ *   write in the PostgreSQL install locations, when combined with redirectError
+ *   if running under PowerShell, which would otherwise mess up the output.
+ */
+boolean succeeding = false; // begin pessimistic
+
+boolean redirectError = Boolean.getBoolean("redirectError");
+
+if ( redirectError )
+  System.setErr(System.out); // PowerShell makes a mess of stderr output
+
+UnaryOperator<ProcessBuilder> tweaks =
+  redirectError ? p -> p.redirectErrorStream(true) : UnaryOperator.identity();
+
+import static java.nio.file.Files.createTempFile;
+import static java.nio.file.Files.write;
+import java.nio.file.Path;
+import static java.nio.file.Paths.get;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import org.postgresql.pljava.packaging.Node;
+import static org.postgresql.pljava.packaging.Node.q;
+import static org.postgresql.pljava.packaging.Node.stateMachine;
+import static org.postgresql.pljava.packaging.Node.isVoidResultSet;
+import static org.postgresql.pljava.packaging.Node.s_isWindows;
+import static
+  org.postgresql.pljava.packaging.Node.NOTHING_OR_PGJDBC_ZERO_COUNT;
+/*
+ * Imports that will be needed to serve a jar file over http
+ * when the time comes for testing that.
+ */
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
+import com.sun.net.httpserver.BasicAuthenticator;
+import com.sun.net.httpserver.HttpContext;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+
+if ( Boolean.getBoolean("extractFiles") )
+  Node.main(new String[0]); // extract the files
+
+String javaHome = System.getProperty("java.home");
+
+Path javaLibDir = get(javaHome, s_isWindows ? "bin" : "lib");
+
+Path libjvm = (
+  "Mac OS X".equals(System.getProperty("os.name"))
+  ? Stream.of("libjli.dylib", "jli/libjli.dylib")
+    .map(s -> javaLibDir.resolve(s))
+    .filter(Files::exists).findFirst().get()
+  : javaLibDir.resolve(s_isWindows ? "server\\jvm.dll" : "server/libjvm.so")
+);
+
+// Use deprecated major() here because feature() first appears in Java 10
+int jFeatureVersion = Runtime.version().major();
+
+String vmopts = "-enableassertions:org.postgresql.pljava... -Xcheck:jni";
+
+vmopts += " --limit-modules=org.postgresql.pljava.internal";
+
+if ( 24 <= jFeatureVersion ) {
+  vmopts += " -Djava.security.manager=disallow"; // JEP 486
+} else if ( 18 <= jFeatureVersion )
+  vmopts += " -Djava.security.manager=allow"; // JEP 411
+
+if ( 23 <= jFeatureVersion )
+  vmopts += " --sun-misc-unsafe-memory-access=deny"; // JEP 471
+
+if ( 24 <= jFeatureVersion )
+  vmopts += " --illegal-native-access=deny"; // JEP 472
+
+Map<String,String> serverOptions = new HashMap<>(Map.of(
+  "client_min_messages", "info",
+  "pljava.vmoptions", vmopts,
+  "pljava.libjvm_location", libjvm.toString()
+));
+if ( 24 <= jFeatureVersion ) {
+  serverOptions.put("pljava.allow_unenforced", "java,java_tzset");
+  serverOptions.put("pljava.allow_unenforced_udt", "on");
+}
+
+Node n1 = Node.get_new_node("TestNode1");
+
+if ( s_isWindows )
+  n1.use_pg_ctl(true);
+
+/*
+ * Keep a tally of the three types of diagnostic notices that may be
+ * received, and, independently, how many represent no-good test results
+ * (error always, but also warning if seen from the tests in the
+ * examples.jar deployment descriptor).
+ */
+Map<String,Integer> results =
+  Stream.of("info", "warning", "error", "ng").collect(
+    LinkedHashMap<String,Integer>::new,
+    (m,k) -> m.put(k, 0), (r,s) -> {});
+
+boolean isDiagnostic(Object o, Set<String> whatIsNG)
+{
+  if ( ! ( o instanceof Throwable ) )
+    return false;
+  String[] parts = Node.classify((Throwable)o);
+  String type = parts[0];
+  String message = parts[2];
+  results.compute(type, (k,v) -> 1 + v);
+  if ( whatIsNG.contains(type) )
+    if ( ! "warning".equals(type)  ||  ! message.startsWith("[JEP 411]") )
+      results.compute("ng", (k,v) -> 1 + v);
+  return true;
+}
+
+/*
+ * Write a trial policy into a temporary file in n's data_dir,
+ * and set pljava.vmoptions accordingly over connection c.
+ * Returns the 'succeeding' flag from the state machine looking
+ * at the command results.
+ */
+boolean useTrialPolicy(Node n, Connection c, List<String> contents)
+throws Exception
+{
+  Path trialPolicy =
+    createTempFile(n.data_dir().getParent(), "trial", "policy");
+
+  write(trialPolicy, contents);
+
+  PreparedStatement setVmOpts = c.prepareStatement(
+    "SELECT null::pg_catalog.void" +
+    " FROM pg_catalog.set_config('pljava.vmoptions', ?, false)"
+  );
+
+  setVmOpts.setString(1, vmopts +
+    " -Dorg.postgresql.pljava.policy.trial=" + trialPolicy.toUri());
+
+  return stateMachine(
+    "change pljava.vmoptions",
+    null,
+
+    q(setVmOpts, setVmOpts::execute)
+    .flatMap(Node::semiFlattenDiagnostics)
+    .peek(Node::peek),
+
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+    (o,p,q) -> null == o
+  );
+}
+
+/*
+ * Load the PL/Java extension and return true for success.
+ */
+boolean loadPLJava(Node n) throws Exception
+{
+  try ( Connection c = n.connect() )
+  {
+    return stateMachine(
+      "create extension no result",
+      null,
+
+      q(c, "CREATE EXTENSION pljava")
+      .flatMap(Node::semiFlattenDiagnostics)
+      .peek(Node::peek),
+
+      // state 1: consume any diagnostics, or to state 2 with same item
+      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+
+      NOTHING_OR_PGJDBC_ZERO_COUNT, // state 2
+
+      // state 3: must be end of input
+      (o,p,q) -> null == o
+    );
+  }
+}
+
+/*
+ * Load the PL/Java (and Saxon) examples and execute the deployment descriptors,
+ * which include regression tests.
+ * Return true if that was successfully done, which doesn't mean the tests all
+ * necessarily passed, unless results.get("ng") is also zero afterward.
+ */
+boolean loadExamplesAndTest(Connection c) throws Exception
+{
+  return stateMachine(
+    "saxon path examples path",
+    null,
+
+    Node.installSaxonAndExamplesAndPath(c,
+      System.getProperty("mavenRepo"),
+      System.getProperty("saxonVer"),
+      true)
+    .flatMap(Node::semiFlattenDiagnostics)
+    .peek(Node::peek),
+
+    // states 1,2: diagnostics* then a void result set (saxon install)
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
+
+    // states 3,4: diagnostics* then a void result set (set classpath)
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 3 : -4,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 5 : false,
+
+    // states 5,6: diagnostics* then void result set (example install)
+    (o,p,q) -> isDiagnostic(o, Set.of("error", "warning")) ? 5 : -6,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 7 : false,
+
+    // states 7,8: diagnostics* then a void result set (set classpath)
+    (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 7 : -8,
+    (o,p,q) -> isVoidResultSet(o, 1, 1) ? 9 : false,
+
+    // state 9: must be end of input
+    (o,p,q) -> null == o
+  );
+}
+
+int pgMajorVersion;
