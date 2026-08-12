@@ -195,9 +195,9 @@ static void reLogWithChangedLevel(int);
 #endif
 
 #ifdef USE_PLJAVA_SIGHANDLERS
-static void pljavaStatementCancelHandler(int);
-static void pljavaDieHandler(int);
-static void pljavaQuickDieHandler(int);
+static void pljavaStatementCancelHandler(SIGNAL_ARGS);
+static void pljavaDieHandler(SIGNAL_ARGS);
+static void pljavaQuickDieHandler(SIGNAL_ARGS);
 #endif
 
 enum initstage
@@ -1363,7 +1363,7 @@ static char* getModulePath(const char* prefix)
 
 #ifdef USE_PLJAVA_SIGHANDLERS
 
-static void pljavaStatementCancelHandler(int signum)
+static void pljavaStatementCancelHandler(SIGNAL_ARGS)
 {
 	if(!proc_exit_inprogress)
 	{
@@ -1376,7 +1376,7 @@ static void pljavaStatementCancelHandler(int signum)
 	}
 }
 
-static void pljavaDieHandler(int signum)
+static void pljavaDieHandler(SIGNAL_ARGS)
 {
 	if(!proc_exit_inprogress)
 	{
@@ -1389,7 +1389,7 @@ static void pljavaDieHandler(int signum)
 	}
 }
 
-static void pljavaQuickDieHandler(int signum)
+static void pljavaQuickDieHandler(SIGNAL_ARGS)
 {
 	/* Just die. No ereporting here since we don't know what thread this is.
 	 */
