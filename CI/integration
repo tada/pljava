@@ -32,7 +32,7 @@
 /open CI/common
 
 try (
-  AutoCloseable t1 = n1.initialized_cluster(tweaks);
+  AutoCloseable t1 = n1.initialized_cluster(clusterOptions, tweaks);
   AutoCloseable t2 = n1.started_server(serverOptions, tweaks);
 )
 {
