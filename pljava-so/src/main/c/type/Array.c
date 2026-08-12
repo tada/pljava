@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -47,7 +47,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool wit
 		nBytes += ARR_OVERHEAD_NONULLS(1);
 	}
 	v = (ArrayType*)palloc0(nBytes);
-	AssertVariableIsOfType(v->dataoffset, int32);
+	StaticAssertVariableIsOfType(v->dataoffset, int32);
 	v->dataoffset = (int32)dataoffset;
 	MemoryContextSwitchTo(currCtx);
 
