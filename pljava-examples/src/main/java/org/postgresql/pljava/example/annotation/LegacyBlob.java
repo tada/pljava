@@ -29,11 +29,76 @@ import java.util.Arrays;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
+import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
 /**
- * Captures how PL/Java's Blob implementation has and hasn't worked.
+ * Captures how PL/Java's {@code Blob} implementation has and hasn't worked.
+ *<p>
+ * The {@link Blob} implementation in PL/Java, from inception and as currently
+ * found in the 1.6 series releases, has never been especially useful. It has
+ * used {@code Blob} objects as an alternative interface to binary byte
+ * sequences <em>stored inline in a tuple</em>, such as could also be accessed
+ * using, for example, {@link ResultSet#getBytes getBytes}. In this legacy
+ * design, you would apply {@code getBlob} to a column containing a large byte
+ * string, and be able to manipulate that content using the methods of {@code
+ * Blob} instead of as a byte array.
+ *<p>
+ * That contrasts with the function of {@code Blob} in the PGJDBC client-side
+ * driver: with that driver, you would apply {@code getBlob} to a column
+ * containing the oid of a PostgreSQL
+ * <a href="https://www.postgresql.org/docs/18/largeobjects.html">large
+ * object</a>, and the {@code Blob} object returned would allow you
+ * to manipulate the content of that out-of-tuple large object. That is almost
+ * certainly the way the JDBC {@code Blob} API was intended to be used, and
+ * the legacy PL/Java approach is not. On top of that, even the rather less
+ * useful PL/Java realization has never been quite fully implemented. It has,
+ * therefore, probably never been widely used, if at all.
+ *<p>
+ * These are not shortcomings to be corrected in the middle of a release series;
+ * some future PL/Java major release will need to include all-new {@code Blob}
+ * support in a thoroughly-revamped JDBC layer. The purpose of this example code
+ * is simply to document the current working (and non-working) of the current
+ * {@code Blob} support, as a guard against bit-rot making it even worse, just
+ * in case anyone anywhere has used it for something.
+ *<h2>The interim solution for using actual PostgreSQL large objects</h2>
+ * All is not lost for code that needs to manipulate actual large objects
+ * in PL/Java. It simply needs to use normal, non-{@code Blob} JDBC methods
+ * to call PostgreSQL's <a href=
+ * "https://www.postgresql.org/docs/18/lo-funcs.html">server-side large-object
+ * functions</a> directly.
  */
+@SQLAction(
+	requires = { "LegacyBlob members", "TypeRoundTripper.roundTrip" }, install =
+	"SELECT" +
+	"  CASE WHEN" +
+	"    rsgbs" +
+	"    AND ( crb.c1 = crb.c2)" +
+	"    AND (crbs.c1 = crbs.c2)" +
+	"    AND pssbs" +
+	"    AND pssb" +
+	"    AND bbout.class =" +
+	"       'org.postgresql.pljava.example.annotation.LegacyBlob$BlobbedBlob'" +
+	"    AND bbout.roundtripped = bbin.orig" +
+	"    AND sbout.class =" +
+	"       'org.postgresql.pljava.example.annotation.LegacyBlob$StreamedBlob'"+
+	"    AND sbout.roundtripped = sbin.orig" +
+	"  THEN javatest.logmessage('INFO', 'blob support has not grown worse')" +
+	"  ELSE javatest.logmessage('WARNING', 'blob support has grown worse')" +
+	"  END" +
+	" FROM" +
+	"  javatest.resultSetGetBinaryStream() AS rsgbs," +
+	"  javatest.compositeReturnBlob() AS crb," +
+	"  javatest.compositeReturnBinaryStream() AS crbs," +
+	"  javatest.preparedStmtSetBinaryStream() AS pssbs," +
+	"  javatest.preparedStmtSetBlob() AS pssb," +
+	"  (SELECT '(\\x01234567)'::javatest.blobbedblob) AS bbin(orig), " +
+	"  javatest.roundtrip(bbin)" +
+	"    AS bbout(class text, roundtripped javatest.blobbedblob)," +
+	"  (SELECT '(\\x76543210)'::javatest.streamedblob) AS sbin(orig), " +
+	"  javatest.roundtrip(sbin)" +
+	"    AS sbout(class text, roundtripped javatest.streamedblob)"
+)
 public class LegacyBlob
 {
 	private LegacyBlob() { } // do not instantiate
@@ -48,7 +113,7 @@ public class LegacyBlob
 	/**
 	 * Exercises getBinaryStream on ResultSet, returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyBlob members")
 	public static boolean resultSetGetBinaryStream()
 	throws SQLException, IOException
 	{
@@ -81,7 +146,8 @@ public class LegacyBlob
 	 * Exercises Blob in a composite return value, returning two bytea columns
 	 * that should be equal; also tests getBlob.
 	 */
-	@Function(schema = "javatest", out = { "c1 bytea", "c2 bytea" })
+	@Function(schema = "javatest", out = { "c1 bytea", "c2 bytea" },
+		provides = "LegacyBlob members")
 	public static boolean compositeReturnBlob(ResultSet toReturn)
 	throws SQLException, IOException
 	{
@@ -121,7 +187,8 @@ public class LegacyBlob
 	 * Exercises setting a composite return column using updateBinaryStream,
 	 * returning two bytea columns that should be equal.
 	 */
-	@Function(schema = "javatest", out = { "c1 bytea", "c2 bytea" })
+	@Function(schema = "javatest", out = { "c1 bytea", "c2 bytea" },
+		provides = "LegacyBlob members")
 	public static boolean compositeReturnBinaryStream(ResultSet toReturn)
 	throws SQLException, IOException
 	{
@@ -137,7 +204,7 @@ public class LegacyBlob
 	 * Exercises setBinaryStream on PreparedStatement,
 	 * returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyBlob members")
 	public static boolean preparedStmtSetBinaryStream()
 	throws SQLException, IOException
 	{
@@ -168,7 +235,7 @@ public class LegacyBlob
 	/**
 	 * Exercises setBlob on PreparedStatement, returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyBlob members")
 	public static boolean preparedStmtSetBlob()
 	throws SQLException, IOException
 	{
@@ -207,7 +274,11 @@ public class LegacyBlob
 		}
 	}
 
-	@MappedUDT(schema = "javatest", structure = { "b bytea" })
+	/**
+	 * A mapped user-defined-type used in testing legacy Blob support.
+	 */
+	@MappedUDT(schema = "javatest", structure = { "b bytea" },
+		provides = "LegacyBlob members")
 	public static class BlobbedBlob implements SQLData
 	{
 		private String name;
@@ -234,7 +305,12 @@ public class LegacyBlob
 		}
 	}
 
-	@MappedUDT(schema = "javatest", structure = { "b bytea" })
+	/**
+	 * A mapped user-defined-type used in testing legacy
+	 * (read/write)BinaryStream support.
+	 */
+	@MappedUDT(schema = "javatest", structure = { "b bytea" },
+		provides = "LegacyBlob members")
 	public static class StreamedBlob implements SQLData
 	{
 		private String name;

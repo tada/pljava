@@ -35,12 +35,78 @@ import java.util.Arrays;
 
 import org.postgresql.pljava.annotation.Function;
 import org.postgresql.pljava.annotation.MappedUDT;
+import org.postgresql.pljava.annotation.SQLAction;
 import org.postgresql.pljava.annotation.SQLType;
 
 /**
  * Captures how PL/Java's Clob implementation has and hasn't (hasn't, mostly)
  * worked.
+ *<p>
+ * The {@link Clob} implementation in PL/Java, from inception and as currently
+ * found in the 1.6 series releases, has never been especially useful. It has
+ * used {@code Clob} objects as an alternative interface to character strings
+ * <em>stored inline in a tuple</em>, such as could also be accessed
+ * using, for example, {@link ResultSet#getString getString}. In this legacy
+ * design, you would apply {@code getClob} to a column containing a large text
+ * string, and be able to manipulate that content using the methods of {@code
+ * Clob} instead of as a character string.
+ *<p>
+ * That contrasts with the function of {@code Clob} in the PGJDBC client-side
+ * driver: with that driver, you would apply {@code getClob} to a column
+ * containing the oid of a PostgreSQL
+ * <a href="https://www.postgresql.org/docs/18/largeobjects.html">large
+ * object</a>, and the {@code Clob} object returned would allow you
+ * to manipulate the content of that out-of-tuple large object. That is almost
+ * certainly the way the JDBC {@code Clob} API was intended to be used, and
+ * the legacy PL/Java approach is not. On top of that, even the rather less
+ * useful PL/Java realization has never been close to fully implemented. It has,
+ * therefore, probably never been widely used, if at all.
+ *<p>
+ * These are not shortcomings to be corrected in the middle of a release series;
+ * some future PL/Java major release will need to include all-new {@code Clob}
+ * support in a thoroughly-revamped JDBC layer. The purpose of this example code
+ * is simply to document the current working (and non-working) of the current
+ * {@code Clob} support, as a guard against bit-rot making it even worse, just
+ * in case anyone anywhere has used it for something.
+ *<h2>The interim solution for using actual PostgreSQL large objects</h2>
+ * All is not lost for code that needs to manipulate actual large objects
+ * in PL/Java. It simply needs to use normal, non-{@code Clob} JDBC methods
+ * to call PostgreSQL's <a href=
+ * "https://www.postgresql.org/docs/18/lo-funcs.html">server-side large-object
+ * functions</a> directly and (in the case of a {@code Clob}) apply appropriate
+ * character-set encodings.
  */
+@SQLAction(
+	requires = { "LegacyClob members", "TypeRoundTripper.roundTrip" }, install =
+	"SELECT" +
+	"  CASE WHEN" +
+	"    rsgcs AND rsgas" +
+	"    AND (crcs.c1 = crcs.c2)" +
+	"    AND (cras.c1 = cras.c2)" +
+	"    AND psscs AND pssas" +
+	"    AND scout.class =" +
+	"       'org.postgresql.pljava.example.annotation.LegacyClob$StreamedClob'"+
+	"    AND scout.roundtripped = scin.orig" +
+	"    AND acout.class =" +
+	"       'org.postgresql.pljava.example.annotation.LegacyClob$AsciiedClob'"+
+	"    AND acout.roundtripped = acin.orig" +
+	"  THEN javatest.logmessage('INFO', 'clob support has not grown worse')" +
+	"  ELSE javatest.logmessage('WARNING', 'clob support has grown worse')" +
+	"  END" +
+	" FROM" +
+	"  javatest.resultSetGetCharacterStream() AS rsgcs," +
+	"  javatest.resultSetGetAsciiStream() AS rsgas," +
+	"  javatest.compositeReturnCharacterStream() AS crcs," +
+	"  javatest.compositeReturnAsciiStream() AS cras," +
+	"  javatest.preparedStmtSetCharacterStream() AS psscs," +
+	"  javatest.preparedStmtSetAsciiStream() AS pssas," +
+	"  (SELECT '(PostgreSQL)'::javatest.streamedclob) AS scin(orig), " +
+	"  javatest.roundtrip(scin)" +
+	"    AS scout(class text, roundtripped javatest.streamedclob)," +
+	"  (SELECT '(LQSergtsoP)'::javatest.asciiedclob) AS acin(orig), " +
+	"  javatest.roundtrip(acin)" +
+	"    AS acout(class text, roundtripped javatest.asciiedclob)"
+)
 public class LegacyClob
 {
 	private LegacyClob() { } // do not instantiate
@@ -76,7 +142,7 @@ public class LegacyClob
 	/**
 	 * Exercises getCharacterStream on ResultSet, returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyClob members")
 	public static boolean resultSetGetCharacterStream()
 	throws SQLException, IOException
 	{
@@ -109,7 +175,7 @@ public class LegacyClob
 	/**
 	 * Exercises getAsciiStream on ResultSet, returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyClob members")
 	public static boolean resultSetGetAsciiStream()
 	throws SQLException, IOException
 	{
@@ -187,7 +253,8 @@ public class LegacyClob
 	 * Exercises setting a composite return column using updateCharacterStream,
 	 * returning two text columns that should be equal.
 	 */
-	@Function(schema = "javatest", out = { "c1 text", "c2 text" })
+	@Function(schema = "javatest", out = { "c1 text", "c2 text" },
+		provides = "LegacyClob members")
 	public static boolean compositeReturnCharacterStream(ResultSet toReturn)
 	throws SQLException, IOException
 	{
@@ -203,7 +270,8 @@ public class LegacyClob
 	 * Exercises setting a composite return column using updateAsciiStream,
 	 * returning two text columns that should be equal.
 	 */
-	@Function(schema = "javatest", out = { "c1 text", "c2 text" })
+	@Function(schema = "javatest", out = { "c1 text", "c2 text" },
+		provides = "LegacyClob members")
 	public static boolean compositeReturnAsciiStream(ResultSet toReturn)
 	throws SQLException, IOException
 	{
@@ -223,7 +291,7 @@ public class LegacyClob
 	 * Exercises setCharacterStream on PreparedStatement,
 	 * returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyClob members")
 	public static boolean preparedStmtSetCharacterStream()
 	throws SQLException, IOException
 	{
@@ -257,7 +325,7 @@ public class LegacyClob
 	 * Exercises setAsciiStream on PreparedStatement,
 	 * returning true for success.
 	 */
-	@Function(schema = "javatest")
+	@Function(schema = "javatest", provides = "LegacyClob members")
 	public static boolean preparedStmtSetAsciiStream()
 	throws SQLException, IOException
 	{
@@ -329,6 +397,9 @@ public class LegacyClob
 	}
 
 	// XXX writeClob produces Object.toString of the Clob instance
+	/**
+	 * A mapped user-defined-type used in testing legacy Clob support.
+	 */
 	@MappedUDT(schema = "javatest", structure = { "t text" })
 	public static class ClobbedClob implements SQLData
 	{
@@ -357,8 +428,13 @@ public class LegacyClob
 	}
 
 	// Now works! Formerly:
-	// XXX writeCharacterStream produces Object.toString of the Clob instance
-	@MappedUDT(schema = "javatest", structure = { "b text" })
+	// writeCharacterStream produces Object.toString of the Clob instance
+	/**
+	 * A mapped user-defined-type used in testing legacy
+	 * (read/write}CharacterStream support.
+	 */
+	@MappedUDT(schema = "javatest", structure = { "b text" },
+		provides = "LegacyClob members")
 	public static class StreamedClob implements SQLData
 	{
 		private String name;
@@ -394,7 +470,12 @@ public class LegacyClob
 
 	// Now works! Formerly:
 	// OutOfMemoryError: Requested array size exceeds VM limit
-	@MappedUDT(schema = "javatest", structure = { "b text" })
+	/**
+	 * A mapped user-defined-type used in testing legacy
+	 * (read/write}AsciiStream support.
+	 */
+	@MappedUDT(schema = "javatest", structure = { "b text" },
+		provides = "LegacyClob members")
 	public static class AsciiedClob implements SQLData
 	{
 		private String name;
