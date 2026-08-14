@@ -147,6 +147,12 @@ if ( 24 <= jFeatureVersion ) {
   serverOptions.put("pljava.allow_unenforced_udt", "on");
 }
 
+String pgConfigVersion = Node.getPgConfigProperty("--version");
+
+Map<String,String> clusterOptions =
+  Pattern.compile("\\b9\\.[56]").matcher(pgConfigVersion).find() ?
+  Map.of("--auth-host", "md5") : Map.of();
+
 Node n1 = Node.get_new_node("TestNode1");
 
 if ( s_isWindows )

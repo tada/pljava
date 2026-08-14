@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -390,7 +390,7 @@ void String_initialize(void)
 	Type_registerType2(VARCHAROID, "java.lang.String", String_obtain);
 }
 
-static void String_initialize_codec()
+static void String_initialize_codec(void)
 {
 	/*
 	 * Wondering why this function doesn't bother deleting its many local refs?

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -195,9 +195,9 @@ static void reLogWithChangedLevel(int);
 #endif
 
 #ifdef USE_PLJAVA_SIGHANDLERS
-static void pljavaStatementCancelHandler(int);
-static void pljavaDieHandler(int);
-static void pljavaQuickDieHandler(int);
+static void pljavaStatementCancelHandler(SIGNAL_ARGS);
+static void pljavaDieHandler(SIGNAL_ARGS);
+static void pljavaQuickDieHandler(SIGNAL_ARGS);
 #endif
 
 enum initstage
@@ -950,7 +950,7 @@ static void reLogWithChangedLevel(int level)
 	FreeErrorData(edata);
 }
 
-void _PG_init()
+void _PG_init(void)
 {
 	char *sep;
 
@@ -1122,7 +1122,7 @@ static const char DEATH_HINT[] =
 
 static void onJVMExitOrAbort(void);
 
-static void JNICALL my_abort()
+static void JNICALL my_abort(void)
 {
 	onJVMExitOrAbort();
 	ereport(FATAL, (
@@ -1147,7 +1147,7 @@ static void JNICALL my_exit(jint code)
 	));
 }
 
-static void onJVMExitOrAbort()
+static void onJVMExitOrAbort(void)
 {
 	/*
 	 * We will later hit the proc_exit handler, which will try to destroy the
@@ -1363,7 +1363,7 @@ static char* getModulePath(const char* prefix)
 
 #ifdef USE_PLJAVA_SIGHANDLERS
 
-static void pljavaStatementCancelHandler(int signum)
+static void pljavaStatementCancelHandler(SIGNAL_ARGS)
 {
 	if(!proc_exit_inprogress)
 	{
@@ -1376,7 +1376,7 @@ static void pljavaStatementCancelHandler(int signum)
 	}
 }
 
-static void pljavaDieHandler(int signum)
+static void pljavaDieHandler(SIGNAL_ARGS)
 {
 	if(!proc_exit_inprogress)
 	{
@@ -1389,7 +1389,7 @@ static void pljavaDieHandler(int signum)
 	}
 }
 
-static void pljavaQuickDieHandler(int signum)
+static void pljavaQuickDieHandler(SIGNAL_ARGS)
 {
 	/* Just die. No ereporting here since we don't know what thread this is.
 	 */
@@ -1397,7 +1397,7 @@ static void pljavaQuickDieHandler(int signum)
 }
 
 static sigjmp_buf recoverBuf;
-static void terminationTimeoutHandler()
+static void terminationTimeoutHandler(void)
 {
 	kill(MyProcPid, SIGQUIT);
 	

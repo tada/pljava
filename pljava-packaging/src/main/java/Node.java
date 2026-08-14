@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2024 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2015-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -29,6 +29,9 @@ import static java.util.regex.Pattern.compile;
 /*
  * For "Node" behavior:
  */
+
+import java.io.InterruptedIOException;
+import java.io.IOException;
 
 import static java.lang.ProcessBuilder.Redirect.INHERIT;
 import java.lang.reflect.InvocationHandler; // flexible SAM allowing exceptions
@@ -155,13 +158,13 @@ public class Node extends JarX {
 
 	private Matcher m_prefix;
 	private int m_fsepLength;
-	private String m_lineSep;
 	private boolean m_dryrun = false;
 
 	private static Node s_jarxHelper = new Node(null, 0, null, null);
 	private static boolean s_jarProcessed = false;
 	private static String s_examplesJar;
 	private static String s_sharedObject;
+	private static String s_lineSep = getProperty("line.separator");
 
 	/**
 	 * Performs an ordinary installation, using {@code pg_config} or the
@@ -205,7 +208,6 @@ public class Node extends JarX {
 	{
 		m_prefix = compile("^pljava/([^/]+dir)(?![^/])").matcher("");
 		m_fsepLength = getProperty("file.separator").length();
-		m_lineSep = getProperty("line.separator");
 	}
 
 	/**
@@ -227,42 +229,7 @@ public class Node extends JarX {
 			String replacement = getProperty(propkey);
 			if ( null == replacement )
 			{
-				String pgc = getProperty("pgconfig", "pg_config");
-				ProcessBuilder pb = new ProcessBuilder(pgc, "--"+key);
-				pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-				Process proc = pb.start();
-				byte[] output;
-				try ( InputStream instream = proc.getInputStream() )
-				{
-					proc.getOutputStream().close();
-					output = instream.readAllBytes();
-				}
-				finally
-				{
-					int status = proc.waitFor();
-					if ( 0 != status )
-					{
-						System.err.println(
-							"ERROR: pg_config status is "+status);
-						System.exit(1);
-					}
-				}
-				/*
-				 * pg_config output is the saved value followed by one \n only.
-				 * However, on Windows, the C library treats stdout as text mode
-				 * by default, and pg_config does nothing to change that, so the
-				 * single \n written by pg_config gets turned to \r\n before it
-				 * arrives here. The earlier use of the trim() method papered
-				 * over the problem, but trim() can remove too much. Simply have
-				 * to assume that the string will end with line.separator, and
-				 * remove that.
-				 */
-				replacement = defaultCharset().newDecoder()
-					.decode(ByteBuffer.wrap(output, 0, output.length))
-					.toString();
-				assert replacement.endsWith(m_lineSep);
-				replacement = replacement.substring(0,
-					replacement.length() - m_lineSep.length());
+				replacement = getPgConfigProperty("--"+key);
 				setProperty(propkey, replacement);
 			}
 			int plen = m_fsepLength - 1; /* original separator had length 1 */
@@ -287,6 +254,64 @@ public class Node extends JarX {
 	 * Members below this point represent the state and behavior of an instance
 	 * of this class that is acting as a "Node" rather than as the JarX helper.
 	 */
+
+	/**
+	 * Returns the output, decoded using default platform charset, of the
+	 * {@code pg_config} command executed with the single supplied argument.
+	 * <p>
+	 * If multiple versions of {@code pg_config} are available or
+	 * {@code pg_config} is not present on the path, the system property
+	 * {@code pgconfig} should be set as an absolute path to the desired
+	 * executable.
+	 * <p>
+	 * For example, {@code getPgConfigProperty("--version")} can be used if
+	 * version information is needed early for selecting options to pass to
+	 * {@code init} or {@code initialized_cluster}.
+	 *
+	 * @see #init(Map,UnaryOperator) init
+	 *
+	 * @param pgConfigArgument argument to be passed to the command
+	 * @return output of the input command executed with the input argument
+	 * @throws IOException if unable to read output of the command
+	 * @throws InterruptedException if command does not complete successfully
+	 */
+	public static String getPgConfigProperty(String pgConfigArgument)
+	throws IOException, InterruptedException
+	{
+		String pgc = getProperty("pgconfig", "pg_config");
+		ProcessBuilder pb = new ProcessBuilder(pgc, pgConfigArgument);
+		pb.redirectError(INHERIT);
+		Process proc = pb.start();
+		byte[] output;
+		try ( InputStream instream = proc.getInputStream() )
+		{
+			proc.getOutputStream().close();
+			output = instream.readAllBytes();
+		}
+		finally
+		{
+			int status = proc.waitFor();
+			if ( 0 != status )
+				throw new InterruptedIOException(
+					"pg_config has exited with status " + status);
+		}
+		/*
+		 * pg_config output is the saved value followed by one \n only.
+		 * However, on Windows, the C library treats stdout as text mode
+		 * by default, and pg_config does nothing to change that, so the
+		 * single \n written by pg_config gets turned to \r\n before it
+		 * arrives here. The earlier use of the trim() method papered
+		 * over the problem, but trim() can remove too much. Simply have
+		 * to assume that the string will end with line.separator, and
+		 * remove that.
+		 */
+		String replacement = defaultCharset().newDecoder()
+			.decode(ByteBuffer.wrap(output, 0, output.length))
+			.toString();
+		assert replacement.endsWith(s_lineSep);
+		return replacement.substring(0,
+			replacement.length() - s_lineSep.length());
+	}
 
 	/**
 	 * True if the platform is determined to be Windows.
@@ -792,20 +817,38 @@ public class Node extends JarX {
 	 * and <em>tweaks</em> to be applied to the {@code ProcessBuilder}
 	 * before it is started.
 	 *<p>
-	 * By default, {@code postgres} will be the name of the superuser, UTF-8
-	 * will be the encoding, {@code auth-local} will be {@code peer} and
-	 * {@code auth-host} will be {@code md5}. The initialization will skip
-	 * {@code fsync} for speed rather than safety (if something goes wrong, just
-	 * {@code clean_node()} and start over).
+	 * When any of the following is not present in <em>suppliedOptions</em>,
+	 * it will default as follows: {@code postgres} will be the name of
+	 * the superuser, UTF-8 will be the encoding, {@code auth-local} will be
+	 * {@code peer}, and {@code auth-host} will be an authentication method
+	 * using passwords (see below).
+	 *<p>
+	 * The initialization will, by default, skip {@code fsync} for speed rather
+	 * than safety (if something goes wrong, just {@code clean_node()} and
+	 * start over).
 	 *<p>
 	 * The {@code initdb} that will be run is the one in the {@code bindir}
 	 * reported by {@code pg_config} (or set by {@code -Dpgconfig.bindir}).
+	 *<p>
+	 * <strong>Password authentication methods:</strong> Early versions of
+	 * this class defaulted to {@code md5}, which has been deprecated. As of
+	 * this writing, the default is now {@code scram-sha-256}, which became
+	 * available in PostgreSQL 10. If this class is used in automated testing
+	 * of PL/Java support for earlier PostgreSQL releases, the script will need
+	 * to pass something like {@code Map.of("--auth-host", "md5")} with
+	 * <em>suppliedOptions</em>. A script that needs to make that decision can
+	 * use {@code getPgConfigProperty("--version")} to retrieve a version string
+	 * before calling this method (and, therefore, before a data directory has
+	 * been populated with a {@code PG_VERSION} file).
 	 * @param suppliedOptions a Map where each key is an option to initdb
 	 * (for example, --encoding), and the value corresponds.
 	 * @param tweaks a lambda applicable to the {@code ProcessBuilder} to
 	 * further configure it. On Windows, the tweaks will be applied ahead of
 	 * transformation of the arguments by
 	 * {@link #forWindowsCRuntime forWindowsCRuntime}.
+	 *
+	 * @see #initialized_cluster(Map,UnaryOperator) initialized_cluster
+	 * @see #getPgConfigProperty getPgConfigProperty
 	 */
 	public void init(
 		Map<String,String> suppliedOptions,
@@ -840,7 +883,7 @@ public class Node extends JarX {
 		options.putIfAbsent("--encoding", "utf-8");
 		options.putIfAbsent("--pwfile", pwfile.toString());
 		options.putIfAbsent("--auth-local", "peer");
-		options.putIfAbsent("--auth-host", "md5");
+		options.putIfAbsent("--auth-host", "scram-sha-256");
 		options.putIfAbsent("-N", null);
 
 		String[] args =

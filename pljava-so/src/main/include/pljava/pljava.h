@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -40,15 +40,17 @@ extern int vsnprintf(char* buf, size_t count, const char* format, va_list arg);
 #include <access/htup_details.h>
 
 /*
- * AssertVariableIsOfType appeared in PG9.3. Can test for the macro directly.
- * Likewise for StaticAssertStmt.
+ * StaticAssertVariableIsOfType first appeared, differently named, in PG9.3.
+ * Can test for the macro directly. Likewise for the macro flavor.
  */
-#ifndef AssertVariableIsOfType
-#define AssertVariableIsOfType(varname, typename)
+#ifndef StaticAssertVariableIsOfType
+#define StaticAssertVariableIsOfType(varname, typename) \
+	AssertVariableIsOfType(varname, typename)
 #endif
 
-#ifndef StaticAssertStmt
-#define StaticAssertStmt(condition, errmessage)
+#ifndef StaticAssertVariableIsOfTypeMacro
+#define StaticAssertVariableIsOfTypeMacro(varname, typename) \
+	AssertVariableIsOfTypeMacro(varname, typename)
 #endif
 
 /*
@@ -159,7 +161,7 @@ PointerGetJLong(const void *X)
 }
 
 #define JLongGet(T, X) \
-	(AssertVariableIsOfTypeMacro(X, jlong), (T)(uintptr_t)(X))
+	(StaticAssertVariableIsOfTypeMacro(X, jlong), (T)(uintptr_t)(X))
 
 struct Invocation_;
 typedef struct Invocation_ Invocation;

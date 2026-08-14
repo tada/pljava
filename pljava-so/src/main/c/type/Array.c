@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,17 +14,17 @@
 #include "pljava/type/Array.h"
 #include "pljava/Invocation.h"
 
-void arraySetNull(bits8* bitmap, int offset, bool flag)
+void arraySetNull(uint8* bitmap, int offset, bool flag)
 {
 	if(bitmap != 0)
 	{
 		int bitmask = 1 << (offset % 8);	
 		bitmap += offset / 8;
-		*bitmap = (bits8)(flag? *bitmap & ~bitmask : *bitmap | bitmask);
+		*bitmap = (uint8)(flag? *bitmap & ~bitmask : *bitmap | bitmask);
 	}
 }
 
-bool arrayIsNull(const bits8* bitmap, int offset)
+bool arrayIsNull(const uint8* bitmap, int offset)
 {
 	return bitmap == 0 ? false : !(bitmap[offset / 8] & (1 << (offset % 8)));
 }
@@ -47,7 +47,7 @@ ArrayType* createArrayType(jsize nElems, size_t elemSize, Oid elemType, bool wit
 		nBytes += ARR_OVERHEAD_NONULLS(1);
 	}
 	v = (ArrayType*)palloc0(nBytes);
-	AssertVariableIsOfType(v->dataoffset, int32);
+	StaticAssertVariableIsOfType(v->dataoffset, int32);
 	v->dataoffset = (int32)dataoffset;
 	MemoryContextSwitchTo(currCtx);
 
@@ -71,7 +71,7 @@ static jvalue _Array_coerceDatum(Type self, Datum arg)
 	jsize nElems = (jsize)ArrayGetNItems(ARR_NDIM(v), ARR_DIMS(v));
 	jobjectArray objArray = JNI_newObjectArray(nElems, Type_getJavaClass(elemType), 0);
 	const char* values = ARR_DATA_PTR(v);
-	bits8* nullBitMap = ARR_NULLBITMAP(v);
+	uint8* nullBitMap = ARR_NULLBITMAP(v);
 
 	for(idx = 0; idx < nElems; ++idx)
 	{
