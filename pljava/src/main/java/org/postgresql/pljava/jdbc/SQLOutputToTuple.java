@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -17,6 +17,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
@@ -39,6 +40,8 @@ import java.sql.Timestamp;
 
 import org.postgresql.pljava.internal.Tuple;
 import org.postgresql.pljava.internal.TupleDesc;
+
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readAllAsString;
 
 /**
  * Implementation of {@link SQLOutput} for the case of a composite data type.
@@ -86,8 +89,7 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeAsciiStream(InputStream value) throws SQLException
 	{
-		Reader rdr = new BufferedReader(new InputStreamReader(value, US_ASCII));
-		writeClob(new ClobValue(rdr, ClobValue.getReaderLength(rdr)));
+		writeCharacterStream(new InputStreamReader(value, US_ASCII));
 	}
 
 	public void writeBigDecimal(BigDecimal value) throws SQLException
@@ -97,9 +99,14 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeBinaryStream(InputStream value) throws SQLException
 	{
-		if(!value.markSupported())
-			value = new BufferedInputStream(value);
-		writeBlob(new BlobValue(value, BlobValue.getStreamLength(value)));
+		try
+		{
+			writeBytes(value.readAllBytes());
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
 	}
 
 	public void writeBlob(Blob value) throws SQLException
@@ -124,9 +131,7 @@ public class SQLOutputToTuple implements SQLOutput
 
 	public void writeCharacterStream(Reader value) throws SQLException
 	{
-		if(!value.markSupported())
-			value = new BufferedReader(value);
-		writeClob(new ClobValue(value, ClobValue.getReaderLength(value)));
+		writeString(readAllAsString(value));
 	}
 
 	public void writeClob(Clob value) throws SQLException

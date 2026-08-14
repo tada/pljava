@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -20,6 +20,7 @@ import java.sql.Date;
 import java.sql.Ref;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientException;
 import java.sql.SQLWarning;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -28,11 +29,18 @@ import java.net.URL;
 import java.util.Calendar;
 import java.util.Map;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
+import javax.sql.rowset.serial.SerialBlob;
+import javax.sql.rowset.serial.SerialClob;
+
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readNCharsAsString;
 
 /**
  * Implements most getters in terms of {@link #getValue}, {@link #getNumber},
@@ -102,14 +110,16 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link #getClob(int) getClob}.
+	 * Implemented over {@link #getString(int) getString}.
 	 */
 	@Override
 	public InputStream getAsciiStream(int columnIndex)
 	throws SQLException
 	{
-		Clob c = getClob(columnIndex);
-		return (c == null) ? null : c.getAsciiStream();
+		String s = getString(columnIndex);
+		if ( null == s )
+			return null;
+		return new ByteArrayInputStream(s.getBytes(US_ASCII));
 	}
 
 	/**
@@ -133,14 +143,14 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link #getBlob(int) getBlob}.
+	 * Implemented over {@link #getBytes(int) getBytes}.
 	 */
 	@Override
 	public InputStream getBinaryStream(int columnIndex)
 	throws SQLException
 	{
-		Blob b = getBlob(columnIndex);
-		return (b == null) ? null : b.getBinaryStream();
+		byte[] bytes = getBytes(columnIndex);
+		return (bytes == null) ? null : new ByteArrayInputStream(bytes);
 	}
 
 	/**
@@ -151,7 +161,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	throws SQLException
 	{
 		byte[] bytes = getBytes(columnIndex);
-		return (bytes == null) ? null :  new BlobValue(bytes);
+		return (bytes == null) ? null :  new SerialBlob(bytes);
 	}
 
 	/**
@@ -187,14 +197,14 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link #getClob(int) getClob}.
+	 * Implemented over {@link #getString(int) getString}.
 	 */
 	@Override
 	public Reader getCharacterStream(int columnIndex)
 	throws SQLException
 	{
-		Clob c = getClob(columnIndex);
-		return (c == null) ? null : c.getCharacterStream();
+		String s = getString(columnIndex);
+		return (s == null) ? null : new StringReader(s);
 	}
 
 	/**
@@ -205,7 +215,7 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	throws SQLException
 	{
 		String str = getString(columnIndex);
-		return (str == null) ? null :  new ClobValue(str);
+		return (str == null) ? null :  new SerialClob(str.toCharArray());
 	}
 	
 	/**
@@ -413,15 +423,14 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link ClobValue} and
-	 * {@link #updateObject updateObject}.
+	 * Implemented over {@link #updateObject updateObject}.
 	 */
 	@Override
 	public void updateAsciiStream(int columnIndex, InputStream x, int length)
 	throws SQLException
 	{
-		updateObject(columnIndex,
-			new ClobValue(new InputStreamReader(x, US_ASCII), length));
+		updateObject(columnIndex, null == x ? null :
+			readNCharsAsString(new InputStreamReader(x, US_ASCII), length));
 	}
 
 	/**
@@ -435,14 +444,28 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link BlobValue} and
-	 * {@link #updateBlob updateBlob}.
+	 * Implemented over {@link #updateBytes updateBytes}.
 	 */
 	@Override
 	public void updateBinaryStream(int columnIndex, InputStream x, int length)
 	throws SQLException
 	{
-		updateBlob(columnIndex, (Blob) new BlobValue(x, length));
+		// Java >= 11: bytes = x.readNBytes(length)
+		byte[] bytes = new byte[length];
+		try
+		{
+			int got = x.readNBytes(bytes, 0, length);
+			if ( got != length  ||  -1 != x.read() )
+			{
+				throw new SQLNonTransientException(
+					"updateBinaryStream explicit length incorrect", "38000");
+			}
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
+		updateBytes(columnIndex, bytes);
 	}
 
 	/**
@@ -486,14 +509,13 @@ public abstract class ObjectResultSet extends AbstractResultSet
 	}
 
 	/**
-	 * Implemented over {@link ClobValue} and
-	 * {@link #updateClob updateClob}.
+	 * Implemented over {@link #updateString updateString}.
 	 */
 	@Override
 	public void updateCharacterStream(int columnIndex, Reader x, int length)
 	throws SQLException
 	{
-		updateClob(columnIndex, (Clob) new ClobValue(x, length));
+		updateString(columnIndex, readNCharsAsString(x, length));
 	}
 
 	/**

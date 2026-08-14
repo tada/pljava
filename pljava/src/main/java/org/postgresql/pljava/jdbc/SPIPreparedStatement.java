@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -15,6 +15,7 @@ package org.postgresql.pljava.jdbc;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
@@ -41,6 +42,9 @@ import java.util.Calendar;
 
 import org.postgresql.pljava.internal.ExecutionPlan;
 import org.postgresql.pljava.internal.Oid;
+
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readNBytes;
+import static org.postgresql.pljava.jdbc.SPIDatabaseMetaData.readNCharsAsString;
 
 /**
  * Implementation of {@link PreparedStatement} for the SPI connection.
@@ -179,11 +183,11 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	}
 
 	@Override
-	public void setAsciiStream(int columnIndex, InputStream value, int length) throws SQLException
+	public void setAsciiStream(int columnIndex, InputStream value, int length)
+	throws SQLException
 	{
-		setObject(columnIndex,
-			new ClobValue(new InputStreamReader(value, US_ASCII), length),
-			Types.CLOB);
+		setObject(columnIndex, null == value ? null :
+			new String(readNBytes(value, length), US_ASCII), Types.CLOB);
 	}
 
 	@SuppressWarnings("deprecation") @Override
@@ -193,9 +197,17 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	}
 
 	@Override
-	public void setBinaryStream(int columnIndex, InputStream value, int length) throws SQLException
+	public void setBinaryStream(int columnIndex, InputStream value, int length)
+	throws SQLException
 	{
-		setObject(columnIndex, new BlobValue(value, length), Types.BLOB);
+		try
+		{
+			setObject(columnIndex, value.readAllBytes(), Types.VARBINARY);
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
 	}
 
 	@Override
@@ -378,7 +390,7 @@ public class SPIPreparedStatement extends SPIStatement implements PreparedStatem
 	public void setCharacterStream(int columnIndex, Reader value, int length)
 	throws SQLException
 	{
-		setObject(columnIndex, new ClobValue(value, length), Types.CLOB);
+		setObject(columnIndex, readNCharsAsString(value, length), Types.CLOB);
 	}
 
 	@Override

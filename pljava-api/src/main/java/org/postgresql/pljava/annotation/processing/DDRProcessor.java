@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -62,7 +62,7 @@ public class DDRProcessor extends AbstractProcessor
 		 * Update latest_tested to be the latest Java release on which this
 		 * annotation processor has been tested without problems.
 		 */
-		int latest_tested = 25;
+		int latest_tested = 26;
 		int ordinal_9 = SourceVersion.RELEASE_9.ordinal();
 		int ordinal_latest = latest_tested - 9 + ordinal_9;
 

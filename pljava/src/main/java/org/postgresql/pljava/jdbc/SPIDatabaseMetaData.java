@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2005-2026 Tada AB and other contributors, as listed below.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the The BSD 3-Clause License
@@ -14,6 +14,12 @@
 
 package org.postgresql.pljava.jdbc;
 
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.Reader;
+
+import java.nio.CharBuffer;
+
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -21,6 +27,7 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLNonTransientException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import static java.util.Arrays.sort;
@@ -57,6 +64,109 @@ public class SPIDatabaseMetaData implements DatabaseMetaData
 	private int NAMEDATALEN = 0; // length for name datatype
 
 	private int INDEX_MAX_KEYS = 0; // maximum number of keys in an index.
+
+	/*
+	 * Common methods used in the (mostly legacy, largely broken) Blob/Clob
+	 * implementation. Located here for their dependence, logically, on some
+	 * "database metadata" like VARHDRSZ.
+	 */
+
+	static byte[] readNBytes(InputStream is, long length)
+	throws SQLException
+	{
+		if ( null == is )
+			return null;
+
+		if ( 0 > length )
+		{
+			throw new SQLNonTransientException(
+				"explicit length passed with an InputStream is negative",
+				"22000");
+		}
+		else if ( length > Integer.MAX_VALUE - VARHDRSZ )
+		{
+			throw new SQLNonTransientException(
+				"explicit length passed with an InputStream is too large",
+				"54000");
+		}
+
+		// Java >= 11: bytes = x.readNBytes(length)
+		byte[] bytes = new byte[(int)length];
+		try
+		{
+			int got = is.readNBytes(bytes, 0, bytes.length);
+			if ( bytes.length == got  &&  -1 == is.read() )
+				return bytes;
+			throw new SQLNonTransientException(
+				"explicit length passed with an InputStream is incorrect",
+				"22000");
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
+	}
+
+	public static String readAllAsString(Reader r) throws SQLException
+	{
+		if ( null == r )
+			return null;
+
+		// Java >= 10: can use r.transferTo(...a StringWriter...)
+		// Java >= 25: can use r.readAllAsString()
+		try
+		{
+			CharBuffer cb = CharBuffer.allocate(2048);
+			StringBuilder sb = new StringBuilder();
+			while ( -1 != r.read(cb) )
+			{
+				sb.append(cb.flip());
+				cb.clear();
+			}
+			return sb.toString();
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
+	}
+
+	public static String readNCharsAsString(Reader r, long length)
+	throws SQLException
+	{
+		if ( null == r )
+			return null;
+
+		if ( 0 > length )
+		{
+			throw new SQLNonTransientException(
+				"explicit length passed with a Reader is negative",
+				"22000");
+		}
+		else if ( length > Integer.MAX_VALUE )
+		{
+			throw new SQLNonTransientException(
+				"explicit length passed with a Reader is too large",
+				"54000");
+		}
+
+		try
+		{
+			CharBuffer cb = CharBuffer.allocate((int)length);
+			int got;
+			while ( 0 < (got = r.read(cb)) )
+				;
+			if ( 0 == cb.remaining()  &&  -1 == r.read() )
+				return cb.flip().toString();
+			throw new SQLNonTransientException(
+				"explicit length passed with a Reader is incorrect",
+				"22000");
+		}
+		catch ( IOException e )
+		{
+			throw new SQLException(e.getMessage(), e);
+		}
+	}
 
 	protected int getMaxIndexKeys() throws SQLException
 	{

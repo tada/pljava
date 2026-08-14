@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2020 Tada AB and other contributors, as listed below.
+ * Copyright (c) 2004-2026 Tada AB and other contributors, as listed below.
  * Copyright (c) 2010, 2011 PostgreSQL Global Development Group
  *
  * All rights reserved. This program and the accompanying materials
@@ -13,6 +13,7 @@
  */
 package org.postgresql.pljava.jdbc;
 
+import java.sql.Blob;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -91,8 +92,8 @@ public class SingleRowWriter extends SingleRowResultSet
 
 		Class<?> c = m_tupleDesc.getColumnClass(columnIndex);
 		TypeBridge<?>.Holder xAlt = TypeBridge.wrap(x);
-		if(null == xAlt  &&  !c.isInstance(x)
-		&& !(c == byte[].class && (x instanceof BlobValue)))
+		if ( null == xAlt  &&  !c.isInstance(x)
+			&& !( c == byte[].class && (x instanceof Blob) ) )
 		{
 			if(Number.class.isAssignableFrom(c))
 				x = SPIConnection.basicNumericCoercion(c, x);
