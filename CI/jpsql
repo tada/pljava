@@ -39,7 +39,7 @@ Map<String,String> jdwp(boolean suspend)
 
 import static org.postgresql.pljava.packaging.Node.qp;
 
-n1.init(tweaks);
+n1.init(clusterOptions, tweaks);
 n1.start(serverOptions, tweaks);
 
 Connection c = n1.connect();
