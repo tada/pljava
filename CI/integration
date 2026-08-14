@@ -205,18 +205,27 @@ try (
     /*
      * Also confirm that the generated undeploy actions work.
      */
-    succeeding &= stateMachine(
-      "remove jar void result",
-      null,
+    unloadExamples(c);
 
-      q(c, "SELECT sqlj.remove_jar('examples', true)")
-      .flatMap(Node::semiFlattenDiagnostics)
-      .peek(Node::peek),
+    /*
+     * Repeat the regression tests with check_function_bodies off (issue 544).
+     */
+    try ( Connection c2 = n1.connect() )
+    {
+      succeeding &= stateMachine(
+	"check_function_bodies off",
+	null,
 
-      (o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
-      (o,p,q) -> isVoidResultSet(o, 1, 1) ? 3 : false,
-      (o,p,q) -> null == o
-    );
+	q(c2, "SET check_function_bodies TO off")
+	.flatMap(Node::semiFlattenDiagnostics)
+	.peek(Node::peek),
+
+	(o,p,q) -> isDiagnostic(o, Set.of("error")) ? 1 : -2,
+	NOTHING_OR_PGJDBC_ZERO_COUNT,
+	(o,p,q) -> null == o
+      );
+      succeeding &= loadExamplesAndTest(c2) && unloadExamples(c2);
+    }
 
     /*
      * Get another new connection and make sure the extension can be
