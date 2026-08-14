@@ -54,7 +54,7 @@ static Datum _byte_array_coerceObject(Type self, jobject byteArray)
 			ereport(ERROR, (
 				errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 				errmsg("cannot accommodate reported Blob length " INT64_FORMAT,
-					length)
+					(int64_t)length)
 			));
 		}
 		byteArray =
